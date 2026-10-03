@@ -381,9 +381,16 @@ export function colors(on: On): void {
           'Pick the colors of everything the Clubhouse draws. Choose what to color, then nudge it, pick a preset, type a hex code or describe a look. /clubhouse colors opens this.',
         )}
 
-        <Box>
+        <Box gap={1} flexWrap="wrap">
           <Button key="reset-colors" label="Reset all to default" onPress={() => void keep($, resetLook)} />
+          <Button
+            key="sidebar"
+            label={chosen.coversSidebar === true ? 'Sidebar: your color too' : 'Sidebar: the app\'s own look'}
+            variant={chosen.coversSidebar === true ? 'primary' : 'secondary'}
+            onPress={() => void keep($, held => ({ ...held, coversSidebar: held.coversSidebar !== true }))}
+          />
         </Box>
+        {note('Experiment: the Sidebar button extends your color over the list of sessions on the left, so the whole Claude window matches.')}
         {note(
           !chosen.isHelperReady
             ? 'The helper that colors the whole session is not installed on this Mac, so the Background only colors the Clubhouse and the conversation rows. Ask Claude to build it.'

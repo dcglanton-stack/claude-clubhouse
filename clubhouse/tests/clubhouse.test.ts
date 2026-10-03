@@ -843,7 +843,7 @@ test('with the helper the whole app takes the color and the Clubhouse paints not
   expect(seen.launched).toEqual([])
 
   await ui.press({ key: 'look-slate' })
-  expect(config()).toEqual({ enabled: true, target: '#141413', ink: '#faf9f5', radius: 18, isLightApp: false, boost: 1.9 })
+  expect(config()).toEqual({ enabled: true, target: '#141413', ink: '#faf9f5', radius: 18, isLightApp: false, boost: 1.9, coverSidebar: false })
   expect(seen.launched).toHaveLength(1)
   expect(seen.launched[0]).toMatch(/clubhouse-helper\/window-tint/)
   expect(await painted(ui)).toBe(false)
@@ -855,14 +855,14 @@ test('with the helper the whole app takes the color and the Clubhouse paints not
 
   seen.appTheme = LIGHT_APP
   await ui.press({ key: 'look-slate' })
-  expect(config()).toEqual({ enabled: true, target: '#141413', ink: '#faf9f5', radius: 18, isLightApp: true, boost: 1.9 })
+  expect(config()).toEqual({ enabled: true, target: '#141413', ink: '#faf9f5', radius: 18, isLightApp: true, boost: 1.9, coverSidebar: false })
   expect(await ui.find({ type: 'Text', text: /This is a dark color on a light app/ })).toBeDefined()
   seen.appTheme = DARK_APP
   await ui.press({ key: 'look-slate' })
   expect(await ui.find({ type: 'Text', text: /swaps light and dark/ })).toBeUndefined()
 
   await ui.press({ key: 'look-ivory' })
-  expect(config()).toEqual({ enabled: true, target: '#faf9f5', ink: '#141413', radius: 18, isLightApp: false, boost: 1.9 })
+  expect(config()).toEqual({ enabled: true, target: '#faf9f5', ink: '#141413', radius: 18, isLightApp: false, boost: 1.9, coverSidebar: false })
   expect(await ui.find({ type: 'Text', text: /This is a light color on a dark app/ })).toBeDefined()
   expect(await painted(ui)).toBe(false)
   await ui.press({ key: 'look-slate' })
@@ -1920,4 +1920,24 @@ test('a nearly full conversation offers a handoff file, written after the next p
   await finish()
   expect(seen.submitted).toHaveLength(1)
   await bar.unmount()
+})
+
+test('the Sidebar switch tells the helper to color the session list too', async ($, on) => {
+  const seen = world(on, 50, { hasHelper: true })
+  await start($)
+  const ui = await $.ui.mount({
+    plugin: 'clubhouse',
+    surface: 'desktop',
+    component: 'Pane',
+    requestId: 'clubhouse-colors',
+    props: { ...PANE, title: 'Colors' },
+  })
+  const config = () => JSON.parse(seen.written.at(-1)?.text ?? '{}') as Record<string, unknown>
+
+  await ui.press({ key: 'preset-Forest' })
+  expect(config().coverSidebar).toBe(false)
+  await ui.press({ key: 'sidebar' })
+  expect((await ui.find({ key: 'sidebar' }))?.text).toBe('Sidebar: your color too')
+  expect(config().coverSidebar).toBe(true)
+  await ui.unmount()
 })

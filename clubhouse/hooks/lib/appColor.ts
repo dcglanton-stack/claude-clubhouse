@@ -116,5 +116,6 @@ export function helperConfig(prefs: Prefs): string {
     radius: CORNER_RADIUS,
     isLightApp: prefs.appMode === 'light',
     boost: HELPER_BOOST,
+    coverSidebar: prefs.coversSidebar === true,
   })}\n`
 }
