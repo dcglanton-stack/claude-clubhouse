@@ -24,7 +24,13 @@
     "usage-meter",
     "live-scores",
     "stock-ticker",
-    "weather"
+    "weather",
+    "sketch",
+    "summarize",
+    "design-suite",
+    "whiteboard",
+    "release-tags",
+    "skill-hider"
   ],
   "types": "./types/index.d.ts"
 }
