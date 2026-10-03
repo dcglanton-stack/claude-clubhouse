@@ -13,6 +13,16 @@ import {
   PREFS_SHAPE,
   agentSlug,
 } from '../lib/defaults'
+import {
+  DO_NOT_START,
+  START_ALL,
+  START_ONE,
+  capQuestion,
+  capRefusal,
+  fiveHourLeft,
+  isCapped,
+  liftUntil,
+} from '../lib/cap'
 import { makeParts } from '../lib/parts'
 
 const agentBank = atom({ plugin: 'clubhouse', key: 'agentBank' } as const, [])
@@ -22,6 +32,8 @@ const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS
   shape: PREFS_SHAPE,
 })
 const pulse = atom({ plugin: 'clubhouse', key: 'pulse' } as const, 0)
+const limits = atom({ plugin: 'clubhouse', key: 'limits' } as const, [])
+const capLiftedUntil = atom({ plugin: 'clubhouse', key: 'capLiftedUntil' } as const, null)
 
 const ROW_UNIT = 2
 const HEAD_UNIT = 3
@@ -57,6 +69,7 @@ const BLANK_DRAFT: Draft = { name: '', purpose: '', prompt: '', model: AUTO }
 
 let draft: Draft = BLANK_DRAFT
 let task = ''
+let ownDispatches = 0
 
 function reason(error: unknown): string {
   return error instanceof Error ? error.message : 'unknown error'
@@ -141,11 +154,16 @@ async function dispatch($: EngineInterface, name: string): Promise<void> {
   }
 
   try {
-    const started = await $.agent.spawn({
-      subagentType: `${AGENT_PREFIX}${name}`,
-      prompt: orders,
-      description: `${name}: ${orders.slice(0, 48)}`,
-    })
+    ownDispatches += 1
+    const started = await $.agent
+      .spawn({
+        subagentType: `${AGENT_PREFIX}${name}`,
+        prompt: orders,
+        description: `${name}: ${orders.slice(0, 48)}`,
+      })
+      .finally(() => {
+        ownDispatches -= 1
+      })
 
     if (started.deny !== undefined) {
       await tell($, `${name} was not sent: ${started.deny}`)
@@ -201,6 +219,26 @@ async function standDown($: EngineInterface, id: string, label: string): Promise
 
 export function agents(on: On): void {
   on('agent.spawn', async ($, e, next) => {
+    const at = await $.clock.now()
+    const list = await read($, limits)
+    const cap = (await read($, prefs)).spendCap ?? 0
+    const left = fiveHourLeft(list, at)
+
+    if (ownDispatches === 0 && left !== null && isCapped({ cap, left, liftedUntil: await read($, capLiftedUntil), at })) {
+      const answer = await $.ui
+        .ask(capQuestion(left, cap, e.description), {
+          header: 'Spend cap',
+          options: [START_ONE, START_ALL, DO_NOT_START],
+        })
+        .catch(() => DO_NOT_START)
+
+      if (answer === START_ALL) {
+        await update($, capLiftedUntil, () => liftUntil(list, at))
+      } else if (answer !== START_ONE) {
+        return { deny: capRefusal(left, cap) }
+      }
+    }
+
     const started = await next(e)
 
     try {

@@ -174,7 +174,10 @@ export function recipesRoom(on: On): void {
       <Box flexDirection="column" gap={1} {...frame}>
         {title('Recipes')}
         {note(
-          'Turn a command you would type in a terminal into a tool Claude can call by name, the same way every time. /clubhouse recipes opens this.',
+          'A recipe is a shortcut for Claude. Save a command you would type in a terminal once, and from then on Claude runs exactly that command when you ask, in any session. /clubhouse recipes opens this.',
+        )}
+        {note(
+          'Example: name db_push, command supabase db push. After that, "push the database" is one step for Claude and you never open the terminal.',
         )}
         {form}
         {view.note !== null && plain(view.note)}

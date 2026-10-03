@@ -48,6 +48,7 @@ export type Prefs = {
   barCount: number
   shortcuts: Shortcut[]
   autoSummary: boolean
+  spendCap: number
   appMode: 'dark' | 'light'
   reach: Reach
   isHelperReady: boolean
@@ -86,6 +87,44 @@ export type Recipe = { name: string; about: string; command: string }
 export type RecipeTrial = { name: string; text: string }
 
 export type RecipesView = { note: string | null; editing: string | null; trial: RecipeTrial | null }
+
+export type WatchTrigger = 'fails' | 'stalls' | 'changes' | 'always'
+
+export type SavedWatch = {
+  name: string
+  task: string
+  command: string
+  trigger: WatchTrigger
+  isQuiet: boolean
+  everyMinutes: number
+  maxChecks: number
+}
+
+export type Watch = {
+  id: string
+  name: string
+  task: string
+  command: string
+  trigger: WatchTrigger
+  isQuiet: boolean
+  everyMinutes: number
+  maxChecks: number
+  checksDone: number
+  nextAt: number
+  lastOutput: string | null
+  wakesInARow: number
+  wokeAt: number | null
+}
+
+export type WatchEntry = { at: number; text: string }
+
+export type WatchView = {
+  note: string | null
+  everyMinutes: number
+  maxChecks: number
+  trigger: WatchTrigger
+  isQuiet: boolean
+}
 
 export type AgentModel = 'haiku' | 'sonnet' | 'opus' | 'inherit'
 
@@ -130,6 +169,11 @@ declare module 'claude-code' {
       opinion: Opinion
       recipes: Recipe[]
       recipesView: RecipesView
+      watches: Watch[]
+      watchLog: WatchEntry[]
+      watchView: WatchView
+      savedWatches: SavedWatch[]
+      capLiftedUntil: number | null
     }
   }
 }

@@ -53,6 +53,7 @@ export const DEFAULT_PREFS: Prefs = {
   barCount: 1,
   shortcuts: [],
   autoSummary: false,
+  spendCap: 0,
   appMode: 'dark',
   reach: 'app',
   isHelperReady: false,
@@ -90,6 +91,7 @@ export const USAGE_PANE = 'clubhouse-usage'
 export const SUMMARY_PANE = 'clubhouse-summary'
 export const TOOLS_PANE = 'clubhouse-tools'
 export const RECIPES_PANE = 'clubhouse-recipes'
+export const WATCH_PANE = 'clubhouse-watch'
 export const OPINION_PANE = 'clubhouse-opinion'
 export const TOOL_RULES_KEY = 'toolRules'
 export const DEFAULT_TOOLS_VIEW: ToolsView = { filter: '', note: null, open: [] }
@@ -128,6 +130,12 @@ export const ROOMS: readonly Room[] = [
     title: 'Recipes',
     word: 'recipes',
     about: 'Turn a terminal command into a tool Claude can call.',
+  },
+  {
+    id: WATCH_PANE,
+    title: 'Night watch',
+    word: 'watch',
+    about: 'Check on things while you are away, and wake Claude when needed.',
   },
   {
     id: COMMANDS_PANE,
@@ -232,6 +240,7 @@ export function mergePrefs(saved: unknown): Prefs {
     barCount,
     shortcuts: asShortcuts(saved.shortcuts, barCount),
     autoSummary: saved.autoSummary === true,
+    spendCap: typeof saved.spendCap === 'number' && saved.spendCap > 0 && saved.spendCap <= 90 ? Math.round(saved.spendCap) : 0,
     appMode: saved.appMode === 'light' ? 'light' : 'dark',
     reach: saved.reach === 'rooms' || saved.reach === 'conversation' ? saved.reach : 'app',
     isHelperReady: saved.isHelperReady === true,

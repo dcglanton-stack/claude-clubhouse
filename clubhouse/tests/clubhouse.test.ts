@@ -1,10 +1,11 @@
 import { expect, mock, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
-import type { Engine } from 'claude-code/testing'
+import type { Engine, MockClock } from 'claude-code/testing'
 
 import { appModeFrom } from '../hooks/lib/appColor'
 import { pixelFor, shownFrom, toDisplay, toneFor } from '../hooks/lib/tone'
 import { serifSize } from '../hooks/lib/type'
+import { DEFAULT_WATCH_VIEW, stepOf, watchFrom } from '../hooks/lib/watch'
 
 const NOW = Date.UTC(2026, 9, 3, 9)
 const SURFACES = ['desktop', 'terminal'] as const
@@ -42,6 +43,9 @@ type World = {
   tools: { name: string; description: string }[]
   verdict: 'allow' | 'ask' | 'deny'
   output: string
+  exitCode: number
+  submitted: string[]
+  clock: MockClock
 }
 
 type Setup = { hasHelper?: boolean; stored?: Record<string, unknown> }
@@ -67,9 +71,16 @@ function world(on: On, fiveHourUsed: number, setup: Setup = {}): World {
     tools: [],
     verdict: 'allow',
     output: '',
+    exitCode: 0,
+    submitted: [],
+    clock: mock.clock(on, { now: NOW }),
   }
 
-  mock.clock(on, { now: NOW })
+  on('prompt.submit', (_$, e) => {
+    seen.submitted.push(e.text)
+
+    return { text: e.text }
+  })
   mock.store(on, setup.stored ?? {})
   on('fs.exists', () => ({ value: setup.hasHelper === true }))
   on('fs.write', (_$, e) => {
@@ -85,7 +96,7 @@ function world(on: On, fiveHourUsed: number, setup: Setup = {}): World {
 
     return {
       value: {
-        exitCode: 0,
+        exitCode: isModeCheck ? 0 : seen.exitCode,
         stdout: isModeCheck ? seen.appTheme : seen.output,
         stderr: '',
         isStdoutTruncated: false,
@@ -352,7 +363,7 @@ for (const surface of SURFACES) {
     expect((await ui.find({ key: 'power' }))?.text).toBe('Off')
 
     await ui.press({ key: 'tab-more' })
-    expect(await ui.find({ type: 'Text', text: /Night watch/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /Session notes/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /Workshop: recipes/ })).toBeUndefined()
     await ui.unmount()
   })
@@ -1287,4 +1298,239 @@ test('saved recipes are tools again in the next session, and Tool rules still ap
   const blocked = await $.tool.call({ tool: 'mcp__clubhouse__run_tests' } as Parameters<Engine['tool']['call']>[0])
   expect(blocked.deny).toMatch(/blocked the tool/)
   expect(seen.launched).toEqual([])
+})
+
+const HALF_HOUR = 30 * 60_000
+const WATCH_ID = `watch-${NOW}`
+
+for (const surface of SURFACES) {
+  test(`a night watch wakes Claude on its timer, and waits while Claude is still busy, on ${surface}`, async ($, on) => {
+    const seen = world(on, 50)
+    await start($)
+    const ui = await $.ui.mount({
+      plugin: 'clubhouse',
+      surface,
+      component: 'Pane',
+      requestId: 'clubhouse-watch',
+      props: { ...PANE, title: 'Night watch' },
+    })
+
+    await ui.press({ key: 'watch-start' })
+    expect(await ui.find({ type: 'Text', text: /Say what Claude should do/ })).toBeDefined()
+
+    await ui.input({ key: 'watch-task', text: 'Check the build is still going' })
+    await ui.press({ key: 'watch-start' })
+    expect(await ui.find({ type: 'Text', text: /The first check is in 30 minutes/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /Wakes Claude every 30 minutes\./ })).toBeDefined()
+
+    await seen.clock.advance(HALF_HOUR - 20_000)
+    expect(seen.submitted).toEqual([])
+
+    await seen.clock.advance(20_000)
+    expect(seen.submitted).toHaveLength(1)
+    expect(seen.submitted[0]).toMatch(/Night watch check 1 of 8\./)
+    expect(seen.submitted[0]).toMatch(/Their instruction: Check the build is still going/)
+    expect(await ui.find({ type: 'Text', text: /Check 1 of 8 · Check the build is still going: time to check\. Woke Claude\./ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /1 of 8 checks done · next check in 30m/ })).toBeDefined()
+
+    await seen.clock.advance(HALF_HOUR)
+    expect(seen.submitted).toHaveLength(1)
+    expect(await ui.find({ type: 'Text', text: /still busy with the last wake-up\. Skipped\./ })).toBeDefined()
+
+    expect((await ui.find({ key: `watch-stop-${WATCH_ID}` }))?.text).toBe('End watch')
+    await ui.press({ key: `watch-stop-${WATCH_ID}` })
+    expect(await ui.find({ key: `watch-stop-${WATCH_ID}` })).toBeUndefined()
+    expect(await ui.find({ type: 'Text', text: /Ended · Check the build is still going/ })).toBeDefined()
+    await seen.clock.advance(HALF_HOUR)
+    expect(seen.submitted).toHaveLength(1)
+    await ui.unmount()
+  })
+}
+
+test('a watch with a check command only wakes Claude when the command says something is wrong', async ($, on) => {
+  const seen = world(on, 50, {
+    stored: { recipes: [{ name: 'bot_alive', about: '', command: 'pgrep -f botfort' }] },
+  })
+  await start($)
+  const ui = await $.ui.mount({
+    plugin: 'clubhouse',
+    surface: 'desktop',
+    component: 'Pane',
+    requestId: 'clubhouse-watch',
+    props: { ...PANE, title: 'Night watch' },
+  })
+
+  await ui.press({ key: 'watch-recipe-bot_alive' })
+  await ui.press({ key: 'watch-start' })
+  expect(
+    await ui.find({ type: 'Text', text: /Runs pgrep -f botfort every 30 minutes\. Wakes Claude when the command fails\./ }),
+  ).toBeDefined()
+
+  seen.output = '4242\n'
+  await seen.clock.advance(HALF_HOUR)
+  expect(seen.launched.at(-1)).toBe('/bin/sh -c pgrep -f botfort')
+  expect(seen.submitted).toEqual([])
+  expect(await ui.find({ type: 'Text', text: /Check 1 of 8 · pgrep -f botfort: all fine\./ })).toBeDefined()
+
+  seen.exitCode = 1
+  seen.output = ''
+  await ui.press({ key: `watch-now-${WATCH_ID}` })
+  await seen.clock.advance(10_000)
+  expect(seen.submitted).toHaveLength(1)
+  expect(seen.submitted[0]).toMatch(/the check command failed \(exit code 1\)/)
+  expect(seen.submitted[0]).toMatch(/It printed nothing\./)
+  expect(seen.submitted[0]).toMatch(/Find out what is wrong/)
+  await ui.unmount()
+})
+
+test('a quiet watch only notes trouble, and no watch wakes Claude when the limit is nearly gone', async ($, on) => {
+  const seen = world(on, 95)
+  await start($)
+  const ui = await $.ui.mount({
+    plugin: 'clubhouse',
+    surface: 'desktop',
+    component: 'Pane',
+    requestId: 'clubhouse-watch',
+    props: { ...PANE, title: 'Night watch' },
+  })
+
+  seen.exitCode = 1
+  await ui.input({ key: 'watch-command', text: 'false' })
+  await ui.press({ key: 'watch-start' })
+  await seen.clock.advance(HALF_HOUR)
+  expect(seen.submitted).toEqual([])
+  expect(await ui.find({ type: 'Text', text: /under 10% of your 5-hour limit is left, so Claude was not woken/ })).toBeDefined()
+
+  await ui.press({ key: `watch-stop-${WATCH_ID}` })
+  await ui.input({ key: 'watch-command', text: 'false' })
+  await ui.press({ key: 'watch-quiet' })
+  expect((await ui.find({ key: 'watch-quiet' }))?.text).toBe('Just note it here')
+  await ui.press({ key: 'watch-start' })
+  await seen.clock.advance(HALF_HOUR)
+  expect(seen.submitted).toEqual([])
+  expect(seen.toasts.some(text => /Night watch: the check command failed \(false\)/.test(text))).toBe(true)
+  expect(await ui.find({ type: 'Text', text: /Noted here; Claude was not woken\./ })).toBeDefined()
+  await ui.unmount()
+})
+
+test('a watch step tells stalled from changed output, gives up after three wake-ups and ends on its last check', () => {
+  const ran = (stdout: string, exitCode = 0) => ({ exitCode, stdout, stderr: '' })
+  const facts = { at: 2000, percentLeft: 50, lastReplyAt: 9000 }
+  const stalls = watchFrom({ name: '', task: '', command: 'tail -1 log' }, { ...DEFAULT_WATCH_VIEW, trigger: 'stalls' }, 1000)
+  const first = stepOf(stalls, { ...facts, ran: ran('a') })
+  expect(first.prompt).toBeNull()
+  expect(stepOf(first.watch ?? stalls, { ...facts, ran: ran('b') }).prompt).toBeNull()
+  expect(stepOf(first.watch ?? stalls, { ...facts, ran: ran('a') }).prompt).toMatch(/has not changed since the last check/)
+
+  const changes = { ...stalls, trigger: 'changes' as const, lastOutput: 'a' }
+  expect(stepOf(changes, { ...facts, ran: ran('a') }).prompt).toBeNull()
+  expect(stepOf(changes, { ...facts, ran: ran('b') }).prompt).toMatch(/its output changed since the last check/)
+  expect(stepOf(changes, { ...facts, ran: ran('b') }).prompt).toMatch(/<output>\nb\n<\/output>/)
+
+  const fails = { ...stalls, trigger: 'fails' as const, wakesInARow: 2 }
+  const third = stepOf(fails, { ...facts, ran: ran('', 1) })
+  expect(third.watch).toBeNull()
+  expect(third.prompt).not.toBeNull()
+  expect(third.entry).toMatch(/Stopped the watch: that is 3 wake-ups in a row/)
+  expect(stepOf({ ...fails, wakesInARow: 1 }, { ...facts, ran: ran('', 0) }).watch?.wakesInARow).toBe(0)
+  expect(stepOf(fails, { ...facts, ran: null }).prompt).toMatch(/could not run or took over a minute/)
+
+  const woken = { ...fails, wakesInARow: 0, wokeAt: 1000 }
+  expect(stepOf(woken, { ...facts, lastReplyAt: null, ran: ran('', 1) }).entry).toMatch(/still busy/)
+  expect(stepOf(woken, { ...facts, at: 1000 + 3 * 3_600_000, lastReplyAt: null, ran: ran('', 1) }).prompt).not.toBeNull()
+
+  const last = stepOf({ ...stalls, checksDone: stalls.maxChecks - 1 }, { ...facts, ran: ran('a') })
+  expect(last.watch).toBeNull()
+  expect(last.entry).toMatch(/all fine\. That was the last check\./)
+  expect(last.toast).toMatch(/Night watch finished/)
+})
+
+test('a watch can be saved, started with one press in a later session, and deleted', async ($, on) => {
+  const seen = world(on, 50, {
+    stored: {
+      savedWatches: [
+        { name: 'BOTfort check', task: 'Restart it', command: 'pgrep -f botfort', trigger: 'fails', isQuiet: false, everyMinutes: 15, maxChecks: 4 },
+        { name: 'broken', task: 'x', command: '', everyMinutes: 7, maxChecks: 4 },
+      ],
+    },
+  })
+  await start($)
+  const ui = await $.ui.mount({
+    plugin: 'clubhouse',
+    surface: 'desktop',
+    component: 'Pane',
+    requestId: 'clubhouse-watch',
+    props: { ...PANE, title: 'Night watch' },
+  })
+
+  expect(await ui.find({ key: 'watch-saved-start-broken' })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /Runs pgrep -f botfort every 15 minutes\. Wakes Claude when the command fails\. 4 checks\./ })).toBeDefined()
+
+  await ui.press({ key: 'watch-saved-start-BOTfort check' })
+  expect(await ui.find({ key: `watch-now-${WATCH_ID}` })).toBeDefined()
+  seen.exitCode = 1
+  await seen.clock.advance(15 * 60_000)
+  expect(seen.submitted[0]).toMatch(/Their instruction: Restart it/)
+  expect(await ui.find({ type: 'Text', text: /Check 1 of 4 · BOTfort check: the check command failed\. Woke Claude\./ })).toBeDefined()
+
+  await ui.input({ key: 'watch-name', text: 'Deploy watch' })
+  await ui.input({ key: 'watch-task', text: 'Say whether the deploy finished' })
+  await ui.press({ key: 'watch-every' })
+  await ui.press({ key: 'watch-save' })
+  expect(await ui.find({ key: 'watch-saved-start-Deploy watch' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Wakes Claude every 60 minutes\. 8 checks\./ })).toBeDefined()
+  expect(await ui.find({ key: 'watch-stop-watch-' + String(NOW + 15 * 60_000) })).toBeUndefined()
+
+  await ui.press({ key: 'watch-saved-delete-BOTfort check' })
+  expect(await ui.find({ key: 'watch-saved-start-BOTfort check' })).toBeUndefined()
+  await ui.unmount()
+})
+
+test('the spend cap makes Claude ask before starting a helper agent when the limit is low', async ($, on) => {
+  const seen = world(on, 85)
+  await start($)
+  const ui = await $.ui.mount({
+    plugin: 'clubhouse',
+    surface: 'desktop',
+    component: 'Pane',
+    requestId: 'clubhouse-usage',
+    props: { ...PANE, title: 'Usage' },
+  })
+  const spawn = () =>
+    $.agent.spawn({ subagentType: 'Explore', prompt: 'Look around', description: 'map the repo' } as Parameters<
+      Engine['agent']['spawn']
+    >[0])
+
+  expect((await ui.find({ key: 'spend-cap' }))?.text).toBe('Spend cap: off')
+  expect((await spawn()).deny).toBeUndefined()
+  expect(seen.spawned).toHaveLength(1)
+
+  await ui.press({ key: 'spend-cap' })
+  expect((await ui.find({ key: 'spend-cap' }))?.text).toBe('Spend cap: ask under 10% left')
+  expect(await ui.find({ type: 'Text', text: /You are above the cap/ })).toBeDefined()
+  expect((await spawn()).deny).toBeUndefined()
+
+  await ui.press({ key: 'spend-cap' })
+  expect((await ui.find({ key: 'spend-cap' }))?.text).toBe('Spend cap: ask under 20% left')
+  expect(await ui.find({ type: 'Text', text: /You are under the cap now/ })).toBeDefined()
+
+  seen.answer = 'Do not start it'
+  const refused = await spawn()
+  expect(refused.deny).toMatch(/spend cap in Claude Clubhouse stopped this helper agent: 15% of the 5-hour limit is left/)
+  expect(seen.spawned).toHaveLength(2)
+
+  seen.answer = 'Start this one'
+  expect((await spawn()).deny).toBeUndefined()
+  expect(seen.spawned).toHaveLength(3)
+
+  seen.answer = 'Start them until the limit resets'
+  expect((await spawn()).deny).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /You lifted the cap for the next 2h 0m\./ })).toBeDefined()
+  seen.answer = 'Do not start it'
+  expect((await spawn()).deny).toBeUndefined()
+  expect(seen.spawned).toHaveLength(5)
+
+  await ui.press({ key: 'spend-cap-restore' })
+  expect((await spawn()).deny).toMatch(/spend cap/)
+  await ui.unmount()
 })
