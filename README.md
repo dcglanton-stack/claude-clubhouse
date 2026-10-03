@@ -13,6 +13,7 @@ Source and updates: https://github.com/dcglanton-stack/claude-clubhouse
 - [Install](#install)
 - [Use it](#use-it)
 - [What it does on your computer](#what-it-does-on-your-computer)
+- [Troubleshooting](#troubleshooting)
 - [Every feature](#every-feature)
 - [Change it yourself](#change-it-yourself)
 - [License and credits](#license-and-credits)
@@ -207,6 +208,20 @@ It reads no tokens, keys or other credentials (`formatTokens` in the source form
 - `command.describe` and `prompt.attachment` remove the commands and skills you hid from the slash menu and from what Claude is told.
 - `tool.describe` asks for your recipes to be listed for Claude.
 - `turn.complete` and `session.measure` update the usage meter.
+
+## Troubleshooting
+
+| Problem | What to do |
+| --- | --- |
+| `/clubhouse` is not a command | Start a new session; plugins load when a session starts. In the desktop app, quit and reopen it. Check the session is **Local**, not Cloud. |
+| The toolbar is missing | Type `/clubhouse on`. |
+| The window color is missing | Type `/clubhouse build`, then open Colors. The helper writes what it is doing to `~/.claude/clubhouse-helper/tint.log`. |
+| A price or score stopped updating | Yahoo's and ESPN's feeds are unofficial and sometimes refuse requests. It recovers on its own. |
+| Everything shows twice | The Clubhouse is installed two ways. Remove one. |
+
+For anything else, or a security concern, open an issue: https://github.com/dcglanton-stack/claude-clubhouse/issues
+
+Privacy policy: [PRIVACY.md](https://github.com/dcglanton-stack/claude-clubhouse/blob/main/PRIVACY.md)
 
 ## Every feature
 

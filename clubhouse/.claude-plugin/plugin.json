@@ -7,6 +7,9 @@
   },
   "homepage": "https://github.com/dcglanton-stack/claude-clubhouse",
   "repository": "https://github.com/dcglanton-stack/claude-clubhouse",
+  "documentationUrl": "https://github.com/dcglanton-stack/claude-clubhouse#readme",
+  "supportUrl": "https://github.com/dcglanton-stack/claude-clubhouse/issues",
+  "privacyPolicyUrl": "https://github.com/dcglanton-stack/claude-clubhouse/blob/main/PRIVACY.md",
   "license": "MIT",
   "types": "./types/index.d.ts"
 }
