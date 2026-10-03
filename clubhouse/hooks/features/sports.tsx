@@ -94,66 +94,68 @@ export function sportsRoom(on: On): void {
     const list: Game[] = await read($, games)
     const live: Game | null = await read($, liveGame)
     const view = await read($, sportsView)
-    const { frame, note, plain, title, card, Button } = makeParts(elements, chosen, e.surface)
+    const { frame, rim, note, plain, title, card, Button } = makeParts(elements, chosen, e.surface)
     const league = leagueOf(plan.league)
 
     return (
-      <Box flexDirection="column" gap={1} {...frame}>
-        {title('Live sports')}
-        {note(
-          'Put one game on the toolbar: both teams, the score and the clock, home team on the left. Pick a sport, then a game. /clubhouse sports opens this.',
-        )}
-        {card('On the toolbar', [
-          plain(live === null || live.id !== plan.gameId ? 'No game chosen yet.' : gameLine(live)),
-          plan.gameId === null ? null : (
-            <Box>
-              <Button
-                key="sports-clear"
-                label="Take it off"
-                onPress={() => void keep($, held => ({ ...held, gameId: null, gameLeague: null, gameDay: null }))}
-              />
-            </Box>
-          ),
-        ])}
-        {card('Sport', [
-          <Box gap={1} flexWrap="wrap">
-            {LEAGUES.map(one => (
-              <Button
-                key={`league-${one.id}`}
-                label={one.label}
-                variant={one.id === league.id ? 'primary' : 'secondary'}
-                onPress={() => void pickLeague($, one.id)}
-              />
-            ))}
-          </Box>,
-          <Box>
-            <Button key="sports-refresh" label={`Get ${league.label} games`} onPress={() => void loadGames($, league.id)} />
-          </Box>,
-        ])}
-        {view.note !== null && plain(view.note)}
-        {list.length > 0 &&
-          card(
-            `${league.label}: on now and this week`,
-            list
-              .filter(game => game.league === league.id)
-              .slice(0, GAMES_SHOWN)
-              .map(game => (
-                <Box flexDirection="column">
-                  {plain(gameLine(game))}
-                  <Box>
-                    <Button
-                      key={`game-${game.id}`}
-                      label={plan.gameId === game.id ? 'On the toolbar' : 'Show on toolbar'}
-                      variant={plan.gameId === game.id ? 'primary' : 'secondary'}
-                      onPress={() => void showGame($, game)}
-                    />
-                  </Box>
-                </Box>
-              )),
+      <Box flexDirection="column" {...rim}>
+        <Box flexDirection="column" gap={1} {...frame}>
+          {title('Live sports')}
+          {note(
+            'Put one game on the toolbar: both teams, the score and the clock, home team on the left. Pick a sport, then a game. /clubhouse sports opens this.',
           )}
-        {note(
-          'Scores come from ESPN\'s free feed and refresh every half minute while a game is live. The feed is unofficial, so it can lag or stop.',
-        )}
+          {card('On the toolbar', [
+            plain(live === null || live.id !== plan.gameId ? 'No game chosen yet.' : gameLine(live)),
+            plan.gameId === null ? null : (
+              <Box>
+                <Button
+                  key="sports-clear"
+                  label="Take it off"
+                  onPress={() => void keep($, held => ({ ...held, gameId: null, gameLeague: null, gameDay: null }))}
+                />
+              </Box>
+            ),
+          ])}
+          {card('Sport', [
+            <Box gap={1} flexWrap="wrap">
+              {LEAGUES.map(one => (
+                <Button
+                  key={`league-${one.id}`}
+                  label={one.label}
+                  variant={one.id === league.id ? 'primary' : 'secondary'}
+                  onPress={() => void pickLeague($, one.id)}
+                />
+              ))}
+            </Box>,
+            <Box>
+              <Button key="sports-refresh" label={`Get ${league.label} games`} onPress={() => void loadGames($, league.id)} />
+            </Box>,
+          ])}
+          {view.note !== null && plain(view.note)}
+          {list.length > 0 &&
+            card(
+              `${league.label}: on now and this week`,
+              list
+                .filter(game => game.league === league.id)
+                .slice(0, GAMES_SHOWN)
+                .map(game => (
+                  <Box flexDirection="column">
+                    {plain(gameLine(game))}
+                    <Box>
+                      <Button
+                        key={`game-${game.id}`}
+                        label={plan.gameId === game.id ? 'On the toolbar' : 'Show on toolbar'}
+                        variant={plan.gameId === game.id ? 'primary' : 'secondary'}
+                        onPress={() => void showGame($, game)}
+                      />
+                    </Box>
+                  </Box>
+                )),
+            )}
+          {note(
+            'Scores come from ESPN\'s free feed and refresh every half minute while a game is live. The feed is unofficial, so it can lag or stop.',
+          )}
+        </Box>
       </Box>
     )
   })

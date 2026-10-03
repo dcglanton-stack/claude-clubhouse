@@ -131,7 +131,7 @@ export function tools(on: On): void {
     const matching = all.filter(
       one => one.name.toLowerCase().includes(wanted) || one.description.toLowerCase().includes(wanted),
     )
-    const { frame, note, plain, title, card, Button, Input } = makeParts(elements, chosen, e.surface)
+    const { frame, rim, note, plain, title, card, Button, Input } = makeParts(elements, chosen, e.surface)
 
     const setFilter = (typed: string) =>
       void update($, toolsView, held => ({ ...held, filter: typed }))
@@ -163,105 +163,107 @@ export function tools(on: On): void {
     )
 
     return (
-      <Box flexDirection="column" gap={1} {...frame}>
-        {title('Tool rules')}
-        {note(
-          'Decide what Claude may do without checking with you. Each tool has one button that cycles Allowed, Ask first and Blocked. /clubhouse tools opens this.',
-        )}
+      <Box flexDirection="column" {...rim}>
+        <Box flexDirection="column" gap={1} {...frame}>
+          {title('Tool rules')}
+          {note(
+            'Decide what Claude may do without checking with you. Each tool has one button that cycles Allowed, Ask first and Blocked. /clubhouse tools opens this.',
+          )}
 
-        {card('How the rules work', [
-          note('Allowed: Claude Code handles the tool the way it normally does, including its own permission prompts.'),
-          note('Ask first: a question pops up showing the tool and what Claude is about to send. Nothing runs unless you pick Allow once.'),
-          note('Blocked: the call is refused and Claude is told not to retry.'),
-          note('Rules apply in every session and to agents too, and stay active even when the Clubhouse is switched off.'),
-        ])}
-
-        {money.length > 0 &&
-          card('Money safeguard', [
-            note(`${money.length} connected tools can place, change or cancel an order, or move money. With the safeguard on, Claude must ask you before each one.`),
-            <Box gap={1}>
-              <Button
-                key="tools-safeguard"
-                label={isGuarded ? 'Safeguard is on' : 'Turn safeguard on'}
-                variant={isGuarded ? 'primary' : 'secondary'}
-                onPress={() =>
-                  apply(
-                    isGuarded ? money : money.filter(name => rules[name] === undefined),
-                    isGuarded ? undefined : 'ask',
-                    'Money tools',
-                  )
-                }
-              />
-            </Box>,
+          {card('How the rules work', [
+            note('Allowed: Claude Code handles the tool the way it normally does, including its own permission prompts.'),
+            note('Ask first: a question pops up showing the tool and what Claude is about to send. Nothing runs unless you pick Allow once.'),
+            note('Blocked: the call is refused and Claude is told not to retry.'),
+            note('Rules apply in every session and to agents too, and stay active even when the Clubhouse is switched off.'),
           ])}
 
-        {Input !== null && (
-          <Input
-            key="tools-filter"
-            label="Find"
-            placeholder="part of a tool name or what it does"
-            submitLabel="Find"
-            onInput={setFilter}
-            onSubmit={setFilter}
-          />
-        )}
-        {view.note !== null && plain(view.note)}
+          {money.length > 0 &&
+            card('Money safeguard', [
+              note(`${money.length} connected tools can place, change or cancel an order, or move money. With the safeguard on, Claude must ask you before each one.`),
+              <Box gap={1}>
+                <Button
+                  key="tools-safeguard"
+                  label={isGuarded ? 'Safeguard is on' : 'Turn safeguard on'}
+                  variant={isGuarded ? 'primary' : 'secondary'}
+                  onPress={() =>
+                    apply(
+                      isGuarded ? money : money.filter(name => rules[name] === undefined),
+                      isGuarded ? undefined : 'ask',
+                      'Money tools',
+                    )
+                  }
+                />
+              </Box>,
+            ])}
 
-        {ruled.length > 0 &&
-          wanted === '' &&
-          card(
-            `Your rules (${ruled.length})`,
-            <Box flexDirection="column" gap={1}>
-              {all.filter(one => rules[one.name] !== undefined).map(one => entry(one, 'mine'))}
-              <Box>
-                <Button key="rules-clear" label="Clear all rules" onPress={() => apply(ruled, undefined, 'All tools')} />
-              </Box>
-            </Box>,
+          {Input !== null && (
+            <Input
+              key="tools-filter"
+              label="Find"
+              placeholder="part of a tool name or what it does"
+              submitLabel="Find"
+              onInput={setFilter}
+              onSubmit={setFilter}
+            />
           )}
+          {view.note !== null && plain(view.note)}
 
-        {wanted !== '' &&
-          card(
-            `Matching "${wanted}" (${matching.length})`,
-            <Box flexDirection="column" gap={1}>
-              {matching.slice(0, MATCH_SIZE).map(one => entry(one))}
-              {matching.length > MATCH_SIZE && note(`${matching.length - MATCH_SIZE} more. Type more to narrow it.`)}
-            </Box>,
-          )}
-
-        {wanted === '' &&
-          groups.map(group => {
-            const isOpen = view.open.includes(group.id)
-            const names = group.tools.map(one => one.name)
-
-            return (
+          {ruled.length > 0 &&
+            wanted === '' &&
+            card(
+              `Your rules (${ruled.length})`,
               <Box flexDirection="column" gap={1}>
-                <Box gap={1} flexWrap="wrap">
-                  <Button
-                    key={`tgroup-${group.id}`}
-                    label={`${isOpen ? '▾' : '▸'} ${group.title} (${group.tools.length})`}
-                    variant={isOpen ? 'primary' : 'secondary'}
-                    onPress={() => toggleGroup(group.id)}
-                  />
-                  {isOpen && (
-                    <Button key={`askall-${group.id}`} label="Ask first for all" onPress={() => apply(names, 'ask', group.title)} />
-                  )}
-                  {isOpen && (
-                    <Button key={`blockall-${group.id}`} label="Block all" onPress={() => apply(names, 'block', group.title)} />
-                  )}
-                  {isOpen && (
-                    <Button key={`allowall-${group.id}`} label="Allow all" onPress={() => apply(names, undefined, group.title)} />
-                  )}
+                {all.filter(one => rules[one.name] !== undefined).map(one => entry(one, 'mine'))}
+                <Box>
+                  <Button key="rules-clear" label="Clear all rules" onPress={() => apply(ruled, undefined, 'All tools')} />
                 </Box>
-                {isOpen &&
-                  card(
-                    group.title,
-                    <Box flexDirection="column" gap={1}>
-                      {group.tools.map(one => entry(one))}
-                    </Box>,
-                  )}
-              </Box>
-            )
-          })}
+              </Box>,
+            )}
+
+          {wanted !== '' &&
+            card(
+              `Matching "${wanted}" (${matching.length})`,
+              <Box flexDirection="column" gap={1}>
+                {matching.slice(0, MATCH_SIZE).map(one => entry(one))}
+                {matching.length > MATCH_SIZE && note(`${matching.length - MATCH_SIZE} more. Type more to narrow it.`)}
+              </Box>,
+            )}
+
+          {wanted === '' &&
+            groups.map(group => {
+              const isOpen = view.open.includes(group.id)
+              const names = group.tools.map(one => one.name)
+
+              return (
+                <Box flexDirection="column" gap={1}>
+                  <Box gap={1} flexWrap="wrap">
+                    <Button
+                      key={`tgroup-${group.id}`}
+                      label={`${isOpen ? '▾' : '▸'} ${group.title} (${group.tools.length})`}
+                      variant={isOpen ? 'primary' : 'secondary'}
+                      onPress={() => toggleGroup(group.id)}
+                    />
+                    {isOpen && (
+                      <Button key={`askall-${group.id}`} label="Ask first for all" onPress={() => apply(names, 'ask', group.title)} />
+                    )}
+                    {isOpen && (
+                      <Button key={`blockall-${group.id}`} label="Block all" onPress={() => apply(names, 'block', group.title)} />
+                    )}
+                    {isOpen && (
+                      <Button key={`allowall-${group.id}`} label="Allow all" onPress={() => apply(names, undefined, group.title)} />
+                    )}
+                  </Box>
+                  {isOpen &&
+                    card(
+                      group.title,
+                      <Box flexDirection="column" gap={1}>
+                        {group.tools.map(one => entry(one))}
+                      </Box>,
+                    )}
+                </Box>
+              )
+            })}
+        </Box>
       </Box>
     )
   })

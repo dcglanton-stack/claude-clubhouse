@@ -94,7 +94,7 @@ export function recipesRoom(on: On): void {
     const chosen = await read($, prefs)
     const held = await read($, recipes)
     const view = await read($, recipesView)
-    const { frame, note, plain, title, card, Button, Input } = makeParts(elements, chosen, e.surface)
+    const { frame, rim, note, plain, title, card, Button, Input } = makeParts(elements, chosen, e.surface)
     const edit = (one: Recipe | null) => {
       draft = one ?? BLANK_DRAFT
       void update($, recipesView, shown => ({ ...shown, note: null, editing: one?.name ?? null }))
@@ -171,22 +171,24 @@ export function recipesRoom(on: On): void {
     }
 
     return (
-      <Box flexDirection="column" gap={1} {...frame}>
-        {title('Recipes')}
-        {note(
-          'A recipe is a shortcut for Claude. Save a command you would type in a terminal once, and from then on Claude runs exactly that command when you ask, in any session. /clubhouse recipes opens this.',
-        )}
-        {note(
-          'Example: name db_push, command supabase db push. After that, "push the database" is one step for Claude and you never open the terminal.',
-        )}
-        {form}
-        {view.note !== null && plain(view.note)}
-        {held.length === 0
-          ? note('No recipes yet. A first one to try: name run_tests, command npm test.')
-          : held.map(saved)}
-        {note(
-          'A recipe runs in this session\'s folder and is stopped after five minutes. To make Claude ask you before it uses one, set it to Ask first in Tool rules.',
-        )}
+      <Box flexDirection="column" {...rim}>
+        <Box flexDirection="column" gap={1} {...frame}>
+          {title('Recipes')}
+          {note(
+            'A recipe is a shortcut for Claude. Save a command you would type in a terminal once, and from then on Claude runs exactly that command when you ask, in any session. /clubhouse recipes opens this.',
+          )}
+          {note(
+            'Example: name db_push, command supabase db push. After that, "push the database" is one step for Claude and you never open the terminal.',
+          )}
+          {form}
+          {view.note !== null && plain(view.note)}
+          {held.length === 0
+            ? note('No recipes yet. A first one to try: name run_tests, command npm test.')
+            : held.map(saved)}
+          {note(
+            'A recipe runs in this session\'s folder and is stopped after five minutes. To make Claude ask you before it uses one, set it to Ask first in Tool rules.',
+          )}
+        </Box>
       </Box>
     )
   })

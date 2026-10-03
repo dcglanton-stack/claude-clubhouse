@@ -61,7 +61,7 @@ export function opinionRoom(on: On): void {
     const { Box } = elements
     const chosen = await read($, prefs)
     const held = await read($, opinion)
-    const { frame, note, plain, title, card, Button, Input, Markdown } = makeParts(elements, chosen, e.surface)
+    const { frame, rim, note, plain, title, card, Button, Input, Markdown } = makeParts(elements, chosen, e.surface)
     const outside = OPINION_MODEL_LABEL[chosen.opinionModel]
 
     const answer = () => {
@@ -82,55 +82,57 @@ export function opinionRoom(on: On): void {
     }
 
     return (
-      <Box flexDirection="column" gap={1} {...frame}>
-        {title('Second opinion')}
-        {note(
-          'Ask about this session without adding anything to it. Claude never sees the question or the answer in the conversation. /clubhouse opinion opens this.',
-        )}
+      <Box flexDirection="column" {...rim}>
+        <Box flexDirection="column" gap={1} {...frame}>
+          {title('Second opinion')}
+          {note(
+            'Ask about this session without adding anything to it. Claude never sees the question or the answer in the conversation. /clubhouse opinion opens this.',
+          )}
 
-        {Input !== null && (
-          <Input
-            key="opinion-question"
-            label="Question"
-            placeholder={DEFAULT_QUESTION}
-            submitLabel="Set"
-            onInput={typed => {
-              question = typed
-            }}
-            onSubmit={typed => {
-              question = typed
-            }}
-          />
-        )}
-        {note('Leave it empty to ask whether the session is on the right track.')}
-
-        {card('Ask Claude here', [
-          note('The same model, with the whole conversation in view. Best for "what is going on?" and "what did you just change?". Cheap, because the conversation is already cached.'),
-          <Box>
-            <Button key="opinion-here" label="Ask Claude here" variant="primary" onPress={() => void askHere($)} />
-          </Box>,
-        ])}
-
-        {card('Ask an outside model', [
-          note('A different model with fresh eyes. It sees only the recent conversation and is told not to defer to Claude. Best for "is this the right approach?".'),
-          <Box gap={1} flexWrap="wrap">
-            <Button key="opinion-outside" label={`Ask ${outside}`} variant="primary" onPress={() => void askOutside($)} />
-            <Button
-              key="opinion-model"
-              label={`Outside model: ${outside}`}
-              onPress={() =>
-                void keep($, current => ({
-                  ...current,
-                  opinionModel:
-                    OPINION_MODELS[(OPINION_MODELS.indexOf(current.opinionModel) + 1) % OPINION_MODELS.length] ??
-                    'sonnet',
-                }))
-              }
+          {Input !== null && (
+            <Input
+              key="opinion-question"
+              label="Question"
+              placeholder={DEFAULT_QUESTION}
+              submitLabel="Set"
+              onInput={typed => {
+                question = typed
+              }}
+              onSubmit={typed => {
+                question = typed
+              }}
             />
-          </Box>,
-        ])}
+          )}
+          {note('Leave it empty to ask whether the session is on the right track.')}
 
-        {card('The answer', answer())}
+          {card('Ask Claude here', [
+            note('The same model, with the whole conversation in view. Best for "what is going on?" and "what did you just change?". Cheap, because the conversation is already cached.'),
+            <Box>
+              <Button key="opinion-here" label="Ask Claude here" variant="primary" onPress={() => void askHere($)} />
+            </Box>,
+          ])}
+
+          {card('Ask an outside model', [
+            note('A different model with fresh eyes. It sees only the recent conversation and is told not to defer to Claude. Best for "is this the right approach?".'),
+            <Box gap={1} flexWrap="wrap">
+              <Button key="opinion-outside" label={`Ask ${outside}`} variant="primary" onPress={() => void askOutside($)} />
+              <Button
+                key="opinion-model"
+                label={`Outside model: ${outside}`}
+                onPress={() =>
+                  void keep($, current => ({
+                    ...current,
+                    opinionModel:
+                      OPINION_MODELS[(OPINION_MODELS.indexOf(current.opinionModel) + 1) % OPINION_MODELS.length] ??
+                      'sonnet',
+                  }))
+                }
+              />
+            </Box>,
+          ])}
+
+          {card('The answer', answer())}
+        </Box>
       </Box>
     )
   })

@@ -851,7 +851,7 @@ test('with the helper the whole app takes the color and the Clubhouse paints not
   expect(await painted(reply)).toBe(false)
   expect(await painted(bar)).toBe(false)
 
-  expect(JSON.stringify(await ui.drawn())).toMatch(/^\{"type":"Box","props":\{"flexDirection":"column","gap":1,"borderStyle":"round","borderColor":"#[0-9a-f]{6}","paddingX":1\}/)
+  expect(JSON.stringify(await ui.drawn())).toMatch(/^\{"type":"Box","props":\{"flexDirection":"column","borderStyle":"round","borderColor":"#[0-9a-f]{6}"\},"children":\[\{"type":"Box","props":\{"flexDirection":"column","gap":1,"borderStyle":"round","borderColor":"#[0-9a-f]{6}","paddingX":1\}/)
   expect(JSON.stringify(await bar.drawn())).toMatch(/"borderStyle":"round"/)
 
   seen.appTheme = LIGHT_APP
