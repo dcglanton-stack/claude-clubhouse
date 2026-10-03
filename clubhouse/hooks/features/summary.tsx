@@ -40,7 +40,7 @@ export function summaryRoom(on: On): void {
     const chosen = await read($, prefs)
     const made = await read($, summary)
     const answer = await read($, lastAnswer)
-    const { card, frame, note, plain, title, Button, Markdown } = makeParts(elements, chosen, e.surface)
+    const { card, frame, rim, note, plain, title, Button, Markdown } = makeParts(elements, chosen, e.surface)
     const hasAnswer = answer.trim() !== ''
 
     const body = () => {
@@ -62,26 +62,28 @@ export function summaryRoom(on: On): void {
     }
 
     return (
-      <Box flexDirection="column" gap={1} {...frame}>
-        {title('Summary')}
-        <Box gap={1} flexWrap="wrap">
-          <Button
-            key="summary-run"
-            label="Summarize last reply"
-            variant="primary"
-            onPress={() => void summarize($)}
-          />
-          <Button
-            key="summary-auto"
-            label={chosen.autoSummary ? 'Auto: on' : 'Auto: off'}
-            variant={chosen.autoSummary ? 'primary' : 'secondary'}
-            onPress={() => void keep($, held => ({ ...held, autoSummary: !held.autoSummary }))}
-          />
+      <Box flexDirection="column" {...rim}>
+        <Box flexDirection="column" gap={1} {...frame}>
+          {title('Summary')}
+          <Box gap={1} flexWrap="wrap">
+            <Button
+              key="summary-run"
+              label="Summarize last reply"
+              variant="primary"
+              onPress={() => void summarize($)}
+            />
+            <Button
+              key="summary-auto"
+              label={chosen.autoSummary ? 'Auto: on' : 'Auto: off'}
+              variant={chosen.autoSummary ? 'primary' : 'secondary'}
+              onPress={() => void keep($, held => ({ ...held, autoSummary: !held.autoSummary }))}
+            />
+          </Box>
+          {card('The short version', body())}
+          {note(
+            `A small, cheap model writes the summary; the full reply stays in the conversation. Auto summarizes every reply longer than ${AUTO_SUMMARY_CHARS.toLocaleString('en-US')} characters. /clubhouse summary opens this.`,
+          )}
         </Box>
-        {card('The short version', body())}
-        {note(
-          `A small, cheap model writes the summary; the full reply stays in the conversation. Auto summarizes every reply longer than ${AUTO_SUMMARY_CHARS.toLocaleString('en-US')} characters. /clubhouse summary opens this.`,
-        )}
       </Box>
     )
   })

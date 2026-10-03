@@ -107,7 +107,7 @@ export function bar(on: On): void {
     const { Box } = elements
     const chosen = await read($, prefs)
     const said = await read($, barNote)
-    const { card, frame, note, plain, title, Button, Input } = makeParts(elements, chosen, e.surface)
+    const { card, frame, rim, note, plain, title, Button, Input } = makeParts(elements, chosen, e.surface)
     const hasBars = chosen.barCount > 1
 
     const kept = await read($, toolbarPresets)
@@ -128,129 +128,131 @@ export function bar(on: On): void {
     const rows = Array.from({ length: chosen.barCount }, (_, index) => index + 1)
 
     return (
-      <Box flexDirection="column" gap={1} {...frame}>
-        {title('Toolbar')}
-        {note(
-          'The toolbar is the strip above the box you type in. Each item has buttons to add or remove it, pick its row, and place it left, center or right. /clubhouse toolbar opens this.',
-        )}
+      <Box flexDirection="column" {...rim}>
+        <Box flexDirection="column" gap={1} {...frame}>
+          {title('Toolbar')}
+          {note(
+            'The toolbar is the strip above the box you type in. Each item has buttons to add or remove it, pick its row, and place it left, center or right. /clubhouse toolbar opens this.',
+          )}
 
-        {card('Rows', [
-          plain(rows.map(row => `Row ${row}: ${rowLoad(chosen, row)} of ${ROW_CAPACITY} used`).join(' · ')),
-          note(
-            `Every item has a size, and a row holds ${ROW_CAPACITY}, so nothing overlaps: a few big items or many small ones. When a row is full, the next item goes on another row. You can have up to ${MAX_BARS} rows; row 1 is on top.`,
-          ),
-          <Box gap={1}>
-            {chosen.barCount < MAX_BARS && (
-              <Button
-                key="bar-add"
-                label="Add a row"
-                variant="primary"
-                onPress={() => void keep($, held => withBarCount(held, held.barCount + 1))}
-              />
-            )}
-            {hasBars && (
-              <Button
-                key="bar-remove"
-                label={`Remove row ${chosen.barCount}`}
-                onPress={() => void keep($, held => withBarCount(held, held.barCount - 1))}
-              />
-            )}
-          </Box>,
-          note('A row only shows once something is placed on it.'),
-        ])}
-
-        {BAR_ITEMS.map(([id, title, about]) =>
-          card(title, [
-            note(`${about} Size ${ITEM_SIZE[id]}.`),
-            <Box gap={1} flexWrap="wrap">
-              {controls(`bar-${id}`, chosen.bar[id] ?? DEFAULT_BAR[id], { kind: 'item', id })}
+          {card('Rows', [
+            plain(rows.map(row => `Row ${row}: ${rowLoad(chosen, row)} of ${ROW_CAPACITY} used`).join(' · ')),
+            note(
+              `Every item has a size, and a row holds ${ROW_CAPACITY}, so nothing overlaps: a few big items or many small ones. When a row is full, the next item goes on another row. You can have up to ${MAX_BARS} rows; row 1 is on top.`,
+            ),
+            <Box gap={1}>
+              {chosen.barCount < MAX_BARS && (
+                <Button
+                  key="bar-add"
+                  label="Add a row"
+                  variant="primary"
+                  onPress={() => void keep($, held => withBarCount(held, held.barCount + 1))}
+                />
+              )}
+              {hasBars && (
+                <Button
+                  key="bar-remove"
+                  label={`Remove row ${chosen.barCount}`}
+                  onPress={() => void keep($, held => withBarCount(held, held.barCount - 1))}
+                />
+              )}
             </Box>,
-          ]),
-        )}
-
-        {chosen.shortcuts.map(one =>
-          card(`Your button: ${one.label}`, [
-            note(`Types: ${one.text} Size ${shortcutSize(one)}.`),
-            <Box gap={1} flexWrap="wrap">
-              {controls(`sc-${one.id}`, one.spot, { kind: 'shortcut', id: one.id })}
-              <Button
-                key={`sc-${one.id}-remove`}
-                label="Delete"
-                onPress={() =>
-                  void keep($, held => ({
-                    ...held,
-                    shortcuts: held.shortcuts.filter(other => other.id !== one.id),
-                  }))
-                }
-              />
-            </Box>,
-          ]),
-        )}
-
-        {Input !== null &&
-          card('Make your own button', [
-            note('A button that types a prompt or command into the prompt box for you. Press Enter in each box, then Add.'),
-            <Input
-              key="shortcut-label"
-              label="Label"
-              placeholder="Run tests"
-              onInput={typed => {
-                draft = { ...draft, label: typed }
-              }}
-              onSubmit={typed => {
-                draft = { ...draft, label: typed }
-              }}
-            />,
-            <Input
-              key="shortcut-text"
-              label="What it types"
-              placeholder="run the tests and fix what fails"
-              onInput={typed => {
-                draft = { ...draft, text: typed }
-              }}
-              onSubmit={typed => {
-                draft = { ...draft, text: typed }
-              }}
-            />,
-            <Box>
-              <Button key="shortcut-add" label="Add to toolbar" variant="primary" onPress={() => void addShortcut($)} />
-            </Box>,
+            note('A row only shows once something is placed on it.'),
           ])}
 
-        {said !== null && plain(said)}
+          {BAR_ITEMS.map(([id, title, about]) =>
+            card(title, [
+              note(`${about} Size ${ITEM_SIZE[id]}.`),
+              <Box gap={1} flexWrap="wrap">
+                {controls(`bar-${id}`, chosen.bar[id] ?? DEFAULT_BAR[id], { kind: 'item', id })}
+              </Box>,
+            ]),
+          )}
 
-        {card('Saved layouts', [
-          note('Keep the toolbar as it is now under a name, and switch back to it with one press. Example: one for work, one for game day.'),
-          Input !== null && (
-            <Input
-              key="layout-name"
-              label="Name"
-              placeholder="Game day"
-              submitLabel="Save this layout"
-              onSubmit={typed => void saveLayout($, typed)}
-            />
-          ),
-          ...kept.map(one => (
-            <Box gap={1} flexWrap="wrap">
-              <Button
-                key={`layout-${one.name}`}
-                label={`Use ${one.name}`}
-                variant="primary"
-                onPress={() => void keep($, held => ({ ...held, ...layoutOf(one) }))}
+          {chosen.shortcuts.map(one =>
+            card(`Your button: ${one.label}`, [
+              note(`Types: ${one.text} Size ${shortcutSize(one)}.`),
+              <Box gap={1} flexWrap="wrap">
+                {controls(`sc-${one.id}`, one.spot, { kind: 'shortcut', id: one.id })}
+                <Button
+                  key={`sc-${one.id}-remove`}
+                  label="Delete"
+                  onPress={() =>
+                    void keep($, held => ({
+                      ...held,
+                      shortcuts: held.shortcuts.filter(other => other.id !== one.id),
+                    }))
+                  }
+                />
+              </Box>,
+            ]),
+          )}
+
+          {Input !== null &&
+            card('Make your own button', [
+              note('A button that types a prompt or command into the prompt box for you. Press Enter in each box, then Add.'),
+              <Input
+                key="shortcut-label"
+                label="Label"
+                placeholder="Run tests"
+                onInput={typed => {
+                  draft = { ...draft, label: typed }
+                }}
+                onSubmit={typed => {
+                  draft = { ...draft, label: typed }
+                }}
+              />,
+              <Input
+                key="shortcut-text"
+                label="What it types"
+                placeholder="run the tests and fix what fails"
+                onInput={typed => {
+                  draft = { ...draft, text: typed }
+                }}
+                onSubmit={typed => {
+                  draft = { ...draft, text: typed }
+                }}
+              />,
+              <Box>
+                <Button key="shortcut-add" label="Add to toolbar" variant="primary" onPress={() => void addShortcut($)} />
+              </Box>,
+            ])}
+
+          {said !== null && plain(said)}
+
+          {card('Saved layouts', [
+            note('Keep the toolbar as it is now under a name, and switch back to it with one press. Example: one for work, one for game day.'),
+            Input !== null && (
+              <Input
+                key="layout-name"
+                label="Name"
+                placeholder="Game day"
+                submitLabel="Save this layout"
+                onSubmit={typed => void saveLayout($, typed)}
               />
-              <Button key={`layout-delete-${one.name}`} label="Delete" onPress={() => void dropLayout($, one.name)} />
-            </Box>
-          )),
-        ])}
+            ),
+            ...kept.map(one => (
+              <Box gap={1} flexWrap="wrap">
+                <Button
+                  key={`layout-${one.name}`}
+                  label={`Use ${one.name}`}
+                  variant="primary"
+                  onPress={() => void keep($, held => ({ ...held, ...layoutOf(one) }))}
+                />
+                <Button key={`layout-delete-${one.name}`} label="Delete" onPress={() => void dropLayout($, one.name)} />
+              </Box>
+            )),
+          ])}
 
-        <Box>
-          <Button
-            key="bar-reset"
-            label="Reset the toolbar"
-            onPress={() => void keep($, held => ({ ...held, bar: DEFAULT_BAR, barCount: 1, shortcuts: [] }))}
-          />
+          <Box>
+            <Button
+              key="bar-reset"
+              label="Reset the toolbar"
+              onPress={() => void keep($, held => ({ ...held, bar: DEFAULT_BAR, barCount: 1, shortcuts: [] }))}
+            />
+          </Box>
+          {note('New toolbar features built later show up here as items you can add.')}
         </Box>
-        {note('New toolbar features built later show up here as items you can add.')}
       </Box>
     )
   })

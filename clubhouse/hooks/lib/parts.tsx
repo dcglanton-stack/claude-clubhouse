@@ -85,6 +85,7 @@ export function makeParts(kit: Kit, prefs: Prefs, surface: string) {
       : background === null
         ? {}
         : { backgroundColor: background, padding: 1 }
+  const rim = look.edge !== null ? { borderStyle: 'round', borderColor: look.edge } : {}
   const picture = (source: string, alt: string, width: number, height: number) =>
     canDraw && 'Svg' in kit ? (
       <kit.Svg source={recolor(source, look.tone)} alt={alt} width={width} height={height} />
@@ -171,6 +172,7 @@ export function makeParts(kit: Kit, prefs: Prefs, surface: string) {
     look,
     ink,
     frame,
+    rim,
     note,
     plain,
     title,
