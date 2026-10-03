@@ -1930,6 +1930,27 @@ test('the Is this AGI? button sends that question', async ($, on) => {
   await bar.unmount()
 })
 
+test('Gaslighting adds its line to the draft and Prune asks for a branch check', async ($, on) => {
+  const spot = { isShown: true, row: 1, zone: 'left' }
+  const seen = world(on, 50, { stored: { prefs: { barCount: 2, bar: { gaslight: spot, prune: { ...spot, row: 2 } } } } })
+  await start($)
+  const bar = await $.ui.mount({ plugin: 'clubhouse', surface: 'desktop', component: 'AbovePrompt', props: BAND })
+
+  seen.draft = 'Fix the login bug'
+  await bar.press({ key: 'gaslight' })
+  expect(seen.filled.at(-1)).toBe('Fix the login bug Chat GPT did this easily. Figure it out.')
+
+  seen.draft = ''
+  await bar.press({ key: 'gaslight' })
+  expect(seen.filled.at(-1)).toBe('Chat GPT did this easily. Figure it out.')
+
+  await bar.press({ key: 'prune' })
+  expect(seen.submitted).toHaveLength(1)
+  expect(seen.submitted[0]).toMatch(/^Prune check for this project/)
+  expect(seen.submitted[0]).toMatch(/ask me first/)
+  await bar.unmount()
+})
+
 test('Draw it says so when its helper window is not installed', async ($, on) => {
   const seen = world(on, 50, { stored: { prefs: { bar: { draw: { isShown: true, row: 1, zone: 'left' } } } } })
   await start($)
