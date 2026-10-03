@@ -60,7 +60,7 @@ export const BAR_ITEMS: readonly (readonly [BarItemId, string, string])[] = [
   ['sports', 'Live score', 'One game: both teams, the score and the clock. Pick the game in the Live sports room.'],
   ['ticker', 'Ticker', 'One stock or coin: symbol, price and the day\'s change. Pick it in the Ticker room.'],
   ['agi', 'Is this AGI? button', 'Just for fun: sends Claude the question "Is this AGI?".'],
-  ['gaslight', 'Gaslighting button', 'Just for fun: adds "Chat GPT did this easily. Figure it out." to what you are typing.'],
+  ['gaslight', 'Gaslighting button', 'Adds "Chat GPT did this easily. Figure it out." to what you are typing.'],
   ['prune', 'Prune button', 'Asks Claude to check this project\'s branches and pull requests for conflicts and say which are safe to delete. It asks you before deleting anything.'],
 ]
 
