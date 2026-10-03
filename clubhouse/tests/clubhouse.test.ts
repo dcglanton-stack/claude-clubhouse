@@ -2,6 +2,10 @@ import { expect, mock, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
 import type { Engine } from 'claude-code/testing'
 
+import { appModeFrom } from '../hooks/lib/appColor'
+import { pixelFor, shownFrom, toDisplay, toneFor } from '../hooks/lib/tone'
+import { serifSize } from '../hooks/lib/type'
+
 const NOW = Date.UTC(2026, 9, 3, 9)
 const SURFACES = ['desktop', 'terminal'] as const
 const BAND = {
@@ -14,6 +18,8 @@ const BAND = {
 }
 const PANE = { title: 'Clubhouse', isFocused: true, bodyColumns: 60, placement: 'dock' as const }
 const BLANK = { type: 'Box', props: {}, children: [] }
+const LIGHT_APP = 'theme=light\nsystem=Dark\n'
+const DARK_APP = 'theme=system\nsystem=Dark\n'
 const BROKER = '0a1b2c3d-1111-2222-3333-444455556666'
 
 type World = {
@@ -32,6 +38,7 @@ type World = {
   completed: string[]
   written: { path: string; text: string }[]
   launched: string[]
+  appTheme: string
 }
 
 type Setup = { hasHelper?: boolean; stored?: Record<string, unknown> }
@@ -53,6 +60,7 @@ function world(on: On, fiveHourUsed: number, setup: Setup = {}): World {
     completed: [],
     written: [],
     launched: [],
+    appTheme: '',
   }
 
   mock.clock(on, { now: NOW })
@@ -64,9 +72,20 @@ function world(on: On, fiveHourUsed: number, setup: Setup = {}): World {
     return { value: undefined }
   })
   on('process.run', (_$, e) => {
-    seen.launched.push(e.argv.join(' '))
+    const line = e.argv.join(' ')
+    const isModeCheck = line.includes('userThemeMode')
 
-    return { value: { exitCode: 0, stdout: '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
+    if (!isModeCheck) seen.launched.push(line)
+
+    return {
+      value: {
+        exitCode: 0,
+        stdout: isModeCheck ? seen.appTheme : '',
+        stderr: '',
+        isStdoutTruncated: false,
+        isStderrTruncated: false,
+      },
+    }
   })
   mock.env(on, { HOME: '/tmp/clubhouse-home' })
   on('session.usage', () => ({
@@ -666,7 +685,7 @@ for (const surface of SURFACES) {
 }
 
 test('buttons get a backing when the chosen background would hide them', async ($, on) => {
-  world(on, 50)
+  const seen = world(on, 50)
   await start($)
   const ui = await $.ui.mount({
     plugin: 'clubhouse',
@@ -683,8 +702,9 @@ test('buttons get a backing when the chosen background would hide them', async (
   await ui.press({ key: 'anthropic-Ivory Light' })
   expect(await drawn()).toMatch(/"backgroundColor":"#30302e"/)
 
-  await ui.press({ key: 'app-mode' })
-  expect((await ui.find({ key: 'app-mode' }))?.text).toBe('My app is in light mode')
+  seen.appTheme = LIGHT_APP
+  await ui.press({ key: 'anthropic-Ivory Light' })
+  expect(await ui.find({ type: 'Text', text: /light right now/ })).toBeDefined()
   expect(await drawn()).not.toMatch(/#30302e/)
 
   await ui.press({ key: 'look-slate' })
@@ -782,7 +802,7 @@ test('with the helper the whole app takes the color and the Clubhouse paints not
   expect(seen.launched).toEqual([])
 
   await ui.press({ key: 'look-slate' })
-  expect(config()).toEqual({ enabled: true, target: '#141413', radius: 18, isLightApp: false })
+  expect(config()).toEqual({ enabled: true, target: '#141413', ink: '#faf9f5', radius: 18, isLightApp: false, boost: 1.9 })
   expect(seen.launched).toHaveLength(1)
   expect(seen.launched[0]).toMatch(/clubhouse-helper\/window-tint/)
   expect(await painted(ui)).toBe(false)
@@ -792,16 +812,18 @@ test('with the helper the whole app takes the color and the Clubhouse paints not
   expect(JSON.stringify(await ui.drawn())).toMatch(/^\{"type":"Box","props":\{"flexDirection":"column","gap":1,"borderStyle":"round","borderColor":"#[0-9a-f]{6}","paddingX":1\}/)
   expect(JSON.stringify(await bar.drawn())).toMatch(/"borderStyle":"round"/)
 
-  await ui.press({ key: 'app-mode' })
-  expect(config()).toEqual({ enabled: false, target: '#141413', radius: 18, isLightApp: true })
-  expect(await ui.find({ type: 'Text', text: /your app is in light mode, so the app's own text would be unreadable/ })).toBeDefined()
-  expect(await painted(ui)).toBe(true)
-  await ui.press({ key: 'app-mode' })
-  expect(config().enabled).toBe(true)
+  seen.appTheme = LIGHT_APP
+  await ui.press({ key: 'look-slate' })
+  expect(config()).toEqual({ enabled: true, target: '#141413', ink: '#faf9f5', radius: 18, isLightApp: true, boost: 1.9 })
+  expect(await ui.find({ type: 'Text', text: /This is a dark color on a light app/ })).toBeDefined()
+  seen.appTheme = DARK_APP
+  await ui.press({ key: 'look-slate' })
+  expect(await ui.find({ type: 'Text', text: /swaps light and dark/ })).toBeUndefined()
 
   await ui.press({ key: 'look-ivory' })
-  expect(config().enabled).toBe(false)
-  expect(await ui.find({ type: 'Text', text: /Your Background is a light color and your app is in dark mode/ })).toBeDefined()
+  expect(config()).toEqual({ enabled: true, target: '#faf9f5', ink: '#141413', radius: 18, isLightApp: false, boost: 1.9 })
+  expect(await ui.find({ type: 'Text', text: /This is a light color on a dark app/ })).toBeDefined()
+  expect(await painted(ui)).toBe(false)
   await ui.press({ key: 'look-slate' })
   expect(config().enabled).toBe(true)
 
@@ -919,6 +941,33 @@ test('a preset marked for every session is the hidden list a new session starts 
   await ui.unmount()
 })
 
+test('the hue buttons give a grey color a hue', async ($, on) => {
+  world(on, 50)
+  await start($)
+  const ui = await $.ui.mount({
+    plugin: 'clubhouse',
+    surface: 'desktop',
+    component: 'Pane',
+    requestId: 'clubhouse-colors',
+    props: { ...PANE, title: 'Colors' },
+  })
+
+  await ui.press({ key: 'slot-background' })
+  await ui.input({ key: 'hex', text: '#1e1e1e' })
+  await ui.press({ key: 'hue-on' })
+  const first = (await ui.findAll({ type: 'Text' })).map(one => one.text).find(text => /^#[0-9a-f]{6}$/.test(text) && text !== '#d97757' && text !== '#e8743b')
+
+  expect(first).toBeDefined()
+  expect(first).not.toBe('#1e1e1e')
+  const [red, green, blue] = [1, 3, 5].map(at => Number.parseInt((first ?? '#000000').slice(at, at + 2), 16))
+  expect(Math.max(red ?? 0, green ?? 0, blue ?? 0) - Math.min(red ?? 0, green ?? 0, blue ?? 0)).toBeGreaterThan(20)
+
+  await ui.press({ key: 'hue-on' })
+  const second = (await ui.findAll({ type: 'Text' })).map(one => one.text).find(text => /^#[0-9a-f]{6}$/.test(text) && text !== '#d97757' && text !== '#e8743b')
+  expect(second).not.toBe(first)
+  await ui.unmount()
+})
+
 test('Tidy rewrites the draft and a second press restores it', async ($, on) => {
   const seen = world(on, 18)
   await start($)
@@ -1010,4 +1059,150 @@ test('other commands are counted and lead the top list without being changed', a
 
   expect(await ui.find({ key: 'top-deploy' })).toBeDefined()
   await ui.unmount()
+})
+
+test('colors the Clubhouse draws land where they are wanted under the helper', () => {
+  const levels = (...channels: number[]) => channels.map(channel => channel / 255)
+  const isNear = (one: readonly number[], other: readonly number[], slack: number) =>
+    one.every((level, at) => Math.abs(level - (other[at] ?? 0)) * 255 <= slack)
+  const measured = toneFor({ target: '#faf9f5', ink: '#161616', isLightApp: false })
+  const grey = (level: number) => [level / 255, level / 255, level / 255] as const
+
+  expect(isNear(toDisplay('#151b27'), levels(22, 27, 38), 1)).toBe(true)
+  expect(isNear(shownFrom(measured, [137 / 255, 135 / 255, 130 / 255]), levels(40, 39, 34), 2)).toBe(true)
+  expect(isNear(shownFrom(measured, grey(54)), levels(195, 194, 191), 2)).toBe(true)
+  expect(isNear(shownFrom(measured, grey(33)), toDisplay('#faf9f5'), 0.5)).toBe(true)
+  expect(isNear(shownFrom(measured, grey(21)), toDisplay('#faf9f5'), 0.5)).toBe(true)
+
+  for (const target of ['#0d243d', '#141413', '#faf9f5', '#f5e3c7']) {
+    const tone = toneFor({ target, ink: target === '#0d243d' || target === '#141413' ? '#faf9f5' : '#141413', isLightApp: false })
+
+    for (const wanted of ['#d97757', '#e8743b', '#1e8449', '#2f7fd1']) {
+      expect(isNear(shownFrom(tone, pixelFor(tone, wanted)), toDisplay(wanted), 3)).toBe(true)
+    }
+  }
+
+  const lightApp = toneFor({ target: '#faf9f5', ink: '#141413', isLightApp: true })
+  expect(isNear(shownFrom(lightApp, pixelFor(lightApp, '#d97757')), toDisplay('#d97757'), 3)).toBe(true)
+  expect(isNear(shownFrom(lightApp, grey(240)), toDisplay('#faf9f5'), 0.5)).toBe(true)
+})
+
+test('a heading is drawn wide enough for its letters', () => {
+  expect(serifSize({ text: 'Commands', size: 24 }).width).toBeGreaterThan(134)
+  expect(serifSize({ text: 'Quick commands', size: 17 }).width).toBeGreaterThan(152)
+  expect(serifSize({ text: 'Rooms', size: 17 }).width).toBeGreaterThan(62)
+})
+
+test('the Clubhouse reads dark or light from the app instead of asking', async ($, on) => {
+  const seen = world(on, 50, { hasHelper: true })
+  seen.appTheme = LIGHT_APP
+  await start($)
+  const ui = await $.ui.mount({
+    plugin: 'clubhouse',
+    surface: 'desktop',
+    component: 'Pane',
+    requestId: 'clubhouse-colors',
+    props: { ...PANE, title: 'Colors' },
+  })
+
+  expect(await ui.find({ key: 'app-mode' })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /light right now/ })).toBeDefined()
+  expect(JSON.parse(seen.written.at(-1)?.text ?? '{}')).toMatchObject({ isLightApp: true })
+
+  expect(appModeFrom('theme=system\nsystem=Dark\n')).toBe('dark')
+  expect(appModeFrom('theme=system\nsystem=\n')).toBe('light')
+  expect(appModeFrom('theme=dark\nsystem=\n')).toBe('dark')
+  expect(appModeFrom('theme=\nsystem=\n')).toBeNull()
+  expect(appModeFrom('')).toBeNull()
+  await ui.unmount()
+})
+
+test('the Text color is what the helper writes with, and each color resets on its own', async ($, on) => {
+  const seen = world(on, 50, { hasHelper: true })
+  await start($)
+  const ui = await $.ui.mount({
+    plugin: 'clubhouse',
+    surface: 'desktop',
+    component: 'Pane',
+    requestId: 'clubhouse-colors',
+    props: { ...PANE, title: 'Colors' },
+  })
+  const config = () => JSON.parse(seen.written.at(-1)?.text ?? '{}') as Record<string, unknown>
+
+  await ui.press({ key: 'preset-Night' })
+  expect(config()).toMatchObject({ enabled: true, target: '#15171c', ink: '#faf9f5' })
+
+  await ui.press({ key: 'slot-text' })
+  expect((await ui.find({ key: 'preset-none' }))?.text).toBe('Automatic')
+  await ui.press({ key: 'preset-Sun' })
+  expect(config().ink).toBe('#f2b632')
+  await ui.press({ key: 'preset-none' })
+  expect(config().ink).toBe('#faf9f5')
+  expect(await ui.find({ type: 'Text', text: /^automatic$/ })).toBeDefined()
+
+  await ui.press({ key: 'preset-Sun' })
+  await ui.press({ key: 'reset-text' })
+  expect(config().ink).toBe('#faf9f5')
+
+  await ui.press({ key: 'slot-accent' })
+  await ui.press({ key: 'preset-Ocean' })
+  expect(await ui.find({ type: 'Text', text: /^#2f7fd1$/ })).toBeDefined()
+  await ui.press({ key: 'reset-accent' })
+  expect(await ui.find({ type: 'Text', text: /^#2f7fd1$/ })).toBeUndefined()
+  expect(config().enabled).toBe(true)
+
+  await ui.press({ key: 'reset-background' })
+  expect(config().enabled).toBe(false)
+
+  await ui.press({ key: 'slot-text' })
+  await ui.press({ key: 'preset-Sun' })
+  expect(config()).toMatchObject({ enabled: true, target: '#151515', ink: '#f2b632' })
+  await ui.unmount()
+})
+
+test('under the helper pictures are redrawn for the screen and your own prompts get a border', async ($, on) => {
+  world(on, 50, { hasHelper: true })
+  await start($)
+  const ui = await $.ui.mount({
+    plugin: 'clubhouse',
+    surface: 'desktop',
+    component: 'Pane',
+    requestId: 'clubhouse-colors',
+    props: { ...PANE, title: 'Colors' },
+  })
+  const row = (component: string, props: object) =>
+    $.ui.mount({ plugin: 'clubhouse', surface: 'desktop', component, props } as Parameters<
+      Engine['ui']['mount']
+    >[0])
+  const bar = await $.ui.mount({ plugin: 'clubhouse', surface: 'desktop', component: 'AbovePrompt', props: BAND })
+  const mine = await row('UserMessage', { text: 'hello there', origin: { kind: 'sdk' }, isExpanded: false })
+  const notice = await row('UserMessage', {
+    text: 'a task finished',
+    origin: { kind: 'task-notification' },
+    isExpanded: false,
+    task: { id: 'task-1' },
+  })
+  const reply = await row('AssistantMessage', { text: 'A reply', isFirstOfReply: true })
+  const shown = async (drawing: { drawn: () => Promise<unknown> }) => JSON.stringify(await drawing.drawn())
+  const native = JSON.stringify(BLANK)
+
+  expect(await shown(bar)).not.toMatch(/display-p3/)
+  expect(await shown(mine)).toBe(native)
+
+  await ui.press({ key: 'look-slate' })
+  expect(await shown(bar)).toMatch(/display-p3/)
+  expect(await shown(ui)).toMatch(/display-p3/)
+  expect(await shown(mine)).toMatch(
+    /^\{"type":"Box","props":\{"flexDirection":"column","alignItems":"flex-end"\},"children":\[\{"type":"Box","props":\{"borderStyle":"round","borderColor":"#[0-9a-f]{6}","paddingX":1\}/,
+  )
+  expect(await shown(notice)).toBe(native)
+  expect(await shown(reply)).toBe(native)
+
+  await ui.press({ key: 'reach' })
+  expect(await shown(bar)).not.toMatch(/display-p3/)
+  await ui.unmount()
+  await bar.unmount()
+  await mine.unmount()
+  await notice.unmount()
+  await reply.unmount()
 })

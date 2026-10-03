@@ -2,9 +2,8 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, On } from 'claude-code'
 
 import type { BarItemId, BarZone, Prefs, Shortcut } from '../../types'
-import { edgeOf, paintOf } from '../lib/appColor'
 import { meterSvg, moodFor, moodName } from '../lib/clawd'
-import { inkOn, rampColor } from '../lib/color'
+import { rampColor } from '../lib/color'
 import {
   BAR_ITEMS,
   DEFAULT_PREFS,
@@ -138,9 +137,9 @@ export function band(on: On): void {
     }
 
     const elements = $.ui.resolve(e)
-    const canDraw = e.surface !== 'terminal'
+    const canDraw = e.surface !== 'terminal' && 'Svg' in elements
     const { Box, Text } = elements
-    const { Button } = makeParts(elements, chosen, e.surface)
+    const { Button, look, picture } = makeParts(elements, chosen, e.surface)
     const at = await read($, now)
     const list = await read($, limits)
     const context = await read($, contextPercent)
@@ -149,10 +148,8 @@ export function band(on: On): void {
     const limit = list.find(one => one.kind === chosen.window)
     const columns = e.props.bodyColumns
     const meterWidth = columns >= COLUMNS_FOR_WIDE_METER ? WIDE_METER : SLIM_METER
-    const { accent } = chosen.palette
-    const background = paintOf(chosen)
-    const ink = background === null ? {} : { color: inkOn(background) }
-    const edge = edgeOf(chosen)
+    const { background, edge } = look
+    const ink = background === null ? {} : { color: look.ink }
     const frame =
       edge !== null
         ? { borderStyle: 'round', borderColor: edge, paddingX: 1 }
@@ -169,19 +166,8 @@ export function band(on: On): void {
 
     const home = () => (
       <Box gap={1} alignItems="center" flexShrink={0}>
-        {canDraw && 'Svg' in elements && (
-          <elements.Svg
-            source={homeIconSvg({ size: BAR_HEIGHT, accent })}
-            alt="Claude Clubhouse"
-            width={BAR_HEIGHT}
-            height={BAR_HEIGHT}
-          />
-        )}
-        <Button
-          key="home"
-          label={canDraw && 'Svg' in elements ? 'Clubhouse' : '⌂ Clubhouse'}
-          onPress={openHome}
-        />
+        {picture(homeIconSvg({ size: BAR_HEIGHT, accent: look.accent }), 'Claude Clubhouse', BAR_HEIGHT, BAR_HEIGHT)}
+        <Button key="home" label={canDraw ? 'Clubhouse' : '⌂ Clubhouse'} onPress={openHome} />
       </Box>
     )
 
@@ -214,20 +200,19 @@ export function band(on: On): void {
       return (
         <Box gap={1} alignItems="center" flexShrink={0}>
           {windowButton}
-          {canDraw && 'Svg' in elements ? (
-            <elements.Svg
-              source={meterSvg({
-                left,
-                barColor: rampColor(left),
-                clawdColor: chosen.palette.clawd,
-                width: meterWidth,
-                height: BAR_HEIGHT,
-              })}
-              alt={`${left}% of the ${WINDOW_LABEL[chosen.window]} limit left; Clawd looks ${moodName(moodFor(left))}`}
-              width={meterWidth}
-              height={BAR_HEIGHT}
-            />
-          ) : (
+          {picture(
+            meterSvg({
+              left,
+              barColor: rampColor(left),
+              clawdColor: look.clawd,
+              trackColor: look.track,
+              width: meterWidth,
+              height: BAR_HEIGHT,
+            }),
+            `${left}% of the ${WINDOW_LABEL[chosen.window]} limit left; Clawd looks ${moodName(moodFor(left))}`,
+            meterWidth,
+            BAR_HEIGHT,
+          ) ?? (
             <Box>
               {filled !== '' && <Text color={rampColor(left)}>{filled}</Text>}
               {empty !== '' && <Text dimColor>{empty}</Text>}

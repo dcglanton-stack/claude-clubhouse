@@ -6,9 +6,12 @@ export type MeterSpec = {
   left: number
   barColor: string
   clawdColor: string
+  trackColor: string | null
   width: number
   height: number
 }
+
+export type SwatchSpec = { color: string; rim: string; width: number; height: number }
 
 export type WheelSpec = { hue: number; color: string; size: number }
 
@@ -135,7 +138,15 @@ export function clawdSvg(mood: Mood, color: string, unit: number): string {
   )
 }
 
-export function meterSvg({ left, barColor, clawdColor, width, height }: MeterSpec): string {
+export function swatchSvg({ color, rim, width, height }: SwatchSpec): string {
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">` +
+    `<rect x="1" y="1" width="${width - 2}" height="${height - 2}" rx="3" fill="${color}" stroke="${rim}" stroke-width="1"/>` +
+    '</svg>'
+  )
+}
+
+export function meterSvg({ left, barColor, clawdColor, trackColor, width, height }: MeterSpec): string {
   const share = Math.max(0, Math.min(100, left)) / 100
   const mood = moodFor(left)
   const unit = (height - 2) / CLAWD_ROWS
@@ -159,7 +170,9 @@ export function meterSvg({ left, barColor, clawdColor, width, height }: MeterSpe
     `<stop offset="0" stop-color="${barColor}" stop-opacity="0.72"/>` +
     `<stop offset="1" stop-color="${barColor}"/>` +
     '</linearGradient></defs>' +
-    `<rect x="1" y="${barTop}" width="${inner}" height="${barHeight}" rx="${radius}" fill="#808080" fill-opacity="0.28"/>` +
+    (trackColor === null
+      ? `<rect x="1" y="${barTop}" width="${inner}" height="${barHeight}" rx="${radius}" fill="#808080" fill-opacity="0.28"/>`
+      : `<rect x="1" y="${barTop}" width="${inner}" height="${barHeight}" rx="${radius}" fill="${trackColor}"/>`) +
     (fill > 0
       ? `<rect x="1" y="${barTop}" width="${round(fill)}" height="${barHeight}" rx="${radius}" fill="url(#fill)"/>` +
         `<rect x="${round(1 + radius)}" y="${barTop + 2}" width="${round(Math.max(0, fill - radius * 2))}" height="2" rx="1" fill="#ffffff" fill-opacity="0.35"/>`

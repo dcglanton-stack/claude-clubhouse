@@ -2,12 +2,23 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, On } from 'claude-code'
 
 import type { Palette, PaletteSlot, Prefs, Reach } from '../../types'
-import { HELPER_CONFIG, START_HELPER, coversApp, fitsApp, helperConfig } from '../lib/appColor'
+import {
+  HELPER_CONFIG,
+  READ_APP_MODE,
+  START_HELPER,
+  appModeFrom,
+  backdropOf,
+  coversApp,
+  helperConfig,
+  inkOf,
+  swapsLightAndDark,
+} from '../lib/appColor'
 import { clawdSvg, wheelSvg } from '../lib/clawd'
-import { isLight, mix, normalizeHex, rgbString, shift, toHsl } from '../lib/color'
+import { contrast, isLight, mix, normalizeHex, rgbString, shift, toHsl } from '../lib/color'
 import type { Hsl } from '../lib/color'
 import {
   DEFAULT_COLORS_VIEW,
+  DEFAULT_PALETTE,
   DEFAULT_PREFS,
   PREFS_KEY,
   PREFS_SHAPE,
@@ -24,7 +35,8 @@ const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS
 
 const THEME_SLUG = 'clubhouse'
 const THEME_REF = `custom:${THEME_SLUG}`
-const BLANK_SLOT = '#2b2b2b'
+const WHEEL_SIZE = 110
+const COMFORTABLE_CONTRAST = 4.5
 const LOOK_MODEL = 'haiku'
 const LOOK_SYSTEM =
   'You design three-color palettes. Reply with one JSON object and nothing else: ' +
@@ -33,14 +45,22 @@ const LOOK_SYSTEM =
   'background is a panel background. Keep accent and clawd clearly visible on background.'
 
 const SLOTS: readonly (readonly [PaletteSlot, string, string])[] = [
-  ['accent', 'Accent', 'Headings and highlights in the clubhouse.'],
-  ['clawd', 'Clawd', 'The mascot in the usage meter.'],
+  ['background', 'Background', 'The color behind everything the Clubhouse reaches.'],
   [
-    'background',
-    'Background',
-    'Behind the Clubhouse panes and the band. Text flips dark or light to stay readable.',
+    'text',
+    'Text',
+    'The conversation text, icons and borders, while the button above says the whole session. Automatic picks dark or light, whichever reads better.',
   ],
+  ['accent', 'Accent', 'Headings and highlights in the Clubhouse.'],
+  ['clawd', 'Clawd', 'The mascot in the usage meter.'],
 ]
+
+const UNSET: Record<PaletteSlot, string> = {
+  background: 'app default',
+  text: 'automatic',
+  accent: 'app default',
+  clawd: 'app default',
+}
 
 const PRESETS: readonly (readonly [string, string])[] = [
   ['Claude', '#d97757'],
@@ -70,9 +90,9 @@ const ANTHROPIC: readonly (readonly [string, string])[] = [
 ]
 
 const LOOKS: readonly (readonly [string, string, Palette])[] = [
-  ['look-ivory', 'Anthropic ivory', { accent: '#c6613f', clawd: '#d97757', background: '#faf9f5' }],
-  ['look-manilla', 'Anthropic manilla', { accent: '#c6613f', clawd: '#d97757', background: '#f5e3c7' }],
-  ['look-slate', 'Anthropic slate', { accent: '#d97757', clawd: '#d97757', background: '#141413' }],
+  ['look-ivory', 'Anthropic ivory', { accent: '#c6613f', clawd: '#d97757', background: '#faf9f5', text: null }],
+  ['look-manilla', 'Anthropic manilla', { accent: '#c6613f', clawd: '#d97757', background: '#f5e3c7', text: null }],
+  ['look-slate', 'Anthropic slate', { accent: '#d97757', clawd: '#d97757', background: '#141413', text: null }],
 ]
 
 const REACH_NEXT: Record<Reach, Reach> = { app: 'conversation', conversation: 'rooms', rooms: 'app' }
@@ -124,8 +144,19 @@ function reason(error: unknown): string {
   return error instanceof Error ? error.message : 'unknown error'
 }
 
+function colorOf(held: Prefs, slot: PaletteSlot): string {
+  return held.palette[slot] ?? (slot === 'text' ? inkOf(held) : backdropOf(held))
+}
+
+async function appModeNow($: EngineInterface): Promise<Prefs['appMode'] | null> {
+  const ran = await $.process.run(['/bin/sh', '-c', READ_APP_MODE]).catch(() => null)
+
+  return ran === null ? null : appModeFrom(ran.stdout)
+}
+
 async function keep($: EngineInterface, change: (held: Prefs) => Prefs): Promise<void> {
-  await update($, prefs, change)
+  const mode = await appModeNow($)
+  await update($, prefs, held => ({ ...change(held), appMode: mode ?? held.appMode }))
   const chosen = await read($, prefs)
   await $.store.set(PREFS_KEY, chosen)
   const userFolder = await $.env.get('HOME')
@@ -245,7 +276,7 @@ async function describeLook($: EngineInterface, wish: string): Promise<void> {
       return
     }
 
-    await keep($, held => ({ ...held, palette: { accent, clawd, background } }))
+    await keep($, held => ({ ...held, palette: { accent, clawd, background, text: null } }))
     await say($, `Set to accent ${accent}, Clawd ${clawd}, background ${background}.`)
   } catch (error) {
     await say($, `Could not build that look: ${reason(error)}`)
@@ -315,20 +346,25 @@ async function takeHex($: EngineInterface, slot: PaletteSlot, typed: string): Pr
 export function colors(on: On): void {
   on('ui.render', { component: 'Pane', requestId: 'clubhouse-colors' }, async ($, e) => {
     const elements = $.ui.resolve(e)
-    const canDraw = e.surface !== 'terminal'
     const { Box, Text } = elements
     const chosen = await read($, prefs)
     const view = await read($, colorsView)
     const slot = view.slot
-    const current = chosen.palette[slot] ?? BLANK_SLOT
-    const { ink, frame, note, plain, title, heading, Button, Input } = makeParts(elements, chosen, e.surface)
+    const current = colorOf(chosen, slot)
+    const { look, ink, frame, note, plain, title, heading, picture, swatch, Button, Input } = makeParts(
+      elements,
+      chosen,
+      e.surface,
+    )
     const setSlot = (hex: string | null) =>
       void keep($, held => ({ ...held, palette: { ...held.palette, [slot]: hex } }))
     const nudge = (change: Partial<Hsl>) =>
       void keep($, held => ({
         ...held,
-        palette: { ...held.palette, [slot]: shift(held.palette[slot] ?? BLANK_SLOT, change) },
+        palette: { ...held.palette, [slot]: shift(colorOf(held, slot), change) },
       }))
+    const isHardToRead =
+      coversApp(chosen) && contrast(backdropOf(chosen), inkOf(chosen)) < COMFORTABLE_CONTRAST
 
     return (
       <Box flexDirection="column" gap={1} {...frame}>
@@ -344,54 +380,60 @@ export function colors(on: On): void {
             variant="primary"
             onPress={() => void keep($, held => ({ ...held, reach: REACH_NEXT[held.reach] }))}
           />
-          <Button key="reset-colors" label="Reset to default" onPress={() => void keep($, resetLook)} />
+          <Button key="reset-colors" label="Reset all to default" onPress={() => void keep($, resetLook)} />
         </Box>
         {note(
           chosen.reach !== 'app'
             ? 'Press the button to make your Background color the color of the whole session.'
             : !chosen.isHelperReady
               ? 'The helper that colors the whole session is not installed on this Mac, so the Background color stops at the conversation. Ask Claude to build it.'
-              : !fitsApp(chosen)
-                ? `Your Background is a ${chosen.appMode === 'dark' ? 'light' : 'dark'} color and your app is in ${chosen.appMode} mode, so the app's own text would be unreadable on it. It stops at the conversation. Pick a ${chosen.appMode} color, or switch the app's mode and press the mode button below.`
-                : chosen.palette.background === null
-                  ? 'Pick a Background color below and it becomes the color of the whole session: the conversation, the bar, the text box and the Clubhouse rooms. The sidebar keeps the app\'s own look.'
-                  : 'Your Background color is the color of the whole session: the conversation, the bar, the text box and the Clubhouse rooms. The sidebar keeps the app\'s own look.',
+              : chosen.palette.background === null
+                ? 'Pick a Background color below and it becomes the color of the whole session: the conversation, the bar, the text box and the Clubhouse rooms. The sidebar keeps the app\'s own look.'
+                : 'Your Background color is the color of the whole session: the conversation, the bar, the text box and the Clubhouse rooms. Text, icons and borders take your Text color. The sidebar keeps the app\'s own look.',
         )}
+        {swapsLightAndDark(chosen) &&
+          note(
+            `This is a ${chosen.appMode === 'dark' ? 'light' : 'dark'} color on a ${chosen.appMode} app, so the helper swaps light and dark across the session to keep text readable. Pictures in the conversation swap too. Switching the Claude app itself to ${chosen.appMode === 'dark' ? 'light' : 'dark'} mode avoids that, and the Clubhouse notices on its own.`,
+          )}
+        {isHardToRead &&
+          note(
+            'On a mid-bright background like this, neither dark nor light text stands out strongly, and Clawd and the usage bar take lighter shades of their colors. A darker or lighter background reads best.',
+          )}
 
         {heading('What to color')}
         {SLOTS.map(([id, label, about]) => (
           <Box flexDirection="column">
-            <Box gap={1}>
+            <Box gap={1} alignItems="center">
               <Button
                 key={`slot-${id}`}
                 label={label}
                 variant={slot === id ? 'primary' : 'secondary'}
                 onPress={() => void update($, colorsView, held => ({ ...held, slot: id }))}
               />
-              <Text backgroundColor={chosen.palette[id] ?? BLANK_SLOT}>{'    '}</Text>
-              <Text {...ink}>{chosen.palette[id] ?? 'app default'}</Text>
+              {swatch(colorOf(chosen, id))}
+              <Text {...ink}>{chosen.palette[id] ?? UNSET[id]}</Text>
+              <Button
+                key={`reset-${id}`}
+                label="Reset"
+                onPress={() =>
+                  void keep($, held => ({ ...held, palette: { ...held.palette, [id]: DEFAULT_PALETTE[id] } }))
+                }
+              />
             </Box>
             {note(about)}
           </Box>
         ))}
 
         {heading(`Adjust ${slot}`)}
-        {canDraw && 'Svg' in elements && (
-          <Box gap={2} alignItems="center">
-            <elements.Svg
-              source={wheelSvg({ hue: toHsl(current).hue, color: current, size: 110 })}
-              alt={`Color wheel showing ${current}`}
-              width={110}
-              height={110}
-            />
-            <elements.Svg
-              source={clawdSvg('happy', chosen.palette.clawd, 6)}
-              alt="Clawd in the chosen color"
-              width={90}
-              height={58}
-            />
-          </Box>
-        )}
+        <Box gap={2} alignItems="center">
+          {picture(
+            wheelSvg({ hue: toHsl(current).hue, color: current, size: WHEEL_SIZE }),
+            `Color wheel showing ${current}`,
+            WHEEL_SIZE,
+            WHEEL_SIZE,
+          )}
+          {picture(clawdSvg('happy', look.clawd, 6), 'Clawd in the chosen color', 90, 58)}
+        </Box>
         <Box gap={1} flexWrap="wrap">
           {NUDGES.map(([key, label, change]) => (
             <Button key={key} label={label} onPress={() => nudge(change)} />
@@ -403,8 +445,12 @@ export function colors(on: On): void {
           {PRESETS.map(([name, hex]) => (
             <Button key={`preset-${name}`} label={name} onPress={() => setSlot(hex)} />
           ))}
-          {slot === 'background' && (
-            <Button key="preset-none" label="None" onPress={() => setSlot(null)} />
+          {(slot === 'background' || slot === 'text') && (
+            <Button
+              key="preset-none"
+              label={slot === 'text' ? 'Automatic' : 'None'}
+              onPress={() => setSlot(null)}
+            />
           )}
         </Box>
 
@@ -450,20 +496,8 @@ export function colors(on: On): void {
           </Box>
         )}
 
-        {heading('Dark or light app')}
-        {note('Tell the Clubhouse whether your Claude app is in dark or light mode. It uses this to match the app exactly and to keep buttons readable. Colors close to the app\'s own work best: dark colors in dark mode, light colors in light mode.')}
-        <Box>
-          <Button
-            key="app-mode"
-            label={chosen.appMode === 'dark' ? 'My app is in dark mode' : 'My app is in light mode'}
-            onPress={() =>
-              void keep($, held => ({ ...held, appMode: held.appMode === 'dark' ? 'light' : 'dark' }))
-            }
-          />
-        </Box>
-
         {heading('How the session gets its color')}
-        {note('Claude Code can only paint its own rows and panels, so the Clubhouse runs a small helper on your Mac. Wherever the session shows the app\'s plain background, the helper swaps in your color. Text, icons, buttons and borders are left exactly as they are. It stops when you reset, switch the Clubhouse off or quit Claude.')}
+        {note(`Claude Code can only paint its own rows and panels, so the Clubhouse runs a small helper on your Mac. Wherever the session shows the app's plain background, the helper swaps in your Background color, and it moves text, icons and borders to your Text color. It notices on its own whether the Claude app is in dark or light mode (${chosen.appMode} right now), and it stops when you reset, switch the Clubhouse off or quit Claude.`)}
 
         <Box>
           <Button

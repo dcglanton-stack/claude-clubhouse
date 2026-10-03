@@ -1,8 +1,13 @@
 export type Rgb = readonly [number, number, number]
 export type Hsl = { hue: number; saturation: number; lightness: number }
 
-const DARK_INK = '#161616'
-const LIGHT_INK = '#f4f4f4'
+const DARK_INK = '#141413'
+const LIGHT_INK = '#faf9f5'
+const DARK_INK_FROM = 0.22
+const STAND_OUT_STEPS = 24
+const GREY_SATURATION = 8
+const HUE_SATURATION = 45
+const HUE_LIGHTNESS_FLOOR = 14
 const DARK_SURFACE = '#30302e'
 const LIGHT_SURFACE = '#faf9f5'
 
@@ -65,7 +70,24 @@ export function luminance(hex: string): number {
 }
 
 export function isLight(hex: string): boolean {
-  return luminance(hex) > 0.4
+  return luminance(hex) > DARK_INK_FROM
+}
+
+export function contrast(one: string, other: string): number {
+  const first = luminance(one)
+  const second = luminance(other)
+
+  return (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05)
+}
+
+export function standOut(color: string, background: string, ink: string, ratio: number): string {
+  for (let step = 0; step <= STAND_OUT_STEPS; step += 1) {
+    const tried = mix(color, ink, step / STAND_OUT_STEPS)
+
+    if (contrast(tried, background) >= ratio) return tried
+  }
+
+  return ink
 }
 
 export function surfaceFor(isLightMode: boolean): string {
@@ -121,12 +143,15 @@ export function fromHsl({ hue, saturation, lightness }: Hsl): string {
 
 export function shift(hex: string, change: Partial<Hsl>): string {
   const current = toHsl(hex)
-  const clamp = (level: number) => Math.max(0, Math.min(100, level))
+  const clamp = (level: number, low: number, high: number) => Math.max(low, Math.min(high, level))
+  const isTurningGrey = change.hue !== undefined && current.saturation < GREY_SATURATION
+  const saturation = isTurningGrey ? HUE_SATURATION : current.saturation + (change.saturation ?? 0)
+  const lightness = current.lightness + (change.lightness ?? 0)
 
   return fromHsl({
     hue: current.hue + (change.hue ?? 0),
-    saturation: clamp(current.saturation + (change.saturation ?? 0)),
-    lightness: clamp(current.lightness + (change.lightness ?? 0)),
+    saturation: clamp(saturation, 0, 100),
+    lightness: isTurningGrey ? clamp(lightness, HUE_LIGHTNESS_FLOOR, 100 - HUE_LIGHTNESS_FLOOR) : clamp(lightness, 0, 100),
   })
 }
 

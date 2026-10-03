@@ -226,7 +226,6 @@ export function agents(on: On): void {
 
   on('ui.render', { component: 'Pane', requestId: 'clubhouse-agents' }, async ($, e) => {
     const elements = $.ui.resolve(e)
-    const canDraw = e.surface !== 'terminal'
     const { Box, Text } = elements
     const chosen = await read($, prefs)
     await read($, pulse)
@@ -239,8 +238,11 @@ export function agents(on: On): void {
       .filter(one => agentStatus(one.status) !== 'running')
       .slice(-PAST_SHOWN)
       .reverse()
-    const { clawd } = chosen.palette
-    const { ink, frame, note, plain, title, card, Button, Input, Select } = makeParts(elements, chosen, e.surface)
+    const { ink, frame, note, plain, title, card, look, picture, Button, Input, Select } = makeParts(
+      elements,
+      chosen,
+      e.surface,
+    )
     const target = bank.find(one => one.name === desk.target)
 
     const setDesk = (mode: 'idle' | 'form' | 'send', name: string | null) =>
@@ -261,16 +263,12 @@ export function agents(on: On): void {
 
       return (
         <Box gap={1} alignItems="center">
-          {canDraw && 'Svg' in elements ? (
-            <elements.Svg
-              source={agentSvg({ color: clawd, unit: ROW_UNIT, status })}
-              alt={`Agent ${label}, ${STATUS_WORD[one.status] ?? one.status}`}
-              width={ROW_WIDTH}
-              height={ROW_HEIGHT}
-            />
-          ) : (
-            <Text {...ink}>{status === 'running' ? '[■_■]' : status === 'completed' ? '[■_■]✓' : '[■_■]✗'}</Text>
-          )}
+          {picture(
+            agentSvg({ color: look.clawd, unit: ROW_UNIT, status }),
+            `Agent ${label}, ${STATUS_WORD[one.status] ?? one.status}`,
+            ROW_WIDTH,
+            ROW_HEIGHT,
+          ) ?? <Text {...ink}>{status === 'running' ? '[■_■]' : status === 'completed' ? '[■_■]✓' : '[■_■]✗'}</Text>}
           <Box flexDirection="column">
             <Text {...ink} wrap="truncate">
               {one.description}
@@ -401,13 +399,11 @@ export function agents(on: On): void {
     return (
       <Box flexDirection="column" gap={1} {...frame}>
         <Box gap={1} alignItems="center">
-          {canDraw && 'Svg' in elements && (
-            <elements.Svg
-              source={agentSvg({ color: clawd, unit: HEAD_UNIT, status: 'running' })}
-              alt="A Clawd agent in a suit and sunglasses"
-              width={HEAD_WIDTH}
-              height={HEAD_HEIGHT}
-            />
+          {picture(
+            agentSvg({ color: look.clawd, unit: HEAD_UNIT, status: 'running' }),
+            'A Clawd agent in a suit and sunglasses',
+            HEAD_WIDTH,
+            HEAD_HEIGHT,
           )}
           {title('Agent HQ')}
           {desk.mode === 'idle' && (
