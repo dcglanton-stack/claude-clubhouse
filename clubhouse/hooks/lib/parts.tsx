@@ -1,6 +1,7 @@
 import type { ElementConstructor, Elements, RenderElement } from 'claude-code'
 
 import type { Limit, Prefs, WindowKind } from '../../types'
+import { paintOf } from './appColor'
 import { meterSvg, moodFor, moodName } from './clawd'
 import { inkOn, isLight, rampColor, surfaceFor } from './color'
 import { WINDOW_NAME, formatSpan, percentLeft, resetIn, textBar } from './format'
@@ -20,56 +21,31 @@ const TEXT_CELLS = 28
 const TITLE_SIZE = 24
 const HEADING_SIZE = 17
 const HAIRLINE = '#87867f'
-const GAP_CELLS = 3
-const SOFT_GUTTER = 6
-const FULL_GUTTER = 60
 const ROW_BLEED = 1
 
-export function tintRow(kit: Kit, { palette, appMode, gapFill }: Prefs, drawing: RenderElement) {
+export function tintRow(kit: Kit, prefs: Prefs, drawing: RenderElement) {
   const { Box } = kit
-  const background = palette.background ?? surfaceFor(appMode === 'light')
-  const needsChip = isLight(background) !== (appMode === 'light')
-  const content = needsChip ? (
-    <Box flexDirection="column" backgroundColor={surfaceFor(appMode === 'light')}>
-      {drawing}
-    </Box>
-  ) : (
-    drawing
-  )
-
-  if (gapFill === 'full') {
-    return (
-      <Box flexDirection="column" position="relative">
-        <Box
-          position="absolute"
-          top={0}
-          bottom={-GAP_CELLS}
-          left={-FULL_GUTTER}
-          right={-FULL_GUTTER}
-          backgroundColor={background}
-        />
-        <Box flexDirection="column" position="relative">
-          {content}
-        </Box>
-      </Box>
-    )
-  }
-
-  const reach =
-    gapFill === 'soft'
-      ? { marginBottom: -GAP_CELLS, paddingBottom: GAP_CELLS, marginX: -SOFT_GUTTER, paddingX: SOFT_GUTTER }
-      : { marginX: -ROW_BLEED, paddingX: ROW_BLEED }
+  const isLightApp = prefs.appMode === 'light'
+  const background = prefs.palette.background ?? surfaceFor(isLightApp)
 
   return (
-    <Box flexDirection="column" backgroundColor={background} {...reach}>
-      {content}
+    <Box flexDirection="column" backgroundColor={background} marginX={-ROW_BLEED} paddingX={ROW_BLEED}>
+      {isLight(background) === isLightApp ? (
+        drawing
+      ) : (
+        <Box flexDirection="column" backgroundColor={surfaceFor(isLightApp)}>
+          {drawing}
+        </Box>
+      )}
     </Box>
   )
 }
 
-export function makeParts(kit: Kit, { palette, appMode, gapFill }: Prefs, surface: string) {
+export function makeParts(kit: Kit, prefs: Prefs, surface: string) {
   const { Box, Text } = kit
-  const { accent, background, clawd } = palette
+  const { appMode } = prefs
+  const { accent, clawd } = prefs.palette
+  const background = paintOf(prefs)
   const needsChip = background !== null && isLight(background) !== (appMode === 'light')
   const chipColor = surfaceFor(appMode === 'light')
   const chipped =
@@ -88,12 +64,7 @@ export function makeParts(kit: Kit, { palette, appMode, gapFill }: Prefs, surfac
   const Markdown = 'Markdown' in kit ? chipped(kit.Markdown) : null
   const canDraw = surface !== 'terminal'
   const ink = background === null ? {} : { color: inkOn(background) }
-  const frame =
-    background === null
-      ? {}
-      : gapFill === 'off'
-        ? { backgroundColor: background, padding: 1 }
-        : { backgroundColor: background, paddingX: 3, paddingY: 2, marginX: -2, marginY: -1 }
+  const frame = background === null ? {} : { backgroundColor: background, padding: 1 }
 
   const note = (text: string) => (
     <Text {...ink} dimColor wrap="wrap">

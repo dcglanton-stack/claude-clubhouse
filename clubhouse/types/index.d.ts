@@ -39,7 +39,7 @@ export type Opinion = {
   source: 'here' | 'outside' | null
 }
 
-export type GapFill = 'off' | 'soft' | 'full'
+export type Reach = 'rooms' | 'conversation' | 'app'
 
 export type Prefs = {
   isEnabled: boolean
@@ -49,8 +49,8 @@ export type Prefs = {
   shortcuts: Shortcut[]
   autoSummary: boolean
   appMode: 'dark' | 'light'
-  tintChat: boolean
-  gapFill: GapFill
+  reach: Reach
+  isHelperReady: boolean
   opinionModel: OpinionModel
   palette: Palette
   previousTheme: string | null
@@ -63,13 +63,17 @@ export type Receipt = {
   usageDelta: number | null
 }
 
-export type ColorsView = { slot: PaletteSlot; note: string | null }
+export type ColorsView = { slot: PaletteSlot; note: string | null; isAdvancedOpen: boolean }
 
 export type CommandStat = { count: number; lastAt: number }
 
 export type CommandStats = { [name: string]: CommandStat }
 
 export type CommandsView = { filter: string; note: string | null; open: string[] }
+
+export type HiddenPresets = { [name: string]: string[] }
+
+export type HiddenPlan = { presets: HiddenPresets; startWith: string | null }
 
 export type ToolRule = 'ask' | 'block'
 
@@ -108,6 +112,7 @@ declare module 'claude-code' {
       commandStats: CommandStats
       commandsView: CommandsView
       hiddenCommands: string[]
+      hiddenPlan: HiddenPlan
       pulse: number
       agentBank: Blueprint[]
       agentDesk: AgentDesk

@@ -2,6 +2,7 @@ import { atom, update } from 'claude-code'
 import type { Register } from 'claude-code'
 
 import type { Blueprint, Limit } from '../types'
+import { HELPER_BINARY, HELPER_CONFIG, START_HELPER, coversApp, helperConfig } from './lib/appColor'
 import { agents } from './features/agents'
 import { band } from './features/band'
 import { bar } from './features/bar'
@@ -17,13 +18,16 @@ import { usageRoom } from './features/usageRoom'
 import {
   AGENTS_KEY,
   COMMANDS_KEY,
+  DEFAULT_HIDDEN_PLAN,
   DEFAULT_PREFS,
   HIDDEN_KEY,
+  HIDDEN_PLAN_KEY,
   LIMITS_KEY,
   PREFS_KEY,
   TOOL_RULES_KEY,
   asBlueprints,
   asCommandStats,
+  asHiddenPlan,
   asNames,
   asToolRules,
   isLimitList,
@@ -37,19 +41,34 @@ const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS
 const commandStats = atom({ plugin: 'clubhouse', key: 'commandStats' } as const, {})
 const agentBank = atom({ plugin: 'clubhouse', key: 'agentBank' } as const, [])
 const hiddenCommands = atom({ plugin: 'clubhouse', key: 'hiddenCommands' } as const, [])
+const hiddenPlan = atom({ plugin: 'clubhouse', key: 'hiddenPlan' } as const, DEFAULT_HIDDEN_PLAN)
 const toolRules = atom({ plugin: 'clubhouse', key: 'toolRules' } as const, {})
 
 const TICK_MS = 30_000
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
-    const saved = mergePrefs(await $.store.get(PREFS_KEY))
+    const userFolder = await $.env.get('HOME')
+    const isHelperReady =
+      userFolder !== undefined && (await $.fs.exists(`${userFolder}/${HELPER_BINARY}`).catch(() => false))
+    const saved = { ...mergePrefs(await $.store.get(PREFS_KEY)), isHelperReady }
     await update($, prefs, () => saved)
+
+    if (userFolder !== undefined) {
+      await $.fs.write(`${userFolder}/${HELPER_CONFIG}`, helperConfig(saved)).catch(() => undefined)
+
+      if (coversApp(saved)) {
+        await $.process.run(['/bin/sh', '-c', START_HELPER]).catch(() => undefined)
+      }
+    }
 
     const savedCommands = asCommandStats(await $.store.get(COMMANDS_KEY))
     await update($, commandStats, () => savedCommands)
 
-    const savedHidden = asNames(await $.store.get(HIDDEN_KEY))
+    const savedPlan = asHiddenPlan(await $.store.get(HIDDEN_PLAN_KEY))
+    const startPreset = savedPlan.startWith === null ? undefined : savedPlan.presets[savedPlan.startWith]
+    const savedHidden = startPreset ?? asNames(await $.store.get(HIDDEN_KEY))
+    await update($, hiddenPlan, () => savedPlan)
     await update($, hiddenCommands, () => savedHidden)
 
     const savedRules = asToolRules(await $.store.get(TOOL_RULES_KEY))
@@ -82,8 +101,8 @@ export const register: Register = on => {
 
     await $.command.register({
       name: 'clubhouse',
-      description: 'Open Claude Clubhouse. Add a room to open it: agents, summary, opinion, tools, commands, bar, usage, colors; or on, off, reset',
-      argumentHint: '[on|off|agents|summary|opinion|tools|commands|bar|usage|colors|reset]',
+      description: 'Open Claude Clubhouse. Add a room to open it: agents, summary, opinion, tools, commands, bar, usage, colors; or on, off, color reset',
+      argumentHint: '[on|off|agents|summary|opinion|tools|commands|bar|usage|colors|color reset]',
       immediate: true,
     })
 

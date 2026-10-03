@@ -9,6 +9,7 @@ import type {
   ColorsView,
   CommandStats,
   CommandsView,
+  HiddenPlan,
   Limit,
   Palette,
   Prefs,
@@ -50,8 +51,8 @@ export const DEFAULT_PREFS: Prefs = {
   shortcuts: [],
   autoSummary: false,
   appMode: 'dark',
-  tintChat: false,
-  gapFill: 'off',
+  reach: 'app',
+  isHelperReady: false,
   opinionModel: 'sonnet',
   palette: DEFAULT_PALETTE,
   previousTheme: null,
@@ -147,10 +148,12 @@ export const STARTER_COMMANDS: readonly string[] = ['clubhouse', 'clear', 'compa
 export const PREFS_KEY = 'prefs'
 export const LIMITS_KEY = 'limits'
 
-export const DEFAULT_COLORS_VIEW: ColorsView = { slot: 'accent', note: null }
+export const DEFAULT_COLORS_VIEW: ColorsView = { slot: 'accent', note: null, isAdvancedOpen: false }
 
 export const DEFAULT_COMMANDS_VIEW: CommandsView = { filter: '', note: null, open: [] }
 export const HIDDEN_KEY = 'hidden'
+export const HIDDEN_PLAN_KEY = 'hiddenPlan'
+export const DEFAULT_HIDDEN_PLAN: HiddenPlan = { presets: {}, startWith: null }
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -219,8 +222,8 @@ export function mergePrefs(saved: unknown): Prefs {
     shortcuts: asShortcuts(saved.shortcuts, barCount),
     autoSummary: saved.autoSummary === true,
     appMode: saved.appMode === 'light' ? 'light' : 'dark',
-    tintChat: saved.tintChat === true,
-    gapFill: saved.gapFill === 'soft' || saved.gapFill === 'full' ? saved.gapFill : 'off',
+    reach: saved.reach === 'rooms' || saved.reach === 'conversation' ? saved.reach : 'app',
+    isHelperReady: saved.isHelperReady === true,
     opinionModel: saved.opinionModel === 'haiku' || saved.opinionModel === 'opus' ? saved.opinionModel : 'sonnet',
     palette: { ...DEFAULT_PALETTE, ...palette } as Palette,
     previousTheme: typeof saved.previousTheme === 'string' ? saved.previousTheme : null,
@@ -246,7 +249,7 @@ export function withBarCount(held: Prefs, barCount: number): Prefs {
 }
 
 export function resetLook(held: Prefs): Prefs {
-  return { ...held, palette: DEFAULT_PALETTE, tintChat: false, gapFill: 'off', appMode: 'dark' }
+  return { ...held, palette: DEFAULT_PALETTE, reach: 'app', appMode: 'dark' }
 }
 
 export function nextZone(zone: BarZone): BarZone {
@@ -319,4 +322,14 @@ export function asToolRules(saved: unknown): ToolRules {
   }
 
   return rules
+}
+
+export function asHiddenPlan(saved: unknown): HiddenPlan {
+  if (!isRecord(saved) || !isRecord(saved.presets)) return DEFAULT_HIDDEN_PLAN
+  const presets = Object.fromEntries(
+    Object.entries(saved.presets).map(([name, names]) => [name, asNames(names)] as const),
+  )
+  const startWith = typeof saved.startWith === 'string' && saved.startWith in presets ? saved.startWith : null
+
+  return { presets, startWith }
 }

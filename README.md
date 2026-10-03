@@ -17,7 +17,7 @@ A Claude Code mod: one plugin that adds a home button and a Clawd usage meter ab
 | `/clubhouse bar` | Bar layout: add, remove and move bar items, add bars, make your own buttons |
 | `/clubhouse usage` | Both limits, context and the cache timer, full size |
 | `/clubhouse colors` | The color picker |
-| `/clubhouse reset` | Puts colors, conversation tint and gap fill back to their defaults |
+| `/clubhouse color reset` | Puts the colors back to their defaults |
 
 The Clubhouse loads in every session through `CLAUDE_CODE_PLUGIN_DIRS` in `~/.claude/settings.json`, which points at the `clubhouse/` folder here. To unload it completely, remove that entry.
 
@@ -28,13 +28,13 @@ The Clubhouse loads in every session through `CLAUDE_CODE_PLUGIN_DIRS` in `~/.cl
 - **Summary**: a Summarize button on the bar shortens the last reply with a small model; Auto does it for every long reply.
 - **Usage meter**: Clawd rides a bar that drains as the 5-hour or weekly limit is used. Green and happy when full, red and wiped out near empty. Shows time to reset and a one-hour cache countdown from the last reply.
 - **Agent HQ**: each subagent drawn as Clawd in a suit and sunglasses, with Stand down and Dismiss. Create your own agents from a form, save them, pick their model (or let Auto pick the cheapest that fits), and send one out with a task; Claude is told what was dispatched.
-- **Commands**: every slash command in collapsible groups (your own, built in, one per plugin) with a filter; clicking one puts it in the prompt box. Hide a skill, or a whole group, and it leaves the slash menu, Claude is no longer told about it, and Claude cannot use it. Hidden items can be shown again.
+- **Commands**: every slash command in collapsible groups (your own, built in, one per plugin) with a filter; clicking one puts it in the prompt box. Hide a skill, or a whole group, and it leaves the slash menu, Claude is no longer told about it, and Claude cannot use it. Hidden items can be shown again. Save hidden lists as presets, and mark one for every new session to start with.
 - **Tool rules**: every tool Claude has, grouped by connector, each set to Allowed, Ask first or Blocked. Ask first shows what Claude is about to send and runs nothing unless you allow it. The money safeguard turns Ask first on for every tool that places, changes or cancels an order or moves money.
 - **Design**: follows `DESIGN.md` (Anthropic's style): serif headings, hairline borders, warm neutrals and one clay accent. The Anthropic palette and three ready-made looks are in Colors.
 - **Tidy**: a bar button that fixes spelling and trims the draft in the prompt box with a small model; press it again to get your original back.
 - **Readable controls**: buttons and text boxes get a contrasting backing when your background would hide them.
-- **Conversation tint**: paints your background behind every conversation row by wrapping the app's own drawing, so nothing is lost. Fill the gaps (experimental, soft or full) stretches the color between rows and inside the rooms.
-- **Whole-window tint**: the text box, footer, tab strip and sidebar belong to the Claude app. Colors copies a one-line style rule you paste into the app's own DevTools console (Help, Troubleshooting, Enable Developer Mode) to tint the entire window until it reloads.
+- **Whole-app color**: the Background color you pick becomes the color of the whole Claude window: conversation, text box, bar, tabs and sidebar. A small helper (`helper/WindowTint.swift`, built by `helper/build.sh`) lays the color over the window, calibrated so the app's background comes out as exactly your color. One button keeps the color to the conversation or to the Clubhouse instead.
+- **Exact repaint (advanced)**: Colors can copy a one-line style rule for the app's own Developer Mode console, which repaints the app itself until it restarts.
 - **Second opinion**: ask Claude in this session, or a different model that sees only an excerpt, without the question or answer entering the conversation.
 - **Colors**: accent, Clawd and background colors for everything the Clubhouse draws, by preset, hex code, nudges or a described look. Can also write a Claude Code custom theme.
 - **Context gauge** and **turn receipt**: optional extras on the bar, off by default.
@@ -61,4 +61,7 @@ clubhouse/
   hooks/lib/                   pure helpers: colors, drawings, formatting, defaults
   types/index.d.ts             the shape of everything the Clubhouse remembers
   tests/                       tests run by `claude plugin test`
+helper/
+  WindowTint.swift             the whole-app color helper (macOS)
+  build.sh                     builds it into ~/.claude/clubhouse-helper/
 ```
