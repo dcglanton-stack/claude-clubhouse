@@ -1,39 +1,54 @@
 # Claude Clubhouse
 
-A mod for Claude Code in the Claude desktop app that turns the space around your prompt into a place of your own.
+A plugin for Claude Code that turns the space around your prompt into a place of your own. It is a mod: code that runs inside Claude Code on your own computer, in the terminal or the Claude desktop app's Code tab. It is not an MCP connector, and it does not run in cloud sessions, claude.ai chat or Cowork.
 
 - **A toolbar above the prompt** that you lay out yourself: a usage meter where Clawd rides a bar that drains as you use your limit, the context gauge and cache timer, Summarize and Tidy buttons, a stock or coin price, a live score with team logos, the weather, a sketch pad, and buttons you make yourself.
 - **Your colors, for real.** Pick a Background and the whole window becomes that color: the conversation, text box, toolbar and sidebar take shades of it the way a designed theme would, and things with their own color (window buttons, icons, logos) keep it. It works with the app in dark or light mode, and each project can have its own colors. This part needs macOS.
 - **Rooms**, one screen each, opened from the house on the toolbar or with `/clubhouse`: your subagents and saved agents, every slash command, rules for what Claude may do with each tool, terminal commands saved as tools Claude can call, a timer that checks on things while you are away, notes left for a later session, usage, fonts and more.
 - **It is yours to change.** Say "in the clubhouse, add a button that..." in any session and Claude edits your copy. Nothing you change leaves your computer.
 
-It is one plugin, written with Claude Code's function hooks. Tested with Claude Code 2.1.286 in the Claude desktop app on macOS; the rooms and toolbar also draw in the terminal, the whole-window color does not.
+Tested with Claude Code 2.1.286 in the Claude desktop app on macOS; the rooms and toolbar also draw in the terminal, the whole-window color does not.
 
 MIT licensed (see `LICENSE`). Not made by or affiliated with Anthropic. Clawd is Anthropic's mascot, drawn here by a fan. Prices come from Yahoo's unofficial feed and scores from ESPN's; neither is guaranteed to keep working.
 
 ## Install
 
-### The quick way (every session on your computer)
+You need Claude Code on your own computer: the terminal, or the Code tab of the Claude desktop app with **Local** selected.
 
-In any Claude Code session, type these two commands:
+1. In any Claude Code session, add the marketplace:
 
 ```
 /plugin marketplace add dcglanton-stack/claude-clubhouse
 ```
 
+2. Install the plugin:
+
 ```
 /plugin install clubhouse@claude-clubhouse
 ```
 
-Then start a new session (in the desktop app, quit and reopen it so sessions that were already open pick it up). The toolbar is there above the prompt; click the house or type `/clubhouse`.
+3. Start a new session. In the desktop app, quit and reopen it first. The toolbar is above the prompt; click the house or type `/clubhouse`.
 
-For the whole-window color and the sketch pad (macOS only), type `/clubhouse build` or open Colors and press **Build the helper**. It takes under a minute, you do it once, and it needs Apple's command line tools (`xcode-select --install` if the button says they are missing).
+4. Optional, macOS only: for the whole-window color and the sketch pad, type `/clubhouse build`. It takes under a minute and you do it once. If it says Apple's command line tools are missing, run `xcode-select --install` and try again.
 
-To update later: `/plugin marketplace update claude-clubhouse`. To remove: `/plugin uninstall clubhouse@claude-clubhouse`, and delete `~/.claude/clubhouse-helper`.
+**Update:** `/plugin marketplace update claude-clubhouse`
 
-### For one project
+**Remove:** `/plugin uninstall clubhouse@claude-clubhouse`, then delete `~/.claude/clubhouse-helper`.
 
-To switch the Clubhouse on for one project instead of every session on your computer, open a terminal in the project's folder and run these two commands. `--scope project` is what makes them write to the project.
+### Where it works
+
+| Where | Works |
+| --- | --- |
+| Claude Code in the terminal | Yes (no whole-window color) |
+| Claude desktop app, Code tab, Local session | Yes |
+| Cloud sessions (claude.ai/code, the phone app, Cloud in the desktop app) | No |
+| claude.ai chat and Cowork | No |
+
+The Clubhouse is a plugin that contains a mod. Claude Code only draws a mod's toolbar and panes in sessions on your own computer, and a cloud session does not install plugins at all ([What carries over from your setup](https://code.claude.com/docs/en/cloud-environments#what-carries-over-from-your-setup), [Where mods run](https://code.claude.com/docs/en/plugins/mods/overview#where-mods-run)). Nothing in this repository can change that.
+
+### Other ways to install
+
+**For one project only.** In a terminal in the project's folder, run the two commands below, then start a new session there. They write to the project's `.claude/settings.json`.
 
 ```bash
 claude plugin marketplace add dcglanton-stack/claude-clubhouse --scope project
@@ -43,33 +58,29 @@ claude plugin marketplace add dcglanton-stack/claude-clubhouse --scope project
 claude plugin install clubhouse@claude-clubhouse --scope project
 ```
 
-They add a few lines to `.claude/settings.json` in the project (creating the file if needed, keeping what is already there). Start a new session in that project. If you commit the file, everyone who opens the project on their own computer is offered the Clubhouse too. If you already load the Clubhouse on your computer another way, skip this, or it loads twice.
-
-### Cloud sessions: not supported
-
-The Clubhouse does not work in cloud sessions (claude.ai/code, the Code tab on a phone, or Cloud in the desktop app), and nothing in this repository can change that. Two limits in Claude Code itself:
-
-- A cloud session does not install plugins. It ignores the ones on your computer and the ones a project's `.claude/settings.json` turns on, so `/clubhouse` is not a command there. Tried on 2026-10-03 with the setting committed to the project: the plugin list in the cloud session was empty. Claude Code's documentation says the same under [What carries over from your setup](https://code.claude.com/docs/en/cloud-environments#what-carries-over-from-your-setup). The one exception is an organization on a Team or Enterprise plan pushing plugins from its admin settings.
-- Even where a plugin does reach a cloud session, nothing a mod draws is shown there: no toolbar and no rooms ([Where mods run](https://code.claude.com/docs/en/plugins/mods/overview#where-mods-run)). The window color and the sketch pad are Mac programs and could not run there either.
-
-To use the Clubhouse, run the session on your own computer: the terminal, or the desktop app with **Local** selected. You can steer that session from a phone with Remote Control, but the toolbar and rooms still only show on the computer.
-
-### The way to change it yourself
-
-If you want to edit the Clubhouse ("in the clubhouse, add a button that..."), work from your own copy instead of an installed one:
+**To change the Clubhouse yourself.** Work from your own copy instead of an installed one. Clone it:
 
 ```bash
 git clone https://github.com/dcglanton-stack/claude-clubhouse.git ~/claude-clubhouse
 ```
 
-Then in `~/.claude/settings.json`, add these two lines inside `"env"` (create `"env": { }` if it is not there), with the path to where you cloned it:
+Then add these two lines inside `"env"` in `~/.claude/settings.json`, with the path to your clone:
 
 ```json
 "CLAUDE_CODE_PLUGIN_DIRS": "/Users/you/claude-clubhouse/clubhouse",
 "CLAUDE_CODE_PLUGIN_DIR_WATCH": "1"
 ```
 
-Use one way or the other, not both, or the Clubhouse loads twice. Settings made under one way do not carry over to the other.
+Pick one way to install. With two, the Clubhouse loads twice, and settings do not carry over between them.
+
+## What it does on your computer
+
+The Clubhouse runs inside Claude Code with your permissions. It has no server of its own and sends nothing to its author. In short:
+
+- **Tool calls:** it can refuse a tool call or ask you first, under rules you set. It never approves a call for you.
+- **Programs:** it starts its own two Mac helpers, a few system tools (`plutil`, `defaults`, `curl`, `pbcopy`), and commands you typed and saved yourself.
+- **Network:** it fetches weather from Open-Meteo, prices from Yahoo and scores from ESPN, only while those are switched on.
+- **Files:** it writes under `~/.claude/clubhouse-helper/`, and one theme file if you ask for it.
 
 ## Your copy is yours
 
@@ -105,8 +116,6 @@ Cloning gives you a complete copy on your own computer. Changing it, by hand or 
 | `/clubhouse colors` | The color picker |
 | `/clubhouse color reset` | Puts the colors back to their defaults |
 | `/clubhouse build` | Builds the helper for whole-window color (same as the Build the helper button in Colors) |
-
-The Clubhouse loads in every session through `CLAUDE_CODE_PLUGIN_DIRS` in `~/.claude/settings.json`, which points at the `clubhouse/` folder of your copy.
 
 ## What is in it
 
