@@ -384,7 +384,7 @@ for (const surface of SURFACES) {
     expect((await ui.find({ key: 'power' }))?.text).toBe('Off')
 
     await ui.press({ key: 'tab-more' })
-    expect(await ui.find({ type: 'Text', text: /Draw it/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /Prompt check/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /^Ticker$/ })).toBeUndefined()
     expect(await ui.find({ type: 'Text', text: /^Live sports$/ })).toBeUndefined()
     expect(await ui.find({ type: 'Text', text: /Workshop: recipes/ })).toBeUndefined()
@@ -1831,5 +1831,33 @@ test('Live sports lists games, puts one on the toolbar with the home team first,
   expect(ball[0]?.clock).toBe('Bot 5th')
   expect(listed([...hockey, ...hockey], NOW)).toHaveLength(1)
   await ui.unmount()
+  await bar.unmount()
+})
+
+test('Draw it opens the sketch pad and puts the sketch into the prompt box', async ($, on) => {
+  const shown = { prefs: { bar: { draw: { isShown: true, row: 1, zone: 'left' } } } }
+  const seen = world(on, 50, { hasHelper: true, stored: shown })
+  await start($)
+  const bar = await $.ui.mount({ plugin: 'clubhouse', surface: 'desktop', component: 'AbovePrompt', props: BAND })
+
+  seen.replies = { '/tmp/clubhouse-home/.claude/clubhouse-helper/draw-pad': { stdout: '', exitCode: 1 } }
+  await bar.press({ key: 'draw' })
+  expect(seen.filled).toEqual([])
+
+  seen.draft = 'Make the header'
+  seen.replies = { '/tmp/clubhouse-home/.claude/clubhouse-helper/draw-pad': { stdout: '/tmp/sketch-1.png\n', exitCode: 0 } }
+  await bar.press({ key: 'draw' })
+  expect(seen.filled.at(-1)).toBe('Make the header\nI drew what I want. Look at my sketch at /tmp/sketch-1.png and ')
+  expect(seen.toasts.at(-1)).toMatch(/Your sketch is in the prompt box/)
+  await bar.unmount()
+})
+
+test('Draw it says so when its helper window is not installed', async ($, on) => {
+  const seen = world(on, 50, { stored: { prefs: { bar: { draw: { isShown: true, row: 1, zone: 'left' } } } } })
+  await start($)
+  const bar = await $.ui.mount({ plugin: 'clubhouse', surface: 'desktop', component: 'AbovePrompt', props: BAND })
+
+  await bar.press({ key: 'draw' })
+  expect(seen.toasts.at(-1)).toMatch(/Draw it needs its small helper window/)
   await bar.unmount()
 })

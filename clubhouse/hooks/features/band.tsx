@@ -24,6 +24,7 @@ import {
 } from '../lib/format'
 import { homeIconSvg } from '../lib/icon'
 import { makeParts } from '../lib/parts'
+import { DRAW_BINARY, DRAW_DONE, DRAW_MISSING, DRAW_OPEN, DRAW_TIMEOUT_MS, sketchPrompt } from '../lib/draw'
 import { DEFAULT_SPORTS, gameLine, logoKey, scoreSvg } from '../lib/sports'
 import { summaryOf, summaryRequest } from '../lib/summary'
 import { DEFAULT_TICKER, DOWN_COLOR, UP_COLOR, changeText, priceText } from '../lib/ticker'
@@ -119,6 +120,32 @@ async function tidy($: EngineInterface): Promise<void> {
   } catch {
     $.ui.toast('Could not tidy the draft. It is unchanged.')
   }
+}
+
+async function drawIt($: EngineInterface): Promise<void> {
+  const userFolder = await $.env.get('HOME')
+  const pad = `${userFolder ?? ''}/${DRAW_BINARY}`
+
+  if (userFolder === undefined || !(await $.fs.exists(pad).catch(() => false))) {
+    $.ui.toast(DRAW_MISSING, { timeoutMs: 8000 })
+
+    return
+  }
+
+  $.ui.toast(DRAW_OPEN)
+  const ran = await $.process.run([pad], { timeoutMs: DRAW_TIMEOUT_MS }).catch(() => null)
+  const path = ran !== null && ran.exitCode === 0 ? ran.stdout.trim() : ''
+
+  if (path === '') return
+  const draft = await $.prompt.read().then(
+    box => box.text,
+    () => '',
+  )
+  const isFilled = await $.prompt.fill({ text: sketchPrompt(draft, path) }).then(
+    filled => filled.isFilled,
+    () => false,
+  )
+  $.ui.toast(isFilled ? DRAW_DONE : `Your sketch is saved at ${path}. Tell Claude to look at it.`, { timeoutMs: 8000 })
 }
 
 async function offer($: EngineInterface, text: string): Promise<void> {
@@ -258,6 +285,10 @@ export function band(on: On): void {
 
       if (id === 'tidy') {
         return <Button key="tidy" label="Tidy" onPress={() => void tidy($)} />
+      }
+
+      if (id === 'draw') {
+        return <Button key="draw" label="Draw it" onPress={() => void drawIt($)} />
       }
 
       if (id === 'sports') {

@@ -31,7 +31,6 @@ const TABS: readonly (readonly [HomeTab, string])[] = [
 ]
 
 const PLANNED: readonly (readonly [string, string])[] = [
-  ['Draw it', 'A blank pad to sketch what you want instead of describing it.'],
   ['Prompt check', 'Flags a prompt that may be misread and suggests clearer wording.'],
 ]
 

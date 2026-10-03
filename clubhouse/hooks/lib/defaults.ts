@@ -38,6 +38,7 @@ export const DEFAULT_BAR: BarLayout = {
   receipt: { isShown: false, row: 1, zone: 'left' },
   ticker: { isShown: false, row: 1, zone: 'left' },
   sports: { isShown: false, row: 1, zone: 'left' },
+  draw: { isShown: false, row: 1, zone: 'left' },
 }
 
 export const BAR_ITEMS: readonly (readonly [BarItemId, string, string])[] = [
@@ -48,6 +49,7 @@ export const BAR_ITEMS: readonly (readonly [BarItemId, string, string])[] = [
   ['cache', 'Cache timer', 'Counts one hour down from the last reply; after that the next turn costs more.'],
   ['context', 'Context gauge', 'How full this conversation is, in tokens.'],
   ['receipt', 'Turn receipt', 'Time, tokens and usage of the last turn.'],
+  ['draw', 'Draw it button', 'Opens a sketch pad so you can draw what you want instead of describing it; the sketch goes into your prompt.'],
   ['sports', 'Live score', 'One game: both teams, the score and the clock. Pick the game in the Live sports room.'],
   ['ticker', 'Ticker', 'One stock or coin: symbol, price and the day\'s change. Pick it in the Ticker room.'],
 ]
