@@ -1753,7 +1753,7 @@ test('the Ticker finds a symbol, shows it on the toolbar with the day change, an
 
   await ui.press({ key: 'hit-show-AAPL' })
   expect(await barTexts()).toEqual(expect.arrayContaining(['AAPL', '333.69', '+1.02%']))
-  expect(JSON.stringify(await bar.drawn())).toMatch(/"color":"#2e9e5b"\},"children":\["\+1\.02%"\]/)
+  expect(JSON.stringify(await bar.drawn())).toMatch(/"color":"#2e9e5b","wrap":"truncate"\},"children":\["\+1\.02%"\]/)
   expect((await ui.find({ key: 'hit-show-AAPL' }))?.text).toBe('On the toolbar')
 
   await ui.press({ key: 'ticker-color' })
@@ -1965,4 +1965,17 @@ test('Fonts changes the heading font by pick, by description and from a design f
   expect(await ui.find({ key: 'font-preset-Game day' })).toBeUndefined()
   await home.unmount()
   await ui.unmount()
+})
+
+test('a chosen font is used for the toolbar text too, but not for buttons or the live score', async ($, on) => {
+  world(on, 50, { stored: { prefs: { font: { name: 'Futura' }, bar: { context: { isShown: true, row: 1, zone: 'left' } } } } })
+  await start($)
+  const bar = await $.ui.mount({ plugin: 'clubhouse', surface: 'desktop', component: 'AbovePrompt', props: BAND })
+  const drawn = JSON.stringify(await bar.drawn())
+
+  expect(drawn).toMatch(/font-family=\\"Futura, sans-serif\\"[^>]*>context 24k\/200k full</)
+  expect(drawn).toMatch(/font-weight=\\"700\\"[^>]*>50%</)
+  expect((await bar.find({ key: 'summarize' }))?.text).toBe('Summarize')
+  expect(await bar.find({ type: 'Text', text: /context 24k/ })).toBeUndefined()
+  await bar.unmount()
 })

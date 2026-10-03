@@ -3,7 +3,8 @@ import type { EngineInterface, On } from 'claude-code'
 
 import type { BarItemId, BarZone, Game, Prefs, Quote, Shortcut } from '../../types'
 import { meterSvg, moodFor, moodName } from '../lib/clawd'
-import { rampColor } from '../lib/color'
+import { backdropOf } from '../lib/appColor'
+import { mix, rampColor } from '../lib/color'
 import {
   BAR_ITEMS,
   DEFAULT_PREFS,
@@ -24,12 +25,14 @@ import {
 } from '../lib/format'
 import { homeIconSvg } from '../lib/icon'
 import { makeParts } from '../lib/parts'
+import { DEFAULT_FONT } from '../lib/fonts'
 import { HANDOFF_ARM, HANDOFF_PERCENT } from '../lib/guard'
 import { DRAW_BINARY, DRAW_DONE, DRAW_MISSING, DRAW_OPEN, DRAW_TIMEOUT_MS, sketchPrompt } from '../lib/draw'
 import { DEFAULT_SPORTS, gameLine, logoKey, scoreSvg } from '../lib/sports'
 import { summaryOf, summaryRequest } from '../lib/summary'
 import { DEFAULT_TICKER, DOWN_COLOR, UP_COLOR, changeText, priceText } from '../lib/ticker'
 import { clearOn, drawnFor } from '../lib/tone'
+import { serifSize, serifSvg } from '../lib/type'
 import { TIDY_MIN_CHARS, tidyRequest } from '../lib/tidy'
 
 const contextPercent = atom({ plugin: 'clubhouse', key: 'contextPercent' } as const, null)
@@ -53,6 +56,8 @@ const summary = atom({ plugin: 'clubhouse', key: 'summary' } as const, IDLE_SUMM
 const BAR_HEIGHT = 32
 const HOME_ICON = 40
 const SCORE_WIDTH = 150
+const WORD_SIZE = 13
+const FAINT_SHARE = 0.35
 const WIDE_METER = 210
 const SLIM_METER = 150
 const TEXT_CELLS = 16
@@ -204,6 +209,36 @@ export function band(on: On): void {
         : background === null
           ? {}
           : { backgroundColor: background }
+    const font = chosen.font ?? DEFAULT_FONT
+    const usesFont = canDraw && font.name !== DEFAULT_FONT.name
+    const faint = mix(look.ink, backdropOf(chosen), FAINT_SHARE)
+    const words = (text: string, style: { isDim?: boolean; isBold?: boolean; color?: string } = {}) => {
+      const spec = {
+        text,
+        size: WORD_SIZE,
+        color: style.color ?? (style.isDim === true ? faint : look.ink),
+        isStrong: style.isBold === true,
+        stack: font.stack,
+        weight: style.isBold === true ? 700 : 400,
+        widen: font.widen,
+      }
+      const drawn = usesFont
+        ? picture(serifSvg(spec), text, serifSize(spec).width, serifSize(spec).height)
+        : null
+
+      return (
+        drawn ?? (
+          <Text
+            {...(style.color === undefined ? ink : { color: style.color })}
+            {...(style.isBold === true ? { bold: true } : {})}
+            {...(style.isDim === true ? { dimColor: true } : {})}
+            wrap="truncate"
+          >
+            {text}
+          </Text>
+        )
+      )
+    }
     const flipWindow = () =>
       void keep($, held => ({
         ...held,
@@ -228,9 +263,7 @@ export function band(on: On): void {
         return (
           <Box gap={1} alignItems="center" flexShrink={0}>
             {windowButton}
-            <Text {...ink} dimColor>
-              usage shows after the first reply
-            </Text>
+            {words('usage shows after the first reply', { isDim: true })}
           </Box>
         )
       }
@@ -266,14 +299,8 @@ export function band(on: On): void {
               {empty !== '' && <Text dimColor>{empty}</Text>}
             </Box>
           )}
-          <Text {...ink} bold>
-            {left}%
-          </Text>
-          {columns >= COLUMNS_FOR_DETAILS && (
-            <Text {...ink} dimColor>
-              {details}
-            </Text>
-          )}
+          {words(`${left}%`, { isBold: true })}
+          {columns >= COLUMNS_FOR_DETAILS && details !== '' && words(details, { isDim: true })}
         </Box>
       )
     }
@@ -330,9 +357,7 @@ export function band(on: On): void {
 
         if (plan.symbol === null || quote === undefined) {
           return (
-            <Text {...ink} dimColor wrap="truncate">
-              {plan.symbol === null ? 'ticker: pick one in the Clubhouse' : `${plan.symbol} …`}
-            </Text>
+            words(plan.symbol === null ? 'ticker: pick one in the Clubhouse' : `${plan.symbol} …`, { isDim: true })
           )
         }
 
@@ -342,35 +367,27 @@ export function band(on: On): void {
 
         return (
           <Box gap={1} flexShrink={0}>
-            <Text {...ink} bold>
-              {quote.symbol}
-            </Text>
-            <Text {...ink}>{priceText(quote.price)}</Text>
-            <Text {...(plan.isColored ? { color: shown } : ink)}>{changeText(quote.changePercent)}</Text>
+            {words(quote.symbol, { isBold: true })}
+            {words(priceText(quote.price))}
+            {words(changeText(quote.changePercent), plan.isColored ? { color: usesFont ? (look.tone === null ? wanted : clearOn(look.tone, wanted, 3)) : shown } : {})}
           </Box>
         )
       }
 
       if (id === 'cache') {
         return (
-          <Text {...ink} dimColor wrap="truncate">
-            {cacheNote(last, at)}
-          </Text>
+          words(cacheNote(last, at), { isDim: true })
         )
       }
 
       if (id === 'context') {
         return (
-          <Text {...ink} dimColor wrap="truncate">
-            {contextNote(size, context)}
-          </Text>
+          words(contextNote(size, context), { isDim: true })
         )
       }
 
       return (
-        <Text {...ink} dimColor wrap="truncate">
-          {made === null ? 'last turn: none yet' : receiptNote(made)}
-        </Text>
+        words(made === null ? 'last turn: none yet' : receiptNote(made), { isDim: true })
       )
     }
 
@@ -392,14 +409,14 @@ export function band(on: On): void {
       <Box flexDirection="column" gap={rows.length > 1 ? 1 : 0} width={columns} {...frame}>
         {handoffState === 'idle' && context !== null && context >= HANDOFF_PERCENT && (
           <Box gap={1} alignItems="center" flexWrap="wrap">
-            <Text {...ink}>This conversation is {context}% full.</Text>
+            {words(`This conversation is ${context}% full.`)}
             <Button key="handoff-arm" label={HANDOFF_ARM} variant="primary" onPress={() => void update($, handoff, () => 'armed')} />
             <Button key="handoff-dismiss" label="Not now" onPress={() => void update($, handoff, () => 'dismissed')} />
           </Box>
         )}
         {handoffState === 'armed' && (
           <Box gap={1} alignItems="center" flexWrap="wrap">
-            <Text {...ink}>Claude writes HANDOFF.md as soon as your next prompt is finished.</Text>
+            {words('Claude writes HANDOFF.md as soon as your next prompt is finished.')}
             <Button key="handoff-cancel" label="Cancel" onPress={() => void update($, handoff, () => 'dismissed')} />
           </Box>
         )}

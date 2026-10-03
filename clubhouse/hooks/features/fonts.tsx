@@ -93,7 +93,7 @@ export function fontsRoom(on: On): void {
       <Box flexDirection="column" gap={1} {...frame}>
         {title('Fonts')}
         {note(
-          'Pick the font of the Clubhouse headings, like the word Fonts above. All other text is drawn by the Claude app in its own font, which the Clubhouse cannot change. /clubhouse fonts opens this.',
+          'Pick the font of the Clubhouse headings, like the word Fonts above, and of the text on the toolbar. Buttons, the live score and all other text are drawn by the Claude app in its own font, which the Clubhouse cannot change. /clubhouse fonts opens this.',
         )}
         {card('Heading font', [
           plain(`Now: ${current.name}`),
