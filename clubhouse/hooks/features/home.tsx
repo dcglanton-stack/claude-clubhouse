@@ -31,7 +31,6 @@ const TABS: readonly (readonly [HomeTab, string])[] = [
 ]
 
 const PLANNED: readonly (readonly [string, string])[] = [
-  ['Prompt check', 'Flags a prompt that may be misread and suggests clearer wording.'],
 ]
 
 async function keep($: EngineInterface, change: (held: Prefs) => Prefs): Promise<void> {
@@ -101,6 +100,19 @@ export function home(on: On): void {
               onPress={() => void update($, tab, () => id)}
             />
           ))}
+        </Box>
+        <Box flexDirection="column">
+          <Box>
+            <Button
+              key="safeguard"
+              label={chosen.warnsSafeguards === true ? 'Safeguard warning: on' : 'Safeguard warning: off'}
+              variant={chosen.warnsSafeguards === true ? 'primary' : 'secondary'}
+              onPress={() => void keep($, held => ({ ...held, warnsSafeguards: held.warnsSafeguards !== true }))}
+            />
+          </Box>
+          {note(
+            'When on, each prompt is checked before it is sent. If it looks likely to set off a safety filter (which can stop it or hand it to a more restricted model), you are told why and can edit it or send it anyway. A small model makes the guess, so it adds about a second and a few tokens per prompt.',
+          )}
         </Box>
       </Box>
     )
@@ -179,7 +191,8 @@ export function home(on: On): void {
             'Tell Claude in any session: "in the clubhouse, ..." and it edits the code in ~/claude-clubhouse. Saved changes show up on their own.',
           ),
         ])}
-        {card(
+        {PLANNED.length > 0 &&
+          card(
           'Coming next',
           <Box flexDirection="column" gap={1}>
             {PLANNED.map(([name, about]) => (

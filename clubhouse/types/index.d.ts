@@ -59,6 +59,7 @@ export type Prefs = {
   shortcuts: Shortcut[]
   autoSummary: boolean
   spendCap: number
+  warnsSafeguards: boolean
   appMode: 'dark' | 'light'
   reach: Reach
   isHelperReady: boolean
@@ -204,6 +205,7 @@ declare module 'claude-code' {
       logos: { [key: string]: string }
       sportsView: SportsView
       sportsCheckedAt: number
+      handoff: 'idle' | 'armed' | 'sent' | 'dismissed'
       commandStats: CommandStats
       commandsView: CommandsView
       hiddenCommands: string[]
