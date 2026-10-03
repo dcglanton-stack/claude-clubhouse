@@ -16,7 +16,7 @@ A Claude Code mod: one plugin that adds a home button and a Clawd usage meter ab
 | `/clubhouse recipes` | Recipes: turn a terminal command into a tool Claude can call |
 | `/clubhouse watch` | Night watch: check on things on a timer while you are away |
 | `/clubhouse commands` | Every slash command, led by your most used and most recent |
-| `/clubhouse toolbar` | Bar layout: add, remove and move bar items, add bars, make your own buttons |
+| `/clubhouse toolbar` | Toolbar: add, remove and move toolbar items, add rows, make your own buttons |
 | `/clubhouse usage` | Both limits, context and the cache timer, full size |
 | `/clubhouse colors` | The color picker |
 | `/clubhouse color reset` | Puts the colors back to their defaults |
@@ -26,7 +26,7 @@ The Clubhouse loads in every session through `CLAUDE_CODE_PLUGIN_DIRS` in `~/.cl
 ## What is in it
 
 - **Home button**: a house with a C behind it, in the middle of the bar.
-- **Bar layout**: add or remove each bar item, move it left, center or right, and use up to three bars. Make your own buttons that type a prompt or command into the prompt box.
+- **Toolbar**: the strip above the prompt. Add or remove each item, move it left, center or right, and use up to three rows. Items include the Clubhouse button, usage meter, Summarize, Tidy, cache timer, context gauge and turn receipt. Make your own buttons that type a prompt or command into the prompt box.
 - **Summary**: a Summarize button on the bar shortens the last reply with a small model; Auto does it for every long reply.
 - **Usage meter**: Clawd rides a bar that drains as the 5-hour or weekly limit is used. Green and happy when full, red and wiped out near empty. Shows time to reset and a one-hour cache countdown from the last reply.
 - **Agent HQ**: each subagent drawn as Clawd in a suit and sunglasses, with Stand down and Dismiss. Create your own agents from a form, save them, pick their model (or let Auto pick the cheapest that fits), and send one out with a task; Claude is told what was dispatched.
