@@ -43,6 +43,8 @@ export const BAR_ITEMS: readonly (readonly [BarItemId, string, string])[] = [
   ['receipt', 'Turn receipt', 'Time, tokens and usage of the last turn.'],
 ]
 
+export const PREFS_SHAPE = 'prefs-3'
+
 export const DEFAULT_PREFS: Prefs = {
   isEnabled: true,
   window: 'five_hour',

@@ -3,7 +3,7 @@ import type { EngineInterface, On } from 'claude-code'
 
 import type { HomeTab, Prefs } from '../../types'
 import { HELPER_CONFIG, START_HELPER, coversApp, helperConfig } from '../lib/appColor'
-import { DEFAULT_PREFS, PREFS_KEY, ROOMS, topCommands } from '../lib/defaults'
+import { DEFAULT_PREFS, PREFS_KEY, PREFS_SHAPE, ROOMS, topCommands } from '../lib/defaults'
 import { cacheNote, receiptNote } from '../lib/format'
 import { homeIconSvg } from '../lib/icon'
 import { makeParts } from '../lib/parts'
@@ -13,7 +13,9 @@ const contextPercent = atom({ plugin: 'clubhouse', key: 'contextPercent' } as co
 const lastReplyAt = atom({ plugin: 'clubhouse', key: 'lastReplyAt' } as const, null)
 const limits = atom({ plugin: 'clubhouse', key: 'limits' } as const, [])
 const now = atom({ plugin: 'clubhouse', key: 'now' } as const, 0)
-const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS)
+const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS, {
+  shape: PREFS_SHAPE,
+})
 const pulse = atom({ plugin: 'clubhouse', key: 'pulse' } as const, 0)
 const receipt = atom({ plugin: 'clubhouse', key: 'receipt' } as const, null)
 const tab = atom({ plugin: 'clubhouse', key: 'tab' } as const, 'home')

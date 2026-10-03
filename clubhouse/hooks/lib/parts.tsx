@@ -1,7 +1,7 @@
 import type { ElementConstructor, Elements, RenderElement } from 'claude-code'
 
 import type { Limit, Prefs, WindowKind } from '../../types'
-import { paintOf } from './appColor'
+import { edgeOf, paintOf } from './appColor'
 import { meterSvg, moodFor, moodName } from './clawd'
 import { inkOn, isLight, rampColor, surfaceFor } from './color'
 import { WINDOW_NAME, formatSpan, percentLeft, resetIn, textBar } from './format'
@@ -64,7 +64,13 @@ export function makeParts(kit: Kit, prefs: Prefs, surface: string) {
   const Markdown = 'Markdown' in kit ? chipped(kit.Markdown) : null
   const canDraw = surface !== 'terminal'
   const ink = background === null ? {} : { color: inkOn(background) }
-  const frame = background === null ? {} : { backgroundColor: background, padding: 1 }
+  const edge = edgeOf(prefs)
+  const frame =
+    edge !== null
+      ? { borderStyle: 'round', borderColor: edge, paddingX: 1 }
+      : background === null
+        ? {}
+        : { backgroundColor: background, padding: 1 }
 
   const note = (text: string) => (
     <Text {...ink} dimColor wrap="wrap">

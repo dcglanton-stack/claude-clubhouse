@@ -14,6 +14,7 @@ import {
   HIDDEN_PLAN_KEY,
   HOME_PANE,
   PREFS_KEY,
+  PREFS_SHAPE,
   ROOMS,
   resetLook,
   topCommands,
@@ -24,7 +25,9 @@ const commandStats = atom({ plugin: 'clubhouse', key: 'commandStats' } as const,
 const commandsView = atom({ plugin: 'clubhouse', key: 'commandsView' } as const, DEFAULT_COMMANDS_VIEW)
 const hiddenCommands = atom({ plugin: 'clubhouse', key: 'hiddenCommands' } as const, [])
 const hiddenPlan = atom({ plugin: 'clubhouse', key: 'hiddenPlan' } as const, DEFAULT_HIDDEN_PLAN)
-const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS)
+const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS, {
+  shape: PREFS_SHAPE,
+})
 const pulse = atom({ plugin: 'clubhouse', key: 'pulse' } as const, 0)
 
 const TOP_SIZE = 5

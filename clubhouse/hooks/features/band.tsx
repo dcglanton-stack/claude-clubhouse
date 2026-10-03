@@ -2,7 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, On } from 'claude-code'
 
 import type { BarItemId, BarZone, Prefs, Shortcut } from '../../types'
-import { paintOf } from '../lib/appColor'
+import { edgeOf, paintOf } from '../lib/appColor'
 import { meterSvg, moodFor, moodName } from '../lib/clawd'
 import { inkOn, rampColor } from '../lib/color'
 import {
@@ -10,6 +10,7 @@ import {
   DEFAULT_PREFS,
   IDLE_SUMMARY,
   PREFS_KEY,
+  PREFS_SHAPE,
   WORKING_SUMMARY,
 } from '../lib/defaults'
 import {
@@ -30,7 +31,9 @@ const contextPercent = atom({ plugin: 'clubhouse', key: 'contextPercent' } as co
 const lastReplyAt = atom({ plugin: 'clubhouse', key: 'lastReplyAt' } as const, null)
 const limits = atom({ plugin: 'clubhouse', key: 'limits' } as const, [])
 const now = atom({ plugin: 'clubhouse', key: 'now' } as const, 0)
-const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS)
+const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS, {
+  shape: PREFS_SHAPE,
+})
 const receipt = atom({ plugin: 'clubhouse', key: 'receipt' } as const, null)
 const lastAnswer = atom({ plugin: 'clubhouse', key: 'lastAnswer' } as const, '')
 const summary = atom({ plugin: 'clubhouse', key: 'summary' } as const, IDLE_SUMMARY)
@@ -41,6 +44,7 @@ const SLIM_METER = 150
 const TEXT_CELLS = 16
 const COLUMNS_FOR_WIDE_METER = 110
 const COLUMNS_FOR_DETAILS = 150
+const FRAME_CELLS = 4
 
 async function keep($: EngineInterface, change: (held: Prefs) => Prefs): Promise<void> {
   await update($, prefs, change)
@@ -148,7 +152,13 @@ export function band(on: On): void {
     const { accent } = chosen.palette
     const background = paintOf(chosen)
     const ink = background === null ? {} : { color: inkOn(background) }
-    const frame = background === null ? {} : { backgroundColor: background }
+    const edge = edgeOf(chosen)
+    const frame =
+      edge !== null
+        ? { borderStyle: 'round', borderColor: edge, paddingX: 1 }
+        : background === null
+          ? {}
+          : { backgroundColor: background }
     const flipWindow = () =>
       void keep($, held => ({
         ...held,
@@ -279,7 +289,7 @@ export function band(on: On): void {
     return (
       <Box flexDirection="column" width={columns} {...frame}>
         {rows.map(row => (
-          <Box width={columns} alignItems="center">
+          <Box width={edge === null ? columns : columns - FRAME_CELLS} alignItems="center">
             <Box width={0} flexGrow={1} gap={2} alignItems="center">
               {zone(row, 'left')}
             </Box>

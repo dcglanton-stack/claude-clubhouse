@@ -2,7 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, On } from 'claude-code'
 
 import type { ToolRule, ToolRules } from '../../types'
-import { DEFAULT_PREFS, DEFAULT_TOOLS_VIEW, TOOL_RULES_KEY } from '../lib/defaults'
+import { DEFAULT_PREFS, DEFAULT_TOOLS_VIEW, PREFS_SHAPE, TOOL_RULES_KEY } from '../lib/defaults'
 import { makeParts } from '../lib/parts'
 import {
   RULE_LABEL,
@@ -15,7 +15,9 @@ import {
 } from '../lib/tools'
 import type { ListedTool } from '../lib/tools'
 
-const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS)
+const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS, {
+  shape: PREFS_SHAPE,
+})
 const toolRules = atom({ plugin: 'clubhouse', key: 'toolRules' } as const, {})
 const toolsView = atom({ plugin: 'clubhouse', key: 'toolsView' } as const, DEFAULT_TOOLS_VIEW)
 

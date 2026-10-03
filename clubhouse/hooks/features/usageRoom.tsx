@@ -1,7 +1,7 @@
 import { atom, read } from 'claude-code'
 import type { On } from 'claude-code'
 
-import { DEFAULT_PREFS } from '../lib/defaults'
+import { DEFAULT_PREFS, PREFS_SHAPE } from '../lib/defaults'
 import { cacheNote, receiptNote } from '../lib/format'
 import { makeParts } from '../lib/parts'
 
@@ -9,7 +9,9 @@ const contextPercent = atom({ plugin: 'clubhouse', key: 'contextPercent' } as co
 const lastReplyAt = atom({ plugin: 'clubhouse', key: 'lastReplyAt' } as const, null)
 const limits = atom({ plugin: 'clubhouse', key: 'limits' } as const, [])
 const now = atom({ plugin: 'clubhouse', key: 'now' } as const, 0)
-const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS)
+const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS, {
+  shape: PREFS_SHAPE,
+})
 const receipt = atom({ plugin: 'clubhouse', key: 'receipt' } as const, null)
 
 const METER_WIDTH = 360

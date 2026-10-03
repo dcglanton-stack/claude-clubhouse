@@ -24,6 +24,7 @@ import {
   HIDDEN_PLAN_KEY,
   LIMITS_KEY,
   PREFS_KEY,
+  PREFS_SHAPE,
   TOOL_RULES_KEY,
   asBlueprints,
   asCommandStats,
@@ -37,7 +38,9 @@ import {
 const contextPercent = atom({ plugin: 'clubhouse', key: 'contextPercent' } as const, null)
 const limits = atom({ plugin: 'clubhouse', key: 'limits' } as const, [])
 const now = atom({ plugin: 'clubhouse', key: 'now' } as const, 0)
-const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS)
+const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS, {
+  shape: PREFS_SHAPE,
+})
 const commandStats = atom({ plugin: 'clubhouse', key: 'commandStats' } as const, {})
 const agentBank = atom({ plugin: 'clubhouse', key: 'agentBank' } as const, [])
 const hiddenCommands = atom({ plugin: 'clubhouse', key: 'hiddenCommands' } as const, [])

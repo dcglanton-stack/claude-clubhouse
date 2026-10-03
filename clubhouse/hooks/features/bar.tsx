@@ -9,6 +9,7 @@ import {
   MAX_BARS,
   MAX_SHORTCUTS,
   PREFS_KEY,
+  PREFS_SHAPE,
   SHORTCUT_SPOT,
   ZONE_LABEL,
   nextZone,
@@ -17,7 +18,9 @@ import {
 import { makeParts } from '../lib/parts'
 
 const barNote = atom({ plugin: 'clubhouse', key: 'barNote' } as const, null)
-const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS)
+const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS, {
+  shape: PREFS_SHAPE,
+})
 
 type ShortcutDraft = { label: string; text: string }
 
