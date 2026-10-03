@@ -68,7 +68,7 @@ let lightSurfaceLimit = 226.0 / 255
 let keyFade = 10.0 / 255
 let defaultBoost = 1.9
 let legacyStages = 3
-let mostStages = 4
+let mostStages = 5
 let mostKeepers = 3
 let matrixSize = 20
 let zones = 2
@@ -335,7 +335,7 @@ final class Tinter {
         beside.boost = (config.boost ?? defaultBoost) * sidebarBoostGain
 
         for (zone, zoneConfig) in [config, beside].enumerated() {
-            let given = isLightApp ? nil : givenFilters(zone == 0 ? config.stages : config.sidebarStages)
+            let given = givenFilters(zone == 0 ? config.stages : config.sidebarStages)
             let filters = given ?? sessionFilters(config: zoneConfig, isLightApp: isLightApp)
 
             for stage in 0..<mostStages {
@@ -347,7 +347,7 @@ final class Tinter {
             }
         }
 
-        let keeping = isLightApp || givenFilters(config.stages) == nil ? nil : givenFilters(config.kept, atMost: mostKeepers)
+        let keeping = givenFilters(config.stages) == nil ? nil : givenFilters(config.kept, atMost: mostKeepers)
 
         for (index, layer) in overlay.keepers.enumerated() {
             let filter = keeping.flatMap { index < $0.count ? $0[index] : nil }
