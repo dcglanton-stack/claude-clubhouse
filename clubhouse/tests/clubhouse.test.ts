@@ -30,9 +30,13 @@ type World = {
   copied: string[]
   forked: string[]
   completed: string[]
+  written: { path: string; text: string }[]
+  launched: string[]
 }
 
-function world(on: On, fiveHourUsed: number): World {
+type Setup = { hasHelper?: boolean; stored?: Record<string, unknown> }
+
+function world(on: On, fiveHourUsed: number, setup: Setup = {}): World {
   const seen: World = {
     open: [],
     filled: [],
@@ -47,10 +51,23 @@ function world(on: On, fiveHourUsed: number): World {
     copied: [],
     forked: [],
     completed: [],
+    written: [],
+    launched: [],
   }
 
   mock.clock(on, { now: NOW })
-  mock.store(on)
+  mock.store(on, setup.stored ?? {})
+  on('fs.exists', () => ({ value: setup.hasHelper === true }))
+  on('fs.write', (_$, e) => {
+    seen.written.push({ path: e.path, text: e.text })
+
+    return { value: undefined }
+  })
+  on('process.run', (_$, e) => {
+    seen.launched.push(e.argv.join(' '))
+
+    return { value: { exitCode: 0, stdout: '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
+  })
   mock.env(on, { HOME: '/tmp/clubhouse-home' })
   on('session.usage', () => ({
     value: {
@@ -538,7 +555,7 @@ for (const surface of SURFACES) {
 
     await ui.press({ key: 'hide-vercel:env' })
     expect((await ui.find({ key: 'group-vercel' }))?.text).toBe('▾ Vercel (1)')
-    expect((await ui.find({ key: 'group-hidden' }))?.text).toBe('▸ Hidden (1)')
+    expect(await says(ui, /Hidden skills \(1\)/)).toBe(true)
     expect(await told()).toBe(
       ['Skills you can use:', '- deploy: Ship the current project', '- vercel:deploy: Deploy to Vercel'].join('\n'),
     )
@@ -546,10 +563,22 @@ for (const surface of SURFACES) {
     const blocked = await $.tool.call({ tool: 'Skill', skill: 'vercel:env' } as Parameters<Engine['tool']['call']>[0])
     expect(JSON.stringify(blocked)).toMatch(/hid the skill/)
 
-    await ui.press({ key: 'group-hidden' })
+    await ui.input({ key: 'preset-name', text: 'coding' })
+    await ui.press({ key: 'preset-save' })
+    expect(await ui.find({ type: 'Text', text: /coding \(1 hidden\)/ })).toBeDefined()
+
     await ui.press({ key: 'unhide-vercel:env' })
     expect((await ui.find({ key: 'group-vercel' }))?.text).toBe('▾ Vercel (2)')
     expect(await told()).toBe(listing)
+
+    await ui.press({ key: 'preset-use-coding' })
+    expect(await says(ui, /Hidden skills \(1\)/)).toBe(true)
+    await ui.press({ key: 'preset-start-coding' })
+    expect((await ui.find({ key: 'preset-start-coding' }))?.text).toBe('Every session: on')
+    await ui.press({ key: 'unhide-all' })
+    expect(await says(ui, /Hidden skills \(0\)/)).toBe(true)
+    await ui.press({ key: 'preset-delete-coding' })
+    expect(await ui.find({ key: 'preset-use-coding' })).toBeUndefined()
 
     await ui.press({ key: 'group-built-in' })
     expect(await ui.find({ key: 'hide-compact' })).toBeUndefined()
@@ -663,7 +692,7 @@ test('buttons get a backing when the chosen background would hide them', async (
   await ui.unmount()
 })
 
-test('conversation tint wraps every row, fills gaps on request and resets', async ($, on) => {
+test('without the helper the background paints the rooms and every conversation row', async ($, on) => {
   world(on, 50)
   await start($)
   const ui = await $.ui.mount({
@@ -682,52 +711,111 @@ test('conversation tint wraps every row, fills gaps on request and resets', asyn
   const toolRow = await row('ToolUse', {})
   const shown = async (drawing: { drawn: () => Promise<unknown> }) => JSON.stringify(await drawing.drawn())
   const native = JSON.stringify(BLANK)
-
-  await ui.press({ key: 'look-slate' })
-  expect(await shown(reply)).toBe(native)
-
-  await ui.press({ key: 'tint-chat' })
-  for (const drawing of [mine, reply, toolRow]) {
-    expect(await shown(drawing)).toBe(
-      JSON.stringify({
-        type: 'Box',
-        props: { flexDirection: 'column', backgroundColor: '#141413', marginX: -1, paddingX: 1 },
-        children: [BLANK],
-      }),
-    )
-  }
-
-  await ui.press({ key: 'gap-fill' })
-  expect((await ui.find({ key: 'gap-fill' }))?.text).toBe('Fill the gaps: soft')
-  expect(await shown(reply)).toMatch(/"marginBottom":-3,"paddingBottom":3,"marginX":-6,"paddingX":6/)
-  expect(JSON.stringify(await ui.drawn())).toMatch(/"marginX":-2,"marginY":-1/)
-
-  await ui.press({ key: 'gap-fill' })
-  expect((await ui.find({ key: 'gap-fill' }))?.text).toBe('Fill the gaps: full')
-  expect(await shown(reply)).toMatch(/"position":"absolute","top":0,"bottom":-3,"left":-60,"right":-60,"backgroundColor":"#141413"/)
-
-  await ui.press({ key: 'gap-fill' })
-  await ui.press({ key: 'look-ivory' })
-  expect(await shown(reply)).toBe(
+  const tinted = (background: string, children: unknown[]) =>
     JSON.stringify({
       type: 'Box',
-      props: { flexDirection: 'column', backgroundColor: '#faf9f5', marginX: -1, paddingX: 1 },
-      children: [
-        { type: 'Box', props: { flexDirection: 'column', backgroundColor: '#30302e' }, children: [BLANK] },
-      ],
-    }),
+      props: { flexDirection: 'column', backgroundColor: background, marginX: -1, paddingX: 1 },
+      children,
+    })
+
+  expect(await shown(reply)).toBe(native)
+  expect(await ui.find({ type: 'Text', text: /helper is not installed/ })).toBeDefined()
+
+  await ui.press({ key: 'look-slate' })
+  for (const drawing of [mine, reply, toolRow]) {
+    expect(await shown(drawing)).toBe(tinted('#141413', [BLANK]))
+  }
+  expect(JSON.stringify(await ui.drawn())).toMatch(/"backgroundColor":"#141413","padding":1/)
+
+  await ui.press({ key: 'reach' })
+  expect((await ui.find({ key: 'reach' }))?.text).toBe('Background covers: the conversation')
+  expect(await shown(reply)).toBe(tinted('#141413', [BLANK]))
+
+  await ui.press({ key: 'reach' })
+  expect((await ui.find({ key: 'reach' }))?.text).toBe('Background covers: the Clubhouse only')
+  expect(await shown(reply)).toBe(native)
+
+  await ui.press({ key: 'reach' })
+  await ui.press({ key: 'look-ivory' })
+  expect(await shown(reply)).toBe(
+    tinted('#faf9f5', [
+      { type: 'Box', props: { flexDirection: 'column', backgroundColor: '#30302e' }, children: [BLANK] },
+    ]),
   )
 
-  expect((await run($, 'clubhouse', 'reset')).text).toMatch(/back to their defaults/)
+  expect((await run($, 'clubhouse', 'color reset')).text).toBe('Clubhouse colors are back to their defaults.')
   expect(await shown(reply)).toBe(native)
-  expect((await ui.find({ key: 'tint-chat' }))?.text).toBe('Conversation tint: off')
+
+  await ui.press({ key: 'look-slate' })
+  await ui.press({ key: 'reset-colors' })
+  expect(await shown(reply)).toBe(native)
+  expect(await ui.find({ type: 'Text', text: /app default/ })).toBeDefined()
   await ui.unmount()
   await mine.unmount()
   await reply.unmount()
   await toolRow.unmount()
 })
 
-test('the window tint is copied for the chosen background, with an undo', async ($, on) => {
+test('with the helper the whole app takes the color and the Clubhouse paints nothing itself', async ($, on) => {
+  const seen = world(on, 50, { hasHelper: true })
+  await start($)
+  const ui = await $.ui.mount({
+    plugin: 'clubhouse',
+    surface: 'desktop',
+    component: 'Pane',
+    requestId: 'clubhouse-colors',
+    props: { ...PANE, title: 'Colors' },
+  })
+  const reply = await $.ui.mount({
+    plugin: 'clubhouse',
+    surface: 'desktop',
+    component: 'AssistantMessage',
+    props: { text: 'A reply', isFirstOfReply: true },
+  } as Parameters<Engine['ui']['mount']>[0])
+  const bar = await $.ui.mount({ plugin: 'clubhouse', surface: 'desktop', component: 'AbovePrompt', props: BAND })
+  const config = () => JSON.parse(seen.written.at(-1)?.text ?? '{}') as Record<string, unknown>
+  const painted = async (drawing: { drawn: () => Promise<unknown> }) =>
+    ((await drawing.drawn()) as { props: { backgroundColor?: string } }).props.backgroundColor === '#141413'
+
+  expect(seen.written.at(-1)?.path).toBe('/tmp/clubhouse-home/.claude/clubhouse-helper/tint.json')
+  expect(config().enabled).toBe(false)
+  expect(seen.launched).toEqual([])
+
+  await ui.press({ key: 'look-slate' })
+  expect(config()).toEqual({ enabled: true, target: '#141413', base: '#151515', maxAlpha: 0.45, radius: 18 })
+  expect(seen.launched).toHaveLength(1)
+  expect(seen.launched[0]).toMatch(/clubhouse-helper\/window-tint/)
+  expect(await painted(ui)).toBe(false)
+  expect(await painted(reply)).toBe(false)
+  expect(await painted(bar)).toBe(false)
+
+  await ui.press({ key: 'app-mode' })
+  expect(config().base).toBe('#f0eee6')
+  await ui.press({ key: 'app-mode' })
+
+  await ui.press({ key: 'reach' })
+  expect(config().enabled).toBe(false)
+  expect(await painted(ui)).toBe(true)
+  expect(await painted(reply)).toBe(true)
+  expect(await painted(bar)).toBe(true)
+
+  await ui.press({ key: 'reach' })
+  await ui.press({ key: 'reach' })
+  expect(config().enabled).toBe(true)
+
+  expect((await run($, 'clubhouse', 'off')).text).toMatch(/Clubhouse is off/)
+  expect(config().enabled).toBe(false)
+  expect((await run($, 'clubhouse', 'on')).text).toBe('Clubhouse is on.')
+  expect(config().enabled).toBe(true)
+
+  await ui.press({ key: 'reset-colors' })
+  expect(config().enabled).toBe(false)
+  await ui.unmount()
+  await reply.unmount()
+  await bar.unmount()
+})
+
+test('the app colors for Developer Mode are copied for the chosen background, with an undo', async ($, on) => {
   const seen = world(on, 50)
   await start($)
   const ui = await $.ui.mount({
@@ -738,6 +826,8 @@ test('the window tint is copied for the chosen background, with an undo', async 
     props: { ...PANE, title: 'Colors' },
   })
 
+  expect(await ui.find({ key: 'window-tint' })).toBeUndefined()
+  await ui.press({ key: 'advanced' })
   await ui.press({ key: 'window-tint' })
   expect(seen.copied).toEqual([])
   expect(await ui.find({ type: 'Text', text: /Pick a background color first/ })).toBeDefined()
@@ -790,6 +880,30 @@ test('Second opinion asks Claude here or an outside model without touching the s
   expect(seen.completed[0]).toMatch(/The user asks: Was changing three files necessary\?/)
   expect(await ui.find({ type: 'Text', text: /From Opus, which saw only an excerpt/ })).toBeDefined()
   expect(seen.appended).toEqual([])
+  await ui.unmount()
+})
+
+test('a preset marked for every session is the hidden list a new session starts with', async ($, on) => {
+  world(on, 50, {
+    stored: {
+      hidden: ['deploy'],
+      hiddenPlan: { presets: { coding: ['vercel:env', 'vercel:deploy'] }, startWith: 'coding' },
+    },
+  })
+  await start($)
+  const ui = await $.ui.mount({
+    plugin: 'clubhouse',
+    surface: 'desktop',
+    component: 'Pane',
+    requestId: 'clubhouse-commands',
+    props: { ...PANE, title: 'Commands' },
+  })
+
+  expect(await says(ui, /Hidden skills \(2\)/)).toBe(true)
+  expect(await ui.find({ key: 'unhide-vercel:env' })).toBeDefined()
+  expect(await ui.find({ key: 'unhide-deploy' })).toBeUndefined()
+  expect((await ui.find({ key: 'group-yours' }))?.text).toBe('▸ Your own (1)')
+  expect(await ui.find({ key: 'group-vercel' })).toBeUndefined()
   await ui.unmount()
 })
 

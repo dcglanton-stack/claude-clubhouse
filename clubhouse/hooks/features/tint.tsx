@@ -1,6 +1,7 @@
 import { atom, read } from 'claude-code'
 import type { EngineInterface, On, RenderElement, ResolveInput } from 'claude-code'
 
+import { tintsRows } from '../lib/appColor'
 import { DEFAULT_PREFS } from '../lib/defaults'
 import { tintRow } from '../lib/parts'
 
@@ -12,11 +13,7 @@ async function tinted<E extends ResolveInput>(
   next: (e: E) => Promise<RenderElement>,
 ): Promise<RenderElement> {
   const chosen = await read($, prefs)
-  const isActive =
-    chosen.isEnabled &&
-    chosen.tintChat &&
-    chosen.palette.background !== null &&
-    e.surface !== 'terminal'
+  const isActive = tintsRows(chosen) && e.surface !== 'terminal'
 
   if (!isActive) {
     return next(e)

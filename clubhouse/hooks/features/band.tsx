@@ -2,6 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, On } from 'claude-code'
 
 import type { BarItemId, BarZone, Prefs, Shortcut } from '../../types'
+import { paintOf } from '../lib/appColor'
 import { meterSvg, moodFor, moodName } from '../lib/clawd'
 import { inkOn, rampColor } from '../lib/color'
 import {
@@ -144,14 +145,10 @@ export function band(on: On): void {
     const limit = list.find(one => one.kind === chosen.window)
     const columns = e.props.bodyColumns
     const meterWidth = columns >= COLUMNS_FOR_WIDE_METER ? WIDE_METER : SLIM_METER
-    const { accent, background } = chosen.palette
+    const { accent } = chosen.palette
+    const background = paintOf(chosen)
     const ink = background === null ? {} : { color: inkOn(background) }
-    const frame =
-      background === null
-        ? {}
-        : chosen.gapFill === 'off'
-          ? { backgroundColor: background }
-          : { backgroundColor: background, marginX: -1, paddingX: 1 }
+    const frame = background === null ? {} : { backgroundColor: background }
     const flipWindow = () =>
       void keep($, held => ({
         ...held,

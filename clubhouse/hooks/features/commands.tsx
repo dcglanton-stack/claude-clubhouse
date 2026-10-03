@@ -1,14 +1,17 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, On } from 'claude-code'
 
-import type { Prefs } from '../../types'
+import type { HiddenPlan, Prefs } from '../../types'
+import { HELPER_CONFIG, START_HELPER, coversApp, helperConfig } from '../lib/appColor'
 import { groupCommands, withoutHiddenSkills } from '../lib/commands'
 import type { ListedCommand } from '../lib/commands'
 import {
   COMMANDS_KEY,
   DEFAULT_COMMANDS_VIEW,
+  DEFAULT_HIDDEN_PLAN,
   DEFAULT_PREFS,
   HIDDEN_KEY,
+  HIDDEN_PLAN_KEY,
   HOME_PANE,
   PREFS_KEY,
   ROOMS,
@@ -20,16 +23,29 @@ import { makeParts } from '../lib/parts'
 const commandStats = atom({ plugin: 'clubhouse', key: 'commandStats' } as const, {})
 const commandsView = atom({ plugin: 'clubhouse', key: 'commandsView' } as const, DEFAULT_COMMANDS_VIEW)
 const hiddenCommands = atom({ plugin: 'clubhouse', key: 'hiddenCommands' } as const, [])
+const hiddenPlan = atom({ plugin: 'clubhouse', key: 'hiddenPlan' } as const, DEFAULT_HIDDEN_PLAN)
 const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS)
 const pulse = atom({ plugin: 'clubhouse', key: 'pulse' } as const, 0)
 
 const TOP_SIZE = 5
 const MATCH_SIZE = 40
 const ABOUT_CHARS = 140
+const INTERNAL_PREFIX = '__'
+
+let presetName = ''
 
 async function keep($: EngineInterface, change: (held: Prefs) => Prefs): Promise<void> {
   await update($, prefs, change)
-  await $.store.set(PREFS_KEY, await read($, prefs))
+  const chosen = await read($, prefs)
+  await $.store.set(PREFS_KEY, chosen)
+  const userFolder = await $.env.get('HOME')
+
+  if (userFolder === undefined) return
+  await $.fs.write(`${userFolder}/${HELPER_CONFIG}`, helperConfig(chosen)).catch(() => undefined)
+
+  if (coversApp(chosen)) {
+    await $.process.run(['/bin/sh', '-c', START_HELPER]).catch(() => undefined)
+  }
 }
 
 async function count($: EngineInterface, name: string): Promise<void> {
@@ -80,6 +96,37 @@ async function setHidden(
   $.ui.invalidate('prompt.attachment')
 }
 
+async function setPlan(
+  $: EngineInterface,
+  change: (plan: HiddenPlan) => HiddenPlan,
+  note: string,
+): Promise<void> {
+  await update($, hiddenPlan, change)
+  await $.store.set(HIDDEN_PLAN_KEY, await read($, hiddenPlan))
+  await update($, commandsView, view => ({ ...view, note }))
+}
+
+async function savePreset($: EngineInterface): Promise<void> {
+  const name = presetName.trim()
+  const hidden = await read($, hiddenCommands)
+
+  if (name === '') {
+    await update($, commandsView, view => ({
+      ...view,
+      note: 'Type a name for the preset, press Enter, then press Save as preset.',
+    }))
+
+    return
+  }
+
+  await setPlan(
+    $,
+    plan => ({ ...plan, presets: { ...plan.presets, [name]: hidden } }),
+    `Saved "${name}" with ${hidden.length} hidden.`,
+  )
+  presetName = ''
+}
+
 export function commands(on: On): void {
   on('command.run', async ($, e, next) => {
     await count($, e.command)
@@ -101,10 +148,10 @@ export function commands(on: On): void {
       }
     }
 
-    if (wish === 'reset') {
+    if (wish === 'color reset' || wish === 'colors reset') {
       await keep($, resetLook)
 
-      return { text: 'Clubhouse colors, conversation tint and gap fill are back to their defaults.' }
+      return { text: 'Clubhouse colors are back to their defaults.' }
     }
 
     const room = ROOMS.find(one => one.word === wish || (wish === 'hq' && one.word === 'agents'))
@@ -147,7 +194,8 @@ export function commands(on: On): void {
     const stats = await read($, commandStats)
     const view = await read($, commandsView)
     const hidden = await read($, hiddenCommands)
-    const all: ListedCommand[] = await $.command.list()
+    const plan = await read($, hiddenPlan)
+    const all: ListedCommand[] = (await $.command.list()).filter(one => !one.name.startsWith(INTERNAL_PREFIX))
     const groups = groupCommands(all, hidden)
     const wanted = view.filter.trim().toLowerCase().replace(/^\//, '')
     const matching = all.filter(
@@ -168,7 +216,7 @@ export function commands(on: On): void {
       void setHidden(
         $,
         held => [...new Set([...held, ...names])],
-        `${label} hidden. Claude no longer sees or uses ${names.length === 1 ? 'it' : 'them'}; undo under Hidden.`,
+        `${label} hidden. Claude no longer sees or uses ${names.length === 1 ? 'it' : 'them'}; undo under Hidden skills.`,
       )
     const unhide = (name: string) =>
       void setHidden($, held => held.filter(one => one !== name), `/${name} is back.`)
@@ -202,7 +250,7 @@ export function commands(on: On): void {
 
         {card('About hiding', [
           note('Hide puts a skill, or a whole group, out of the way. It leaves the slash menu, Claude is no longer told it exists (which saves a little context every session), and Claude is refused if it tries to use it.'),
-          note('Nothing is deleted from your computer, and it stays hidden in every session until you show it again from the Hidden group at the bottom.'),
+          note('Nothing is deleted from your computer, and it stays hidden in every session until you show it again under Hidden skills at the bottom.'),
           note('Claude in a session already under way has seen the full list, so for Claude the change starts with the next session or after /clear.'),
           note('To remove a whole plugin and everything it adds, ask Claude to turn that plugin off.'),
         ])}
@@ -265,27 +313,86 @@ export function commands(on: On): void {
             )
           })}
 
-        {wanted === '' && hidden.length > 0 && (
-          <Box flexDirection="column" gap={1}>
-            <Box>
-              <Button
-                key="group-hidden"
-                label={`${view.open.includes('hidden') ? '▾' : '▸'} Hidden (${hidden.length})`}
-                variant={view.open.includes('hidden') ? 'primary' : 'secondary'}
-                onPress={() => toggleGroup('hidden')}
+        {wanted === '' &&
+          card(`Hidden skills (${hidden.length})`, [
+            note('Hidden in every session: gone from the slash menu, and Claude is not told about them and cannot use them.'),
+            hidden.length > 0 && (
+              <Box gap={1} flexWrap="wrap">
+                {hidden.map(name => (
+                  <Button key={`unhide-${name}`} label={`Show /${name}`} onPress={() => unhide(name)} />
+                ))}
+                <Button
+                  key="unhide-all"
+                  label="Show all"
+                  onPress={() => void setHidden($, () => [], 'Everything is showing again.')}
+                />
+              </Box>
+            ),
+          ])}
+
+        {wanted === '' &&
+          card('Presets', [
+            note('A preset is a saved list of what to hide. Save the list you have now under a name, and switch between presets whenever you like. Turn on "every session" for one and each new session starts with that list.'),
+            Input !== null && (
+              <Input
+                key="preset-name"
+                label="Name"
+                placeholder="coding"
+                submitLabel="Set"
+                onInput={typed => {
+                  presetName = typed
+                }}
+                onSubmit={typed => {
+                  presetName = typed
+                }}
               />
-            </Box>
-            {view.open.includes('hidden') &&
-              card('Hidden', [
-                note('Hidden in every session: gone from the slash menu, and Claude is not told about them and cannot use them.'),
+            ),
+            <Box>
+              <Button key="preset-save" label="Save as preset" variant="primary" onPress={() => void savePreset($)} />
+            </Box>,
+            ...Object.entries(plan.presets).map(([name, names]) => (
+              <Box flexDirection="column">
+                {plain(`${name} (${names.length} hidden)`)}
                 <Box gap={1} flexWrap="wrap">
-                  {hidden.map(name => (
-                    <Button key={`unhide-${name}`} label={`Show /${name}`} onPress={() => unhide(name)} />
-                  ))}
-                </Box>,
-              ])}
-          </Box>
-        )}
+                  <Button
+                    key={`preset-use-${name}`}
+                    label="Use now"
+                    onPress={() => void setHidden($, () => names, `Now using "${name}".`)}
+                  />
+                  <Button
+                    key={`preset-start-${name}`}
+                    label={plan.startWith === name ? 'Every session: on' : 'Every session: off'}
+                    variant={plan.startWith === name ? 'primary' : 'secondary'}
+                    onPress={() =>
+                      void setPlan(
+                        $,
+                        held => ({ ...held, startWith: held.startWith === name ? null : name }),
+                        plan.startWith === name
+                          ? `New sessions no longer start with "${name}".`
+                          : `Every new session will start with "${name}".`,
+                      )
+                    }
+                  />
+                  <Button
+                    key={`preset-delete-${name}`}
+                    label="Delete"
+                    onPress={() =>
+                      void setPlan(
+                        $,
+                        held => ({
+                          presets: Object.fromEntries(
+                            Object.entries(held.presets).filter(([other]) => other !== name),
+                          ),
+                          startWith: held.startWith === name ? null : held.startWith,
+                        }),
+                        `Deleted "${name}".`,
+                      )
+                    }
+                  />
+                </Box>
+              </Box>
+            )),
+          ])}
       </Box>
     )
   })

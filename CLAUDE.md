@@ -6,6 +6,7 @@ A Claude Code function-hooks plugin (a "mod"). The plugin is the `clubhouse/` fo
 
 - `claude plugin validate clubhouse` after every edit. It must pass.
 - `claude plugin test clubhouse` before every commit. It draws the band and every room on desktop and terminal.
+- `helper/build.sh` after changing `helper/WindowTint.swift`. `window-tint --list` prints the on-screen windows for checking geometry.
 
 ## Rules the validator enforces
 
@@ -43,9 +44,9 @@ A Claude Code function-hooks plugin (a "mod"). The plugin is the `clubhouse/` fo
 - Tool rules are enforced by the one unmatched `tool.call` hook in `tools.tsx`; it fails closed (no answer means deny) and ignores `prefs.isEnabled` on purpose.
 - Button keys must be unique within a pane: give a second listing of the same items its own key prefix.
 - `Button`, `Input`, `Select` and `Markdown` come from `makeParts`, never straight from `elements`: the wrapped versions add a backing chip when the user's background is in the opposite light/dark family to `prefs.appMode`, which keeps the app-drawn controls readable.
-- What a mod can color: the bar, the rooms, and (opt-in `tintChat`) every conversation row. Rows are tinted by wrapping `await next(e)` in `tintRow` (`lib/parts.tsx`), never by redrawing them, so the app's own row features survive. `gapFill` stretches the color with negative margins (`soft`) or absolute slabs (`full`); both are experimental on desktop.
-- What a mod cannot color: the composer, the footer controls, the pane tab strip, the title bar and the sidebar. They are app chrome, not render sites (on desktop only `SessionMode` and `PromptHint` are sites down there). Checked 2026-10-03: the app paints from two built-in sets of CSS variables (`--bg-000..500`, `--text-000..500`, `--border-100..400`) and rejects the remote-debugging switch. Do not patch the app or write its `developer_settings.json`.
-- The whole-window route is the user's own: the app's Developer Mode (Help, Troubleshooting) opens DevTools, and `lib/windowTint.ts` builds a one-line snippet that overrides those variables. Colors copies it; the user pastes it. Keep the snippet to one style rule: no network, no storage, no DOM changes beyond the style element (a test asserts this).
+- What a mod can color: the bar, the rooms, and every conversation row. Rows are tinted by wrapping `await next(e)` in `tintRow` (`lib/parts.tsx`), never by redrawing them, so the app's own row features survive. The desktop app clips each row and panel to its own box: negative margins and absolute slabs do nothing there (tried 2026-10-03), so a mod cannot fill the gaps between rows.
+- What a mod cannot color: the gaps between rows, the composer, the footer controls, the pane tab strip, the title bar and the sidebar. They are app chrome, not render sites. The app paints from two built-in sets of CSS variables and rejects the remote-debugging switch. Never patch the app, write its `developer_settings.json`, or script its window.
+- The whole app is colored by `helper/WindowTint.swift`, a small AppKit program installed as `~/.claude/clubhouse-helper/window-tint` by `helper/build.sh`. It lays a click-through color layer over each Claude window, calibrated in Display P3 so the app's conversation background (`#151515` dark, `#f0eee6` light) comes out as exactly `palette.background`. It reads `~/.claude/clubhouse-helper/tint.json`, which every `keep` that can change the answer rewrites (`lib/appColor.ts` builds it), and exits when disabled or when Claude quits. While it covers the app (`coversApp(prefs)`), the Clubhouse paints no backgrounds of its own (`paintOf`), otherwise the color is applied twice. The app's own shade steps between panels remain. The exact, flat repaint is the user's own Developer Mode route under Advanced in Colors (`lib/windowTint.ts`); keep that snippet to one style rule.
 - No unnecessary comments.
 
 ## Release

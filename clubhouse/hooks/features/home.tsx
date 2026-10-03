@@ -2,6 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, On } from 'claude-code'
 
 import type { HomeTab, Prefs } from '../../types'
+import { HELPER_CONFIG, START_HELPER, coversApp, helperConfig } from '../lib/appColor'
 import { DEFAULT_PREFS, PREFS_KEY, ROOMS, topCommands } from '../lib/defaults'
 import { cacheNote, receiptNote } from '../lib/format'
 import { homeIconSvg } from '../lib/icon'
@@ -38,7 +39,16 @@ const PLANNED: readonly (readonly [string, string])[] = [
 
 async function keep($: EngineInterface, change: (held: Prefs) => Prefs): Promise<void> {
   await update($, prefs, change)
-  await $.store.set(PREFS_KEY, await read($, prefs))
+  const chosen = await read($, prefs)
+  await $.store.set(PREFS_KEY, chosen)
+  const userFolder = await $.env.get('HOME')
+
+  if (userFolder === undefined) return
+  await $.fs.write(`${userFolder}/${HELPER_CONFIG}`, helperConfig(chosen)).catch(() => undefined)
+
+  if (coversApp(chosen)) {
+    await $.process.run(['/bin/sh', '-c', START_HELPER]).catch(() => undefined)
+  }
 }
 
 async function visit($: EngineInterface, id: string, title: string, isOpen: boolean): Promise<void> {

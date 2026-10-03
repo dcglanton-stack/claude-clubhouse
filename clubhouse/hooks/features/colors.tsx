@@ -1,7 +1,8 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, On } from 'claude-code'
 
-import type { GapFill, Palette, PaletteSlot, Prefs } from '../../types'
+import type { Palette, PaletteSlot, Prefs, Reach } from '../../types'
+import { HELPER_CONFIG, START_HELPER, coversApp, helperConfig } from '../lib/appColor'
 import { clawdSvg, wheelSvg } from '../lib/clawd'
 import { isLight, mix, normalizeHex, rgbString, shift, toHsl } from '../lib/color'
 import type { Hsl } from '../lib/color'
@@ -65,11 +66,11 @@ const LOOKS: readonly (readonly [string, string, Palette])[] = [
   ['look-slate', 'Anthropic slate', { accent: '#d97757', clawd: '#d97757', background: '#141413' }],
 ]
 
-const GAP_FILL_NEXT: Record<GapFill, GapFill> = { off: 'soft', soft: 'full', full: 'off' }
-const GAP_FILL_LABEL: Record<GapFill, string> = {
-  off: 'Fill the gaps: off',
-  soft: 'Fill the gaps: soft',
-  full: 'Fill the gaps: full',
+const REACH_NEXT: Record<Reach, Reach> = { app: 'conversation', conversation: 'rooms', rooms: 'app' }
+const REACH_LABEL: Record<Reach, string> = {
+  app: 'Background covers: the whole app',
+  conversation: 'Background covers: the conversation',
+  rooms: 'Background covers: the Clubhouse only',
 }
 const TINT_FILE = '.claude/clubhouse-window-tint.js'
 
@@ -116,7 +117,16 @@ function reason(error: unknown): string {
 
 async function keep($: EngineInterface, change: (held: Prefs) => Prefs): Promise<void> {
   await update($, prefs, change)
-  await $.store.set(PREFS_KEY, await read($, prefs))
+  const chosen = await read($, prefs)
+  await $.store.set(PREFS_KEY, chosen)
+  const userFolder = await $.env.get('HOME')
+
+  if (userFolder === undefined) return
+  await $.fs.write(`${userFolder}/${HELPER_CONFIG}`, helperConfig(chosen)).catch(() => undefined)
+
+  if (coversApp(chosen)) {
+    await $.process.run(['/bin/sh', '-c', START_HELPER]).catch(() => undefined)
+  }
 }
 
 async function say($: EngineInterface, note: string): Promise<void> {
@@ -125,21 +135,21 @@ async function say($: EngineInterface, note: string): Promise<void> {
 
 async function applyToApp($: EngineInterface): Promise<void> {
   try {
-    const home = await $.env.get('HOME')
+    const userFolder = await $.env.get('HOME')
     const row = (await $.config.list()).find(one => one.key === 'theme')
     const current = typeof row?.value === 'string' ? row.value : 'dark'
     const chosen = await read($, prefs)
     const previous = current === THEME_REF ? (chosen.previousTheme ?? 'dark') : current
     const isLightBase = previous.startsWith('light')
 
-    if (home === undefined) {
+    if (userFolder === undefined) {
       await say($, 'Could not find your home folder, so no theme was written.')
 
       return
     }
 
     await $.fs.write(
-      `${home}/.claude/themes/${THEME_SLUG}.json`,
+      `${userFolder}/.claude/themes/${THEME_SLUG}.json`,
       `${JSON.stringify(
         {
           name: 'Claude Clubhouse',
@@ -258,25 +268,25 @@ async function shareWindowTint($: EngineInterface, isUndo: boolean): Promise<voi
       await say(
         $,
         isUndo
-          ? 'Undo copied. Paste it in the DevTools console and press Enter.'
-          : 'Window tint copied. Paste it in the DevTools console and press Enter.',
+          ? 'Undo copied. Paste it in the Console window and press Return.'
+          : 'App colors copied. Paste them in the Console window and press Return.',
       )
 
       return
     }
 
-    const home = await $.env.get('HOME')
+    const userFolder = await $.env.get('HOME')
 
-    if (home === undefined) {
+    if (userFolder === undefined) {
       await say($, 'Could not reach the clipboard or your home folder.')
 
       return
     }
 
-    await $.fs.write(`${home}/${TINT_FILE}`, `${text}\n`)
+    await $.fs.write(`${userFolder}/${TINT_FILE}`, `${text}\n`)
     await say($, `Could not reach the clipboard, so it is saved in ~/${TINT_FILE}. Open that file and copy its one line.`)
   } catch (error) {
-    await say($, `Could not prepare the window tint: ${reason(error)}`)
+    await say($, `Could not prepare the app colors: ${reason(error)}`)
   }
 }
 
@@ -316,6 +326,23 @@ export function colors(on: On): void {
         {title('Colors')}
         {note(
           'Pick the colors of everything the Clubhouse draws. Choose what to color, then nudge it, pick a preset, type a hex code or describe a look. /clubhouse colors opens this.',
+        )}
+
+        <Box gap={1} flexWrap="wrap">
+          <Button
+            key="reach"
+            label={REACH_LABEL[chosen.reach]}
+            variant="primary"
+            onPress={() => void keep($, held => ({ ...held, reach: REACH_NEXT[held.reach] }))}
+          />
+          <Button key="reset-colors" label="Reset to default" onPress={() => void keep($, resetLook)} />
+        </Box>
+        {note(
+          chosen.reach === 'app' && !chosen.isHelperReady
+            ? 'The whole-app helper is not installed on this Mac, so the Background color stops at the conversation. Ask Claude to build it.'
+            : chosen.palette.background === null
+              ? 'Pick a Background color below and it becomes the color of the whole app: the conversation, the text box, the bar, the tabs and the sidebar.'
+              : 'Your Background color is the color of the whole app: the conversation, the text box, the bar, the tabs and the sidebar. Press the button to keep it to the conversation or to the Clubhouse only.',
         )}
 
         {heading('What to color')}
@@ -410,8 +437,8 @@ export function colors(on: On): void {
           </Box>
         )}
 
-        {heading('Buttons and text boxes')}
-        {note('The app draws buttons and text boxes in its own light or dark style. Tell the Clubhouse which one your app is in, and it puts a matching backing behind them whenever your background would hide them.')}
+        {heading('Dark or light app')}
+        {note('Tell the Clubhouse whether your Claude app is in dark or light mode. It uses this to match the app exactly and to keep buttons readable. Colors close to the app\'s own work best: dark colors in dark mode, light colors in light mode.')}
         <Box>
           <Button
             key="app-mode"
@@ -422,47 +449,35 @@ export function colors(on: On): void {
           />
         </Box>
 
-        {heading('The conversation')}
-        {note('Paints your background behind every row of the conversation: your messages, replies, tool rows and the working line. The app still draws each row itself, so nothing is lost. If your color is from the other family than your app, each row gets a readable backing.')}
-        <Box gap={1} flexWrap="wrap">
-          <Button
-            key="tint-chat"
-            label={chosen.tintChat ? 'Conversation tint: on' : 'Conversation tint: off'}
-            variant={chosen.tintChat ? 'primary' : 'secondary'}
-            onPress={() => void keep($, held => ({ ...held, tintChat: !held.tintChat }))}
-          />
-          <Button
-            key="gap-fill"
-            label={GAP_FILL_LABEL[chosen.gapFill]}
-            variant={chosen.gapFill === 'off' ? 'secondary' : 'primary'}
-            onPress={() => void keep($, held => ({ ...held, gapFill: GAP_FILL_NEXT[held.gapFill] }))}
-          />
-        </Box>
-        {note('Fill the gaps is experimental. Soft stretches each row\'s color into the space around it and can never cover text. Full lays the color over the space between rows and out to the edges; if it covers anything, switch back. Both also widen the color inside the rooms.')}
-        {note('If something looks wrong and you cannot reach this button, type /clubhouse reset.')}
+        {heading('How the whole app gets its color')}
+        {note('Claude Code can only paint its own rows and panels. The text box, the tabs and the sidebar belong to the Claude app, which offers no color setting. So the Clubhouse runs a small helper on your Mac that lays your color over the Claude window, matched so the app\'s background comes out as exactly the color you picked. It stops when you reset, switch the Clubhouse off or quit Claude.')}
 
-        {heading('The whole window')}
-        {note('The text box, the row under it, the tab strip and the sidebar are painted by the Claude app, not by Claude Code, so no mod can reach them. The app does have a Developer Mode, and with it you can apply your color to the entire window yourself:')}
-        {note('1. In the menu bar choose Help, Troubleshooting, Enable Developer Mode, and confirm. You do this once; the app may need a restart.')}
-        {note('2. Press Option-Command-I to open DevTools and click Console.')}
-        {note('3. Press Copy window tint below, paste in the console, press Enter. The first time, Chrome asks you to type "allow pasting".')}
-        <Box gap={1} flexWrap="wrap">
-          <Button key="window-tint" label="Copy window tint" variant="primary" onPress={() => void shareWindowTint($, false)} />
-          <Button key="window-undo" label="Copy undo" onPress={() => void shareWindowTint($, true)} />
-        </Box>
-        {note('What you paste only adds one style rule that sets the app\'s background, text and border colors from your Background color. It lasts until the window reloads or the app restarts, then you paste it again. If you paste a light tint into a dark app, or the reverse, flip the app-mode switch above so the Clubhouse matches.')}
-
-        {heading('Claude Code in a terminal')}
-        {note('In a terminal, Claude Code draws everything itself, so this theme recolors its accents, borders and panels there.')}
-        <Box gap={1} flexWrap="wrap">
-          <Button key="apply-app" label="Apply to Claude Code theme" onPress={() => void applyToApp($)} />
-          <Button key="undo-app" label="Undo" onPress={() => void undoApp($)} />
+        <Box>
           <Button
-            key="reset-colors"
-            label="Reset Clubhouse colors"
-            onPress={() => void keep($, resetLook)}
+            key="advanced"
+            label={view.isAdvancedOpen ? '▾ Advanced' : '▸ Advanced'}
+            onPress={() => void update($, colorsView, held => ({ ...held, isAdvancedOpen: !held.isAdvancedOpen }))}
           />
         </Box>
+        {view.isAdvancedOpen && (
+          <Box flexDirection="column" gap={1}>
+            {heading('Repaint the app itself')}
+            {note('The Claude app has a Developer Mode that lets you change its real colors by hand. It lasts until the app restarts, then you do steps 2 and 3 again.')}
+            {note('1. Look at the very top of your screen, the strip that starts with the Apple logo. Click Help, then Troubleshooting, then Enable Developer Mode, and confirm. You only do this once.')}
+            {note('2. Hold Option and Command and press I. A new window opens. Click the word Console near its top.')}
+            {note('3. Press Copy app colors below. Click in the big empty area of that new window, hold Command and press V, then press Return. If it asks, type the words allow pasting, press Return, and paste again.')}
+            <Box gap={1} flexWrap="wrap">
+              <Button key="window-tint" label="Copy app colors" onPress={() => void shareWindowTint($, false)} />
+              <Button key="window-undo" label="Copy undo" onPress={() => void shareWindowTint($, true)} />
+            </Box>
+            {heading('Claude Code in a terminal')}
+            {note('In a terminal, Claude Code draws everything itself, so this theme recolors its accents, borders and panels there.')}
+            <Box gap={1} flexWrap="wrap">
+              <Button key="apply-app" label="Apply to Claude Code theme" onPress={() => void applyToApp($)} />
+              <Button key="undo-app" label="Undo" onPress={() => void undoApp($)} />
+            </Box>
+          </Box>
+        )}
         {view.note !== null && plain(view.note)}
       </Box>
     )
