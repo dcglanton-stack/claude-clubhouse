@@ -1,29 +1,11 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, On } from 'claude-code'
 
-import type { BarItemId, HomeTab, Prefs, WindowKind } from '../../types'
-import { agentSvg, meterSvg, moodFor, moodName } from '../lib/clawd'
-import { inkOn, rampColor } from '../lib/color'
-import {
-  BAR_ITEMS,
-  BAR_ROWS,
-  BAR_ZONES,
-  DEFAULT_BAR,
-  DEFAULT_PREFS,
-  PREFS_KEY,
-  ROOMS,
-  topCommands,
-} from '../lib/defaults'
-import {
-  WINDOW_NAME,
-  cacheNote,
-  formatSpan,
-  percentLeft,
-  receiptNote,
-  resetIn,
-  textBar,
-} from '../lib/format'
+import type { HomeTab, Prefs } from '../../types'
+import { DEFAULT_PREFS, PREFS_KEY, ROOMS, topCommands } from '../lib/defaults'
+import { cacheNote, receiptNote } from '../lib/format'
 import { homeIconSvg } from '../lib/icon'
+import { makeParts } from '../lib/parts'
 
 const commandStats = atom({ plugin: 'clubhouse', key: 'commandStats' } as const, {})
 const contextPercent = atom({ plugin: 'clubhouse', key: 'contextPercent' } as const, null)
@@ -35,31 +17,21 @@ const pulse = atom({ plugin: 'clubhouse', key: 'pulse' } as const, 0)
 const receipt = atom({ plugin: 'clubhouse', key: 'receipt' } as const, null)
 const tab = atom({ plugin: 'clubhouse', key: 'tab' } as const, 'home')
 
-const BIG_METER_WIDTH = 280
-const BIG_METER_HEIGHT = 40
+const METER_WIDTH = 280
+const METER_HEIGHT = 40
 const LOGO_SIZE = 40
-const BADGE_UNIT = 2
-const BADGE_WIDTH = Math.ceil(17.4 * BADGE_UNIT)
-const BADGE_HEIGHT = Math.ceil(12 * BADGE_UNIT)
-const TEXT_CELLS = 28
 const TOP_SIZE = 5
-const BUTTON_COLUMN = 20
-const NAME_COLUMN = 16
 
 const TABS: readonly (readonly [HomeTab, string])[] = [
   ['home', 'Home'],
-  ['bar', 'Bar layout'],
   ['more', 'More'],
 ]
-
-const ZONE_LABEL = { left: 'Left', center: 'Center', right: 'Right' } as const
 
 const PLANNED: readonly (readonly [string, string])[] = [
   ['Workshop: tools', 'Set any tool to Allow, Ask first or Block. Trade safeguards live here.'],
   ['Workshop: recipes', 'Turn a shell command into a tool without writing code.'],
   ['Prompt tidy', 'Spell-fix or shorten the draft in the prompt box before you send it.'],
   ['Second opinion', 'Ask an outside model about the session without touching it.'],
-  ['Prompt shortcuts', 'One-click buttons for prompts you send often; add your own.'],
   ['Night watch', 'Timers that check on work while you are away and report back.'],
   ['Zen mode', 'Hide tool rows while work runs; show progress and the answer only.'],
   ['Spend cap', 'Pause new subagents below a usage level, with a continue button.'],
@@ -102,32 +74,14 @@ export function home(on: On): void {
     const shown = await read($, tab)
     const at = await read($, now)
     await read($, pulse)
-    const { accent, background, clawd } = chosen.palette
-    const ink = background === null ? {} : { color: inkOn(background) }
-    const frame = background === null ? {} : { backgroundColor: background, padding: 1 }
-
-    const note = (text: string) => (
-      <Text {...ink} dimColor wrap="wrap">
-        {text}
-      </Text>
-    )
-    const card = (title: string, body: unknown) => (
-      <Box flexDirection="column" borderStyle="round" borderColor={accent} paddingX={1}>
-        <Text bold color={accent}>
-          {title}
-        </Text>
-        {body}
-      </Box>
-    )
-    const moveSpot = (id: BarItemId, change: (spot: Prefs['bar'][BarItemId]) => Prefs['bar'][BarItemId]) =>
-      void keep($, held => ({ ...held, bar: { ...held.bar, [id]: change(held.bar[id]) } }))
+    const { ink, frame, note, card, meter } = makeParts(elements, chosen.palette)
 
     const header = (
       <Box flexDirection="column" gap={1}>
         <Box gap={1} alignItems="center">
           {'Svg' in elements && (
             <elements.Svg
-              source={homeIconSvg({ size: LOGO_SIZE, accent })}
+              source={homeIconSvg({ size: LOGO_SIZE, accent: chosen.palette.accent })}
               alt="Claude Clubhouse"
               width={LOGO_SIZE}
               height={LOGO_SIZE}
@@ -138,7 +92,6 @@ export function home(on: On): void {
           </Text>
           <Button
             key="power"
-            hotkey="0"
             label={chosen.isEnabled ? 'On' : 'Off'}
             variant={chosen.isEnabled ? 'primary' : 'secondary'}
             onPress={() => void keep($, held => ({ ...held, isEnabled: !held.isEnabled }))}
@@ -165,78 +118,36 @@ export function home(on: On): void {
       const stats = await read($, commandStats)
       const openIds = (await $.ui.panes()).map(one => one.id)
 
-      const bigMeter = (kind: WindowKind) => {
-        const limit = list.find(one => one.kind === kind)
-
-        if (limit === undefined) {
-          return note(`${WINDOW_NAME[kind]}: no reading yet`)
-        }
-
-        const left = percentLeft(limit, at)
-        const untilReset = resetIn(limit, at)
-        const reset =
-          untilReset !== null && untilReset > 0 ? ` · resets in ${formatSpan(untilReset)}` : ''
-        const { filled, empty } = textBar(left, TEXT_CELLS)
-
-        return (
-          <Box flexDirection="column">
-            <Text {...ink}>
-              {WINDOW_NAME[kind]}: {left}% left{reset}
-            </Text>
-            {'Svg' in elements ? (
-              <elements.Svg
-                source={meterSvg({
-                  left,
-                  barColor: rampColor(left),
-                  clawdColor: clawd,
-                  width: BIG_METER_WIDTH,
-                  height: BIG_METER_HEIGHT,
-                })}
-                alt={`${left}% left; Clawd looks ${moodName(moodFor(left))}`}
-                width={BIG_METER_WIDTH}
-                height={BIG_METER_HEIGHT}
-              />
-            ) : (
-              <Box>
-                {filled !== '' && <Text color={rampColor(left)}>{filled}</Text>}
-                {empty !== '' && <Text dimColor>{empty}</Text>}
-              </Box>
-            )}
-          </Box>
-        )
-      }
-
       return (
         <Box flexDirection="column" gap={1}>
           {card(
             'Rooms',
-            ROOMS.map(room => {
-              const isOpen = openIds.includes(room.id)
+            <Box flexDirection="column" gap={1}>
+              {ROOMS.map(room => {
+                const isOpen = openIds.includes(room.id)
 
-              return (
-                <Box gap={1} alignItems="center">
-                  <Box width={BUTTON_COLUMN} gap={1} alignItems="center">
-                    {room.word === 'agents' && 'Svg' in elements && (
-                      <elements.Svg
-                        source={agentSvg({ color: clawd, unit: BADGE_UNIT, status: 'running' })}
-                        alt="A Clawd agent in a suit and sunglasses"
-                        width={BADGE_WIDTH}
-                        height={BADGE_HEIGHT}
+                return (
+                  <Box flexDirection="column">
+                    <Box gap={1}>
+                      <Button
+                        key={`room-${room.word}`}
+                        label={room.title}
+                        variant={isOpen ? 'primary' : 'secondary'}
+                        onPress={() => void visit($, room.id, room.title, false)}
                       />
-                    )}
-                    <Button
-                      key={`room-${room.word}`}
-                      label={isOpen ? `Close ${room.title}` : room.title}
-                      variant={isOpen ? 'primary' : 'secondary'}
-                      onPress={() => void visit($, room.id, room.title, isOpen)}
-                    />
+                      {isOpen && (
+                        <Button
+                          key={`close-${room.word}`}
+                          label="Close"
+                          onPress={() => void visit($, room.id, room.title, true)}
+                        />
+                      )}
+                    </Box>
+                    {note(room.about)}
                   </Box>
-                  <Text {...ink} dimColor wrap="truncate">
-                    {room.about}
-                  </Text>
-                </Box>
-              )
-            }),
+                )
+              })}
+            </Box>,
           )}
 
           {card('Quick commands', [
@@ -249,68 +160,23 @@ export function home(on: On): void {
           ])}
 
           {card('Usage', [
-            bigMeter('five_hour'),
-            bigMeter('seven_day'),
+            meter({ kind: 'five_hour', limits: list, at, width: METER_WIDTH, height: METER_HEIGHT }),
+            meter({ kind: 'seven_day', limits: list, at, width: METER_WIDTH, height: METER_HEIGHT }),
             note(
-              `${context === null ? 'Context: no reading yet' : `Context ${context}% full`} · ${cacheNote(last, at)}${made === null ? '' : ` · ${receiptNote(made)}`}`,
+              `${context === null ? 'Context: no reading yet' : `Context ${context}% full`} · ${cacheNote(last, at)}`,
             ),
+            made !== null && note(receiptNote(made)),
           ])}
         </Box>
       )
     }
-
-    const bar = () => (
-      <Box flexDirection="column" gap={1}>
-        {note(
-          'Choose what sits on the bar above the prompt and where. Each item has three buttons: show or hide it, which bar it is on, and left, center or right.',
-        )}
-        {BAR_ITEMS.map(([id, title, about]) => {
-          const spot = chosen.bar[id]
-
-          return card(title, [
-            <Box gap={1}>
-              <Button
-                key={`bar-${id}-show`}
-                label={spot.isShown ? 'Shown' : 'Hidden'}
-                variant={spot.isShown ? 'primary' : 'secondary'}
-                onPress={() => moveSpot(id, held => ({ ...held, isShown: !held.isShown }))}
-              />
-              <Button
-                key={`bar-${id}-row`}
-                label={`Bar ${spot.row}`}
-                onPress={() => moveSpot(id, held => ({ ...held, row: (held.row % BAR_ROWS) + 1 }))}
-              />
-              <Button
-                key={`bar-${id}-zone`}
-                label={ZONE_LABEL[spot.zone]}
-                onPress={() =>
-                  moveSpot(id, held => ({
-                    ...held,
-                    zone: BAR_ZONES[(BAR_ZONES.indexOf(held.zone) + 1) % BAR_ZONES.length] ?? 'left',
-                  }))
-                }
-              />
-            </Box>,
-            note(about),
-          ])
-        })}
-        <Box>
-          <Button
-            key="bar-reset"
-            label="Reset the bar"
-            onPress={() => void keep($, held => ({ ...held, bar: DEFAULT_BAR }))}
-          />
-        </Box>
-        {note('Bar 2 appears above the prompt as a second row as soon as something is placed on it.')}
-      </Box>
-    )
 
     const more = () => (
       <Box flexDirection="column" gap={1}>
         {card('How to get here', [
           note('Click Clubhouse on the bar, or type /clubhouse. Esc closes this screen.'),
           note('/clubhouse off hides everything the Clubhouse adds; /clubhouse on brings it back.'),
-          note('/clubhouse agents, /clubhouse commands and /clubhouse colors open a room directly.'),
+          note(`A room opens directly with /clubhouse and its word: ${ROOMS.map(room => room.word).join(', ')}.`),
         ])}
         {card('Changing the Clubhouse', [
           note(
@@ -319,16 +185,14 @@ export function home(on: On): void {
         ])}
         {card(
           'Coming next',
-          PLANNED.map(([name, about]) => (
-            <Box gap={1}>
-              <Box width={NAME_COLUMN + 4}>
+          <Box flexDirection="column" gap={1}>
+            {PLANNED.map(([name, about]) => (
+              <Box flexDirection="column">
                 <Text {...ink}>{name}</Text>
+                {note(about)}
               </Box>
-              <Text {...ink} dimColor wrap="truncate">
-                {about}
-              </Text>
-            </Box>
-          )),
+            ))}
+          </Box>,
         )}
       </Box>
     )
@@ -336,7 +200,7 @@ export function home(on: On): void {
     return (
       <Box flexDirection="column" gap={1} {...frame}>
         {header}
-        {shown === 'bar' ? bar() : shown === 'more' ? more() : await main()}
+        {shown === 'more' ? more() : await main()}
       </Box>
     )
   })

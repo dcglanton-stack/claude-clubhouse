@@ -2,8 +2,16 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, On } from 'claude-code'
 
 import type { Limit, Receipt, WindowKind } from '../../types'
-import { DEFAULT_PREFS, LIMITS_KEY } from '../lib/defaults'
+import {
+  ANSWER_LIMIT,
+  AUTO_SUMMARY_CHARS,
+  DEFAULT_PREFS,
+  IDLE_SUMMARY,
+  LIMITS_KEY,
+  WORKING_SUMMARY,
+} from '../lib/defaults'
 import { LOW_PERCENT, WINDOW_LABEL, formatSpan, percentLeft, resetIn, usedOf } from '../lib/format'
+import { summaryOf, summaryRequest } from '../lib/summary'
 
 const contextPercent = atom({ plugin: 'clubhouse', key: 'contextPercent' } as const, null)
 const lastReplyAt = atom({ plugin: 'clubhouse', key: 'lastReplyAt' } as const, null)
@@ -12,6 +20,8 @@ const now = atom({ plugin: 'clubhouse', key: 'now' } as const, 0)
 const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS)
 const receipt = atom({ plugin: 'clubhouse', key: 'receipt' } as const, null)
 const pulse = atom({ plugin: 'clubhouse', key: 'pulse' } as const, 0)
+const lastAnswer = atom({ plugin: 'clubhouse', key: 'lastAnswer' } as const, '')
+const summary = atom({ plugin: 'clubhouse', key: 'summary' } as const, IDLE_SUMMARY)
 
 const warned = new Set<string>()
 
@@ -35,6 +45,13 @@ async function stamp($: EngineInterface): Promise<number> {
   await update($, now, () => at)
 
   return at
+}
+
+async function summarize($: EngineInterface, answer: string): Promise<void> {
+  await update($, summary, () => WORKING_SUMMARY)
+  const reply = await $.model.complete(summaryRequest(answer)).catch(() => null)
+  await update($, summary, () => summaryOf(reply, answer))
+  $.ui.toast('Summary ready: /clubhouse summary')
 }
 
 export function usage(on: On): void {
@@ -61,6 +78,17 @@ export function usage(on: On): void {
       }
       await update($, lastReplyAt, () => at)
       await update($, receipt, () => made)
+
+      if (e.answer.trim() !== '') {
+        const answer = e.answer.slice(0, ANSWER_LIMIT)
+        await update($, lastAnswer, () => answer)
+        await update($, summary, () => IDLE_SUMMARY)
+        const chosen = await read($, prefs)
+
+        if (chosen.isEnabled && chosen.autoSummary && answer.length >= AUTO_SUMMARY_CHARS) {
+          void summarize($, answer)
+        }
+      }
     } else {
       await update($, pulse, beat => beat + 1)
     }

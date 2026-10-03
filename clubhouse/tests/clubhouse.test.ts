@@ -114,6 +114,19 @@ function world(on: On, fiveHourUsed: number): World {
     return next(e)
   })
   on('model.classify', () => ({ value: 'quick lookup or formatting' }))
+  on('model.complete', () => ({
+    value: {
+      isAnswered: true,
+      text: '- Tests pass.\n- Nothing for you to do.',
+      usage: {
+        input_tokens: 10,
+        output_tokens: 10,
+        cache_read_input_tokens: 0,
+        cache_creation_input_tokens: 0,
+      },
+    },
+  }))
+  on('turn.complete', (_$, e) => ({ text: e.answer }))
   on('tool.call', (_$, e) => {
     seen.stopped.push(String((e as { task_id?: string }).task_id))
 
@@ -187,12 +200,16 @@ for (const surface of SURFACES) {
 
     expect(await ui.find({ type: 'Text', text: /5-hour window: 5% left/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /Context 12% full/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /See agents at work/ })).toBeDefined()
+    expect(await ui.find({ key: 'close-agents' })).toBeUndefined()
 
     await ui.press({ key: 'room-agents' })
-    expect(seen.open).toEqual(['clubhouse-agents'])
-    expect((await ui.find({ key: 'room-agents' }))?.text).toBe('Close Agent HQ')
-    await ui.press({ key: 'room-agents' })
-    expect(seen.open).toEqual([])
+    await ui.press({ key: 'room-bar' })
+    expect(seen.open).toEqual(['clubhouse-agents', 'clubhouse-bar'])
+
+    await ui.press({ key: 'close-agents' })
+    expect(seen.open).toEqual(['clubhouse-bar'])
+    expect(await ui.find({ key: 'close-agents' })).toBeUndefined()
 
     await ui.press({ key: 'top-compact' })
     expect(seen.filled).toEqual(['/compact '])
@@ -205,7 +222,7 @@ for (const surface of SURFACES) {
     await ui.unmount()
   })
 
-  test(`bar layout moves, hides and stacks items on ${surface}`, async ($, on) => {
+  test(`bar layout adds bars, moves, hides and resets items on ${surface}`, async ($, on) => {
     world(on, 18)
     await start($)
     const bar = await $.ui.mount({ plugin: 'clubhouse', surface, component: 'AbovePrompt', props: BAND })
@@ -213,23 +230,30 @@ for (const surface of SURFACES) {
       plugin: 'clubhouse',
       surface,
       component: 'Pane',
-      requestId: 'clubhouse',
-      props: PANE,
+      requestId: 'clubhouse-bar',
+      props: { ...PANE, title: 'Bar layout' },
     })
     const rowCount = async () =>
       ((await bar.drawn()) as { children: unknown[] }).children.length
 
-    await ui.press({ key: 'tab-bar' })
     expect((await ui.find({ key: 'bar-home-zone' }))?.text).toBe('Center')
-    expect((await ui.find({ key: 'bar-context-show' }))?.text).toBe('Hidden')
+    expect((await ui.find({ key: 'bar-context-show' }))?.text).toBe('Add to bar')
+    expect(await ui.find({ key: 'bar-meter-row' })).toBeUndefined()
     expect(await rowCount()).toBe(1)
 
     await ui.press({ key: 'bar-context-show' })
+    expect((await ui.find({ key: 'bar-context-show' }))?.text).toBe('On the bar')
     expect(await bar.find({ type: 'Text', text: /context 12% full/ })).toBeDefined()
 
+    await ui.press({ key: 'bar-add' })
+    expect(await ui.find({ type: 'Text', text: /You have 2 bars/ })).toBeDefined()
     await ui.press({ key: 'bar-meter-row' })
     expect((await ui.find({ key: 'bar-meter-row' }))?.text).toBe('Bar 2')
     expect(await rowCount()).toBe(2)
+
+    await ui.press({ key: 'bar-remove' })
+    expect(await rowCount()).toBe(1)
+    expect(await bar.find({ key: 'window' })).toBeDefined()
 
     await ui.press({ key: 'bar-home-zone' })
     expect((await ui.find({ key: 'bar-home-zone' }))?.text).toBe('Right')
@@ -242,6 +266,90 @@ for (const surface of SURFACES) {
     expect(await rowCount()).toBe(1)
     await ui.unmount()
     await bar.unmount()
+  })
+
+  test(`a button you make appears on the bar, types its text and can be deleted on ${surface}`, async ($, on) => {
+    const seen = world(on, 18)
+    await start($)
+    const bar = await $.ui.mount({ plugin: 'clubhouse', surface, component: 'AbovePrompt', props: BAND })
+    const ui = await $.ui.mount({
+      plugin: 'clubhouse',
+      surface,
+      component: 'Pane',
+      requestId: 'clubhouse-bar',
+      props: { ...PANE, title: 'Bar layout' },
+    })
+
+    await ui.press({ key: 'shortcut-add' })
+    expect(await ui.find({ type: 'Text', text: /needs a label and the text/ })).toBeDefined()
+
+    await ui.input({ key: 'shortcut-label', text: 'Run tests' })
+    await ui.input({ key: 'shortcut-text', text: 'run the tests and fix what fails' })
+    await ui.press({ key: 'shortcut-add' })
+    expect(await ui.find({ type: 'Text', text: /Your button: Run tests/ })).toBeDefined()
+
+    const made = (await bar.findAll({ type: 'Button' })).find(one => one.text === 'Run tests')
+    expect(made).toBeDefined()
+    await bar.press({ key: made?.key ?? '' })
+    expect(seen.filled).toEqual(['run the tests and fix what fails'])
+
+    await ui.press({ key: `sc-${(made?.key ?? '').replace('shortcut-', '')}-remove` })
+    expect((await bar.findAll({ type: 'Button' })).some(one => one.text === 'Run tests')).toBe(false)
+    await ui.unmount()
+    await bar.unmount()
+  })
+
+  test(`Summary shortens the last reply from the room and from the bar on ${surface}`, async ($, on) => {
+    const seen = world(on, 18)
+    await start($)
+    const bar = await $.ui.mount({ plugin: 'clubhouse', surface, component: 'AbovePrompt', props: BAND })
+    const ui = await $.ui.mount({
+      plugin: 'clubhouse',
+      surface,
+      component: 'Pane',
+      requestId: 'clubhouse-summary',
+      props: { ...PANE, title: 'Summary' },
+    })
+
+    expect(await ui.find({ type: 'Text', text: /Nothing to summarize yet/ })).toBeDefined()
+
+    await $.turn.complete({
+      answer: 'A long reply about tests. '.repeat(20),
+      durationMs: 4000,
+      isAborted: false,
+      turnId: 't1',
+      reason: 'answer',
+    } as Parameters<Engine['turn']['complete']>[0])
+    expect(await ui.find({ type: 'Text', text: /Press Summarize last reply/ })).toBeDefined()
+
+    await ui.press({ key: 'summary-run' })
+    expect(await ui.find({ text: /Tests pass/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /Cut from 520 characters/ })).toBeDefined()
+
+    await ui.press({ key: 'summary-auto' })
+    expect((await ui.find({ key: 'summary-auto' }))?.text).toBe('Auto: on')
+
+    await bar.press({ key: 'summarize' })
+    expect(seen.open).toEqual(['clubhouse-summary'])
+    await ui.unmount()
+    await bar.unmount()
+  })
+
+  test(`Usage room shows both limits full size on ${surface}`, async ($, on) => {
+    world(on, 18)
+    await start($)
+    const ui = await $.ui.mount({
+      plugin: 'clubhouse',
+      surface,
+      component: 'Pane',
+      requestId: 'clubhouse-usage',
+      props: { ...PANE, title: 'Usage' },
+    })
+
+    expect(await ui.find({ type: 'Text', text: /5-hour window: 82% left/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /Weekly window: 60% left/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /Context window: 12% full/ })).toBeDefined()
+    await ui.unmount()
   })
 
   test(`Agent HQ lists agents, stands one down and dismisses one on ${surface}`, async ($, on) => {
