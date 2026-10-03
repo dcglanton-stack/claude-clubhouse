@@ -4,6 +4,7 @@ import type { EngineInterface, On } from 'claude-code'
 import type { Palette, PaletteSlot, Prefs } from '../../types'
 import {
   HELPER_CONFIG,
+  HELPER_FRONT,
   READ_APP_MODE,
   START_HELPER,
   appModeFrom,
@@ -29,12 +30,15 @@ import {
 } from '../lib/defaults'
 import { makeParts } from '../lib/parts'
 import { WINDOW_TINT_UNDO, windowTintSnippet } from '../lib/windowTint'
+import { PROJECT_COLORS_KEY, asProjectColors, forStore, projectName, withoutProject } from '../lib/project'
 
 const colorPresets = atom({ plugin: 'clubhouse', key: 'colorPresets' } as const, [])
 const colorsView = atom({ plugin: 'clubhouse', key: 'colorsView' } as const, DEFAULT_COLORS_VIEW)
 const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS, {
   shape: PREFS_SHAPE,
 })
+const sharedPalette = atom({ plugin: 'clubhouse', key: 'sharedPalette' } as const, null)
+const projectRoot = atom({ plugin: 'clubhouse', key: 'projectRoot' } as const, '')
 
 const THEME_SLUG = 'clubhouse'
 const THEME_REF = `custom:${THEME_SLUG}`
@@ -145,15 +149,50 @@ async function keep($: EngineInterface, change: (held: Prefs) => Prefs): Promise
   const mode = await appModeNow($)
   await update($, prefs, held => ({ ...change(held), appMode: mode ?? held.appMode }))
   const chosen = await read($, prefs)
-  await $.store.set(PREFS_KEY, chosen)
+  const shared = await read($, sharedPalette)
+  await $.store.set(PREFS_KEY, forStore(chosen, shared))
+
+  if (shared !== null) {
+    const projects = asProjectColors(await $.store.get(PROJECT_COLORS_KEY))
+    await $.store.set(PROJECT_COLORS_KEY, { ...projects, [await read($, projectRoot)]: chosen.palette })
+  }
+
   const userFolder = await $.env.get('HOME')
 
   if (userFolder === undefined) return
+  const id = await $.session.id().catch(() => '')
+
+  if (id !== '') {
+    await $.fs.write(`${userFolder}/${HELPER_FRONT}`, id).catch(() => undefined)
+  }
+
   await $.fs.write(`${userFolder}/${HELPER_CONFIG}`, helperConfig(chosen)).catch(() => undefined)
 
   if (coversApp(chosen)) {
     await $.process.run(['/bin/sh', '-c', START_HELPER]).catch(() => undefined)
   }
+}
+
+async function keepForProject($: EngineInterface, isOwn: boolean): Promise<void> {
+  const folder = await read($, projectRoot)
+  const projects = asProjectColors(await $.store.get(PROJECT_COLORS_KEY))
+
+  if (folder === '') return
+
+  if (isOwn) {
+    const held = await read($, prefs)
+    await update($, sharedPalette, () => held.palette)
+    await $.store.set(PROJECT_COLORS_KEY, { ...projects, [folder]: held.palette })
+    await say($, `${projectName(folder)} now keeps its own colors. What you pick here stays with this project.`)
+
+    return
+  }
+
+  const shared = await read($, sharedPalette)
+  await $.store.set(PROJECT_COLORS_KEY, withoutProject(projects, folder))
+  await update($, sharedPalette, () => null)
+  await keep($, held => ({ ...held, palette: shared ?? held.palette }))
+  await say($, `${projectName(folder)} is back on the shared colors.`)
 }
 
 async function say($: EngineInterface, note: string): Promise<void> {
@@ -374,6 +413,8 @@ export function colors(on: On): void {
     const isHardToRead =
       coversApp(chosen) && contrast(backdropOf(chosen), inkOf(chosen)) < COMFORTABLE_CONTRAST
     const mine = await read($, colorPresets)
+    const folder = await read($, projectRoot)
+    const isOwn = (await read($, sharedPalette)) !== null
 
     return (
       <Box flexDirection="column" gap={1} {...frame}>
@@ -390,12 +431,26 @@ export function colors(on: On): void {
             variant={chosen.coversSidebar === true ? 'primary' : 'secondary'}
             onPress={() => void keep($, held => ({ ...held, coversSidebar: held.coversSidebar !== true }))}
           />
+          {folder !== '' && (
+            <Button
+              key="project-colors"
+              label={isOwn ? `${projectName(folder)}: its own colors` : `${projectName(folder)}: shared colors`}
+              variant={isOwn ? 'primary' : 'secondary'}
+              onPress={() => void keepForProject($, !isOwn)}
+            />
+          )}
         </Box>
-        {note('Experiment: the Sidebar button extends your color over the list of sessions on the left, so the whole Claude window matches.')}
+        {note('The Sidebar button extends your color over the list of sessions on the left, so the whole Claude window matches.')}
+        {folder !== '' &&
+          note(
+            isOwn
+              ? `${projectName(folder)} keeps its own colors: what you pick here stays with this project, and the window takes these colors when you open or use one of its sessions.`
+              : `Press the ${projectName(folder)} button to give this project its own colors. Until then it uses the shared ones.`,
+          )}
         {note(
           !chosen.isHelperReady
             ? 'The helper that colors the whole session is not installed on this Mac, so the Background only colors the Clubhouse and the conversation rows. Ask Claude to build it.'
-            : 'Your Background is the color of the whole session: the conversation, the toolbar, the text box and the Clubhouse rooms. The sidebar keeps the app\'s own look. These colors are the same in every session.',
+            : 'Your Background is the color of the whole session: the conversation, the toolbar, the text box and the Clubhouse rooms. These colors are the same in every session, unless a project keeps its own.',
         )}
         {swapsLightAndDark(chosen) &&
           note(

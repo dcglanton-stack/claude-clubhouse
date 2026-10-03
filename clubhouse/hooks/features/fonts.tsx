@@ -14,10 +14,12 @@ import {
   withFontPreset,
 } from '../lib/fonts'
 import { makeParts } from '../lib/parts'
+import { forStore } from '../lib/project'
 
 const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS, {
   shape: PREFS_SHAPE,
 })
+const sharedPalette = atom({ plugin: 'clubhouse', key: 'sharedPalette' } as const, null)
 const fontPresets = atom({ plugin: 'clubhouse', key: 'fontPresets' } as const, [])
 const fontsView = atom({ plugin: 'clubhouse', key: 'fontsView' } as const, { note: null })
 
@@ -27,7 +29,7 @@ async function say($: EngineInterface, note: string): Promise<void> {
 
 async function keep($: EngineInterface, change: (held: Prefs) => Prefs): Promise<void> {
   await update($, prefs, change)
-  await $.store.set(PREFS_KEY, await read($, prefs))
+  await $.store.set(PREFS_KEY, forStore(await read($, prefs), await read($, sharedPalette)))
 }
 
 async function setFont($: EngineInterface, font: FontChoice, note: string): Promise<void> {

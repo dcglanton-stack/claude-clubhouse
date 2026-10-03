@@ -9,6 +9,7 @@ import { nextVersion, subjectsOf } from '../hooks/lib/ship'
 import { arranged, rowLoad } from '../hooks/lib/toolbar'
 import { serifSize } from '../hooks/lib/type'
 import { pixelsFrom, pngOf, toBase64 } from '../hooks/lib/png'
+import { asProjectColors, projectName } from '../hooks/lib/project'
 import { LEAGUES, gamesFrom, listed, logoFor, logoSlot, withLogo } from '../hooks/lib/sports'
 import { asQuotes, isFresh, isStale } from '../hooks/lib/ticker'
 import { DEFAULT_WATCH_VIEW, stepOf, watchFrom } from '../hooks/lib/watch'
@@ -46,6 +47,7 @@ type World = {
   forked: string[]
   completed: string[]
   written: { path: string; text: string }[]
+  files: Record<string, string>
   launched: string[]
   appTheme: string
   tools: { name: string; description: string }[]
@@ -61,7 +63,7 @@ type World = {
   clock: MockClock
 }
 
-type Setup = { hasHelper?: boolean; stored?: Record<string, unknown> }
+type Setup = { hasHelper?: boolean; stored?: Record<string, unknown>; readsFiles?: boolean }
 
 function world(on: On, fiveHourUsed: number, setup: Setup = {}): World {
   const seen: World = {
@@ -79,6 +81,7 @@ function world(on: On, fiveHourUsed: number, setup: Setup = {}): World {
     forked: [],
     completed: [],
     written: [],
+    files: {},
     launched: [],
     appTheme: '',
     tools: [],
@@ -109,10 +112,16 @@ function world(on: On, fiveHourUsed: number, setup: Setup = {}): World {
   mock.store(on, setup.stored ?? {})
   on('fs.exists', () => ({ value: setup.hasHelper === true }))
   on('fs.write', (_$, e) => {
+    seen.files[e.path] = e.text
     seen.written.push({ path: e.path, text: e.text })
 
     return { value: undefined }
   })
+
+  if (setup.readsFiles === true) {
+    on('fs.read', (_$, e) => ({ value: seen.files[e.path] ?? '' }))
+  }
+
   on('process.run', (_$, e) => {
     const line = e.argv.join(' ')
     const isModeCheck = line.includes('userThemeMode')
@@ -1181,6 +1190,61 @@ test('a price is shared between sessions while fresh and dimmed once stale', () 
   expect(isFresh(undefined, NOW)).toBe(false)
   expect(isStale(quote, NOW + 60_000)).toBe(false)
   expect(isStale(quote, NOW + 3 * 60_000)).toBe(true)
+})
+
+test('a project keeps its own colors apart from the shared ones and claims the window when used', async ($, on) => {
+  const shared = { accent: '#d97757', clawd: '#e8743b', background: '#0a0e27', text: null }
+  const own = { accent: '#ffb81c', clawd: '#db7037', background: '#0b3d2c', text: null }
+  const seen = world(on, 50, {
+    hasHelper: true,
+    readsFiles: true,
+    stored: { prefs: { palette: shared }, projectColors: { '/work/dawnflight': own, bad: { accent: 'red' } } },
+  })
+  const { files } = seen
+  const target = () => (JSON.parse(seen.written.filter(one => one.path.endsWith('tint.json')).at(-1)?.text ?? '{}') as { target?: string }).target
+  on('session.id', () => ({ value: 'session-a' }))
+  on('session.repo', () => ({ value: { root: '/work/dawnflight', remote: null, internal: false, name: null } }))
+
+  expect(asProjectColors({ '/work/dawnflight': own, bad: { accent: 'red' } })).toEqual({ '/work/dawnflight': own })
+  expect(projectName('/work/dawnflight')).toBe('dawnflight')
+
+  await start($)
+  expect(target()).toBe('#0b3d2c')
+  expect(files['/tmp/clubhouse-home/.claude/clubhouse-helper/front']).toBe('session-a')
+
+  const ui = await $.ui.mount({
+    plugin: 'clubhouse',
+    surface: 'desktop',
+    component: 'Pane',
+    requestId: 'clubhouse-colors',
+    props: { ...PANE, title: 'Colors' },
+  })
+  expect((await ui.find({ key: 'project-colors' }))?.text).toBe('dawnflight: its own colors')
+
+  await ui.press({ key: 'look-slate' })
+  expect(target()).toBe('#141413')
+
+  files['/tmp/clubhouse-home/.claude/clubhouse-helper/front'] = 'session-b'
+  const before = seen.written.length
+  seen.appTheme = LIGHT_APP
+  await seen.clock.advance(30_000)
+  expect(seen.written.slice(before).some(one => one.path.endsWith('tint.json'))).toBe(false)
+  seen.appTheme = DARK_APP
+
+  await ui.press({ key: 'project-colors' })
+  expect((await ui.find({ key: 'project-colors' }))?.text).toBe('dawnflight: shared colors')
+  expect(target()).toBe('#0a0e27')
+  expect(files['/tmp/clubhouse-home/.claude/clubhouse-helper/front']).toBe('session-a')
+
+  await seen.clock.advance(30_000)
+  expect(target()).toBe('#0a0e27')
+
+  await ui.press({ key: 'project-colors' })
+  expect((await ui.find({ key: 'project-colors' }))?.text).toBe('dawnflight: its own colors')
+  await ui.press({ key: 'look-ivory' })
+  await seen.clock.advance(30_000)
+  expect(target()).toBe('#faf9f5')
+  await ui.unmount()
 })
 
 test('a heading is drawn wide enough for its letters', () => {

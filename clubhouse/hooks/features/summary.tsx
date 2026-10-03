@@ -12,16 +12,18 @@ import {
 } from '../lib/defaults'
 import { makeParts } from '../lib/parts'
 import { summaryOf, summaryRequest } from '../lib/summary'
+import { forStore } from '../lib/project'
 
 const lastAnswer = atom({ plugin: 'clubhouse', key: 'lastAnswer' } as const, '')
 const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS, {
   shape: PREFS_SHAPE,
 })
+const sharedPalette = atom({ plugin: 'clubhouse', key: 'sharedPalette' } as const, null)
 const summary = atom({ plugin: 'clubhouse', key: 'summary' } as const, IDLE_SUMMARY)
 
 async function keep($: EngineInterface, change: (held: Prefs) => Prefs): Promise<void> {
   await update($, prefs, change)
-  await $.store.set(PREFS_KEY, await read($, prefs))
+  await $.store.set(PREFS_KEY, forStore(await read($, prefs), await read($, sharedPalette)))
 }
 
 async function summarize($: EngineInterface): Promise<void> {

@@ -262,6 +262,8 @@ declare module 'claude-code' {
       notesView: NotesView
       sessionFolder: string
       hasBooted: boolean
+      sharedPalette: Palette | null
+      projectRoot: string
     }
   }
 }

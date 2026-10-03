@@ -5,6 +5,7 @@ import type { Blueprint, Game, Limit, Prefs, Quote } from '../types'
 import {
   HELPER_BINARY,
   HELPER_CONFIG,
+  HELPER_FRONT,
   READ_APP_MODE,
   START_HELPER,
   appModeFrom,
@@ -73,6 +74,8 @@ import {
   withLogo,
 } from './lib/sports'
 import { pixelsFrom, pngOf, toBase64 } from './lib/png'
+import { PROJECT_COLORS_KEY, asProjectColors, inProject } from './lib/project'
+import { front } from './features/front'
 import { redrawn } from './lib/tone'
 import type { Tone } from './lib/tone'
 import {
@@ -137,6 +140,8 @@ const receivedNotes = atom({ plugin: 'clubhouse', key: 'receivedNotes' } as cons
 const pendingNotes = atom({ plugin: 'clubhouse', key: 'pendingNotes' } as const, [])
 const sessionFolder = atom({ plugin: 'clubhouse', key: 'sessionFolder' } as const, '')
 const hasBooted = atom({ plugin: 'clubhouse', key: 'hasBooted' } as const, false)
+const sharedPalette = atom({ plugin: 'clubhouse', key: 'sharedPalette' } as const, null)
+const projectRoot = atom({ plugin: 'clubhouse', key: 'projectRoot' } as const, '')
 
 const TICK_MS = 30_000
 const PIXELS_TIMEOUT_MS = 5_000
@@ -157,20 +162,31 @@ async function tick($: EngineInterface): Promise<void> {
     await $.process.run(['/bin/sh', '-c', START_HELPER]).catch(() => undefined)
   }
 
-  const shared = mergePrefs(await $.store.get(PREFS_KEY))
-  const isChangedElsewhere = !sameSettings(shared, held)
+  const own = asProjectColors(await $.store.get(PROJECT_COLORS_KEY))[await read($, projectRoot)]
+  const wanted = inProject(mergePrefs(await $.store.get(PREFS_KEY)), own)
+  const isChangedElsewhere = !sameSettings(wanted.prefs, held)
+  await update($, sharedPalette, () => wanted.shared)
 
   if (!isChangedElsewhere && (mode === null || mode === held.appMode)) return
   const turned = {
-    ...(isChangedElsewhere ? shared : held),
+    ...(isChangedElsewhere ? wanted.prefs : held),
     isHelperReady: held.isHelperReady,
     appMode: mode ?? held.appMode,
   }
   await update($, prefs, () => turned)
   const userFolder = await $.env.get('HOME')
 
-  if (userFolder === undefined) return
+  if (userFolder === undefined || !(await isInFront($, userFolder))) return
   await $.fs.write(`${userFolder}/${HELPER_CONFIG}`, helperConfig(turned)).catch(() => undefined)
+}
+
+async function isInFront($: EngineInterface, userFolder: string): Promise<boolean> {
+  const holder = await $.fs.read(`${userFolder}/${HELPER_FRONT}`).then(
+    text => text.trim(),
+    () => '',
+  )
+
+  return holder === '' || holder === (await $.session.id().catch(() => ''))
 }
 
 async function redrawnLogo($: EngineInterface, helper: string, path: string, tone: Tone): Promise<string | null> {
@@ -319,11 +335,24 @@ export const register: Register = on => {
     const isHelperReady =
       userFolder !== undefined && (await $.fs.exists(`${userFolder}/${HELPER_BINARY}`).catch(() => false))
     const merged = mergePrefs(await $.store.get(PREFS_KEY))
-    const saved = { ...merged, isHelperReady, appMode: (await appModeNow($)) ?? merged.appMode }
+    const root = (await $.session.repo().catch(() => null))?.root ?? e.cwd
+    const mine = inProject(merged, asProjectColors(await $.store.get(PROJECT_COLORS_KEY))[root])
+    const saved = { ...mine.prefs, isHelperReady, appMode: (await appModeNow($)) ?? merged.appMode }
+    const isStarting = !(await read($, hasBooted))
     await update($, prefs, () => saved)
+    await update($, sharedPalette, () => mine.shared)
+    await update($, projectRoot, () => root)
 
     if (userFolder !== undefined) {
-      await $.fs.write(`${userFolder}/${HELPER_CONFIG}`, helperConfig(saved)).catch(() => undefined)
+      const id = await $.session.id().catch(() => '')
+
+      if (isStarting && id !== '') {
+        await $.fs.write(`${userFolder}/${HELPER_FRONT}`, id).catch(() => undefined)
+      }
+
+      if (isStarting || (await isInFront($, userFolder))) {
+        await $.fs.write(`${userFolder}/${HELPER_CONFIG}`, helperConfig(saved)).catch(() => undefined)
+      }
 
       if (coversApp(saved)) {
         await $.process.run(['/bin/sh', '-c', START_HELPER]).catch(() => undefined)
@@ -452,4 +481,5 @@ export const register: Register = on => {
   agents(on)
   colors(on)
   tint(on)
+  front(on)
 }

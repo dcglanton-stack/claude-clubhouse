@@ -30,6 +30,7 @@ import {
   shipQuestion,
   subjectsOf,
 } from '../lib/ship'
+import { forStore } from '../lib/project'
 
 const commandStats = atom({ plugin: 'clubhouse', key: 'commandStats' } as const, {})
 const commandsView = atom({ plugin: 'clubhouse', key: 'commandsView' } as const, DEFAULT_COMMANDS_VIEW)
@@ -38,6 +39,7 @@ const hiddenPlan = atom({ plugin: 'clubhouse', key: 'hiddenPlan' } as const, DEF
 const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS, {
   shape: PREFS_SHAPE,
 })
+const sharedPalette = atom({ plugin: 'clubhouse', key: 'sharedPalette' } as const, null)
 const pulse = atom({ plugin: 'clubhouse', key: 'pulse' } as const, 0)
 
 const TOP_SIZE = 5
@@ -50,7 +52,7 @@ let presetName = ''
 async function keep($: EngineInterface, change: (held: Prefs) => Prefs): Promise<void> {
   await update($, prefs, change)
   const chosen = await read($, prefs)
-  await $.store.set(PREFS_KEY, chosen)
+  await $.store.set(PREFS_KEY, forStore(chosen, await read($, sharedPalette)))
   const userFolder = await $.env.get('HOME')
 
   if (userFolder === undefined) return

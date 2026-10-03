@@ -19,10 +19,12 @@ import {
   searchUrl,
   weatherSvg,
 } from '../lib/weather'
+import { forStore } from '../lib/project'
 
 const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS, {
   shape: PREFS_SHAPE,
 })
+const sharedPalette = atom({ plugin: 'clubhouse', key: 'sharedPalette' } as const, null)
 const weather = atom({ plugin: 'clubhouse', key: 'weather' } as const, DEFAULT_WEATHER)
 const forecast = atom({ plugin: 'clubhouse', key: 'forecast' } as const, null)
 const weatherView = atom({ plugin: 'clubhouse', key: 'weatherView' } as const, { note: null, hits: [] })
@@ -79,7 +81,7 @@ async function search($: EngineInterface, asked: string): Promise<void> {
 async function showOnToolbar($: EngineInterface): Promise<void> {
   const outcome = arranged(await read($, prefs), { kind: 'item', id: 'weather' }, 'toggle')
   await update($, prefs, () => outcome.prefs)
-  await $.store.set(PREFS_KEY, outcome.prefs)
+  await $.store.set(PREFS_KEY, forStore(outcome.prefs, await read($, sharedPalette)))
   await say($, outcome.note)
 }
 

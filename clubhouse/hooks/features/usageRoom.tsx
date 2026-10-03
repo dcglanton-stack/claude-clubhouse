@@ -7,6 +7,7 @@ import { DEFAULT_PREFS, PREFS_KEY, PREFS_SHAPE } from '../lib/defaults'
 import { cacheNote, formatSpan, receiptNote } from '../lib/format'
 import { nextOf } from '../lib/watch'
 import { makeParts } from '../lib/parts'
+import { forStore } from '../lib/project'
 
 const contextPercent = atom({ plugin: 'clubhouse', key: 'contextPercent' } as const, null)
 const lastReplyAt = atom({ plugin: 'clubhouse', key: 'lastReplyAt' } as const, null)
@@ -15,12 +16,13 @@ const now = atom({ plugin: 'clubhouse', key: 'now' } as const, 0)
 const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS, {
   shape: PREFS_SHAPE,
 })
+const sharedPalette = atom({ plugin: 'clubhouse', key: 'sharedPalette' } as const, null)
 const receipt = atom({ plugin: 'clubhouse', key: 'receipt' } as const, null)
 const capLiftedUntil = atom({ plugin: 'clubhouse', key: 'capLiftedUntil' } as const, null)
 
 async function keep($: EngineInterface, change: (held: Prefs) => Prefs): Promise<void> {
   await update($, prefs, change)
-  await $.store.set(PREFS_KEY, await read($, prefs))
+  await $.store.set(PREFS_KEY, forStore(await read($, prefs), await read($, sharedPalette)))
 }
 
 const METER_WIDTH = 360

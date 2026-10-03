@@ -30,6 +30,7 @@ const MASCOT_CONTRAST = 1.5
 
 export const HELPER_CONFIG = `${HELPER_FOLDER}/tint.json`
 export const HELPER_BINARY = `${HELPER_FOLDER}/window-tint`
+export const HELPER_FRONT = `${HELPER_FOLDER}/front`
 export const START_HELPER = `[ -x "$HOME/${HELPER_BINARY}" ] && (nohup "$HOME/${HELPER_BINARY}" >/dev/null 2>&1 &)`
 export const READ_APP_MODE =
   `printf 'theme=%s\\n' "$(plutil -extract userThemeMode raw -o - "$HOME/${APP_CONFIG}" 2>/dev/null)"; ` +

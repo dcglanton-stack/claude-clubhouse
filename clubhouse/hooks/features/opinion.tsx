@@ -15,11 +15,13 @@ import {
   outsideRequest,
 } from '../lib/opinion'
 import { makeParts } from '../lib/parts'
+import { forStore } from '../lib/project'
 
 const opinion = atom({ plugin: 'clubhouse', key: 'opinion' } as const, IDLE_OPINION)
 const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS, {
   shape: PREFS_SHAPE,
 })
+const sharedPalette = atom({ plugin: 'clubhouse', key: 'sharedPalette' } as const, null)
 
 const MARKDOWN_LIMIT = 9000
 
@@ -31,7 +33,7 @@ function asked(): string {
 
 async function keep($: EngineInterface, change: (held: Prefs) => Prefs): Promise<void> {
   await update($, prefs, change)
-  await $.store.set(PREFS_KEY, await read($, prefs))
+  await $.store.set(PREFS_KEY, forStore(await read($, prefs), await read($, sharedPalette)))
 }
 
 async function askHere($: EngineInterface): Promise<void> {
