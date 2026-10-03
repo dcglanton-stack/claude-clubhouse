@@ -867,7 +867,7 @@ test('with the helper the whole app takes the color and the Clubhouse paints not
 
   seen.appTheme = LIGHT_APP
   await ui.press({ key: 'look-slate' })
-  expect(config()).toEqual({ enabled: true, target: '#141413', ink: '#faf9f5', radius: 18, isLightApp: true, boost: 1.9, coverSidebar: false, sidebar: expect.any(String) })
+  expect(config()).toEqual({ enabled: true, target: '#141413', ink: '#faf9f5', radius: 18, isLightApp: true, boost: 1.9, coverSidebar: false, sidebar: expect.any(String), stages: expect.any(Array), sidebarStages: expect.any(Array), kept: expect.any(Array) })
   expect(await ui.find({ type: 'Text', text: /This is a dark color on a light app/ })).toBeDefined()
   seen.appTheme = DARK_APP
   await ui.press({ key: 'look-slate' })
@@ -1148,7 +1148,17 @@ test('colors the Clubhouse draws land where they are wanted under the helper', (
 
   const lightApp = toneFor({ target: '#faf9f5', ink: '#141413', isLightApp: true })
   expect(isNear(shownFrom(lightApp, pixelFor(lightApp, '#d97757')), toDisplay('#d97757'), 3)).toBe(true)
-  expect(isNear(shownFrom(lightApp, grey(240)), toDisplay('#faf9f5'), 0.5)).toBe(true)
+  expect(isNear(shownFrom(lightApp, levels(252, 252, 251)), toDisplay('#faf9f5'), 1)).toBe(true)
+
+  const lightForest = toneFor({ target: '#0b3d2c', ink: '#faf9f5', isLightApp: true })
+  const lightManilla = toneFor({ target: '#f5e3c7', ink: '#141413', isLightApp: true })
+  expect(isNear(shownFrom(lightForest, levels(252, 252, 251)), levels(27, 60, 44), 2)).toBe(true)
+  expect(isNear(shownFrom(lightForest, levels(240, 240, 239)), levels(17, 46, 33), 2)).toBe(true)
+  expect(isNear(shownFrom(lightForest, levels(82, 81, 79)), levels(250, 249, 243), 2)).toBe(true)
+  expect(isNear(shownFrom(lightForest, levels(228, 223, 243)), levels(33, 60, 66), 2)).toBe(true)
+  expect(isNear(shownFrom(lightManilla, levels(252, 252, 251)), levels(242, 228, 201), 2)).toBe(true)
+  expect(isNear(shownFrom(lightManilla, levels(240, 240, 239)), levels(231, 217, 192), 2)).toBe(true)
+  expect(isNear(shownFrom(lightManilla, levels(82, 81, 79)), levels(20, 20, 17), 2)).toBe(true)
 })
 
 test('a team logo is redrawn so its own colors show under the helper', () => {

@@ -27,6 +27,11 @@ const DARK_APP = {
   session: { surface: 21 / LEVELS, panel: 32 / LEVELS },
   sidebar: { surface: 17 / LEVELS, panel: 28 / LEVELS },
 } as const
+const LIGHT_APP = {
+  session: { surface: 21 / LEVELS, panel: 33 / LEVELS },
+  sidebar: { surface: 22 / LEVELS, panel: 33 / LEVELS },
+} as const
+const LIGHT_APP_FLIP = 273 / LEVELS
 const TEXT_LIFT = { from: 62 / LEVELS, full: 110 / LEVELS } as const
 const PANELS = { deeperFrom: 0.03, step: 23 / LEVELS, gain: 9, deeper: 0.35, lighter: 16 } as const
 const OWN_COLOR = { from: 0.12, full: 0.25 } as const
@@ -40,8 +45,6 @@ const SOLVE_STEPS = 6
 const NUDGE = 1 / LEVELS
 const BRIGHTNESS_WEIGHT = 3
 const MOST_STRETCH = 2.5
-const LIGHT_SURFACE_LIMIT = 226 / LEVELS
-const KEY_FADE = 10 / LEVELS
 const LUMA: Triple = [0.2126, 0.7152, 0.0722]
 const NO_CHANNELS: Triple = [0, 0, 0]
 const SHORTEST_AXIS = 0.0001
@@ -150,32 +153,12 @@ function shaded(target: Triple, toInk: Triple, shade: Triple): Stage {
   )
 }
 
-function lightAppFloor(): number {
-  const edge = KEY_FADE / LIGHT_SURFACE_LIMIT
-
-  return edge + bound(HELPER_BOOST * edge) * (1 - edge)
+function flipped(): Stage {
+  return stageOf(channel => [each(source => own(channel)[source] - 2 * LUMA[source]), LIGHT_APP_FLIP], [NO_CHANNELS, 1, 0])
 }
 
-function lightAppStages(target: Triple, toInk: Triple): Stage[] {
-  const reach = -1 / LIGHT_SURFACE_LIMIT
-  const length = Math.max(dot(toInk, toInk), SHORTEST_AXIS)
-  const fade = lightAppFloor()
-
-  return [
-    stageOf(
-      channel => [each(source => own(channel)[source] - LUMA[source]), 0],
-      [each(source => HELPER_BOOST * reach * LUMA[source]), 0, -HELPER_BOOST * reach * LIGHT_SURFACE_LIMIT],
-    ),
-    remapped(target, toInk, LIGHT_SURFACE_LIMIT, reach),
-    stageOf(
-      channel => [NO_CHANNELS, target[channel]],
-      [each(source => -toInk[source] / length / fade), 0, 1 + dot(target, toInk) / length / fade],
-    ),
-  ]
-}
-
-export function deepens({ target, ink, isLightApp }: ToneSpec): boolean {
-  return !isLightApp && luminance(ink) > luminance(target) && luminance(target) >= PANELS.deeperFrom
+export function deepens({ target, ink }: ToneSpec): boolean {
+  return luminance(ink) > luminance(target) && luminance(target) >= PANELS.deeperFrom
 }
 
 function panelShade(spec: ToneSpec, surface: string): string | null {
@@ -186,14 +169,15 @@ function panelShade(spec: ToneSpec, surface: string): string | null {
   return fromHsl({ hue, saturation, lightness: lightness + PANELS.lighter })
 }
 
-function darkAppStages(spec: ToneSpec, zone: Zone, shade: string | null): Stage[] {
+function appStages(spec: ToneSpec, zone: Zone, shade: string | null): Stage[] {
   const target = toDisplay(spec.target)
   const shownInk = toDisplay(spec.ink)
   const toInk = each(channel => shownInk[channel] - target[channel])
-  const { surface, panel } = DARK_APP[zone]
+  const { surface, panel } = (spec.isLightApp ? LIGHT_APP : DARK_APP)[zone]
   const step = shade === null ? 0 : PANELS.step
 
   return [
+    ...(spec.isLightApp ? [flipped()] : []),
     ...(shade === null ? [] : [sunk(surface, panel)]),
     lifted(TEXT_LIFT.from - step, TEXT_LIFT.full - step),
     remapped(target, toInk, surface, 1 / (1 - surface)),
@@ -212,14 +196,12 @@ function keptStages(): Stage[] {
 export function helperStages(
   spec: ToneSpec,
   sidebar: string,
-): { stages: Stage[]; sidebarStages: Stage[]; kept: Stage[] } | null {
-  return spec.isLightApp
-    ? null
-    : {
-        stages: darkAppStages(spec, 'session', panelShade(spec, spec.target)),
-        sidebarStages: darkAppStages({ ...spec, target: sidebar }, 'sidebar', panelShade(spec, sidebar)),
-        kept: keptStages(),
-      }
+): { stages: Stage[]; sidebarStages: Stage[]; kept: Stage[] } {
+  return {
+    stages: appStages(spec, 'session', panelShade(spec, spec.target)),
+    sidebarStages: appStages({ ...spec, target: sidebar }, 'sidebar', panelShade(spec, sidebar)),
+    kept: keptStages(),
+  }
 }
 
 function shareOf(stage: Stage, pixel: Triple): number {
@@ -257,9 +239,7 @@ export function toneFor(spec: ToneSpec): Tone {
   const target = toDisplay(spec.target)
   const shownInk = toDisplay(spec.ink)
   const toInk = each(channel => shownInk[channel] - target[channel])
-  const stages = spec.isLightApp
-    ? lightAppStages(target, toInk)
-    : darkAppStages(spec, 'session', panelShade(spec, spec.target))
+  const stages = appStages(spec, 'session', panelShade(spec, spec.target))
 
   return {
     target,
@@ -268,11 +248,11 @@ export function toneFor(spec: ToneSpec): Tone {
     inkHex: spec.ink,
     isLightApp: spec.isLightApp,
     stages,
-    kept: spec.isLightApp ? [] : keptStages(),
+    kept: keptStages(),
     places: Array.from({ length: LEVELS + 1 }, (_, level) =>
       amountOf({ target, toInk }, staged(stages, [level / LEVELS, level / LEVELS, level / LEVELS])),
     ),
-    floor: spec.isLightApp ? lightAppFloor() : 0,
+    floor: 0,
   }
 }
 
