@@ -4,6 +4,7 @@ import type { Limit, Prefs, WindowKind } from '../../types'
 import { lookOf } from './appColor'
 import { meterSvg, moodFor, moodName, swatchSvg } from './clawd'
 import { isLight, rampColor, surfaceFor } from './color'
+import { DEFAULT_FONT } from './fonts'
 import { WINDOW_NAME, formatSpan, percentLeft, resetIn, textBar } from './format'
 import { recolor } from './tone'
 import { serifSize, serifSvg } from './type'
@@ -106,12 +107,13 @@ export function makeParts(kit: Kit, prefs: Prefs, surface: string) {
       {text}
     </Text>
   )
+  const font = prefs.font ?? DEFAULT_FONT
   const serif = (text: string, size: number) =>
     picture(
-      serifSvg({ text, size, color: look.accent, isStrong: true }),
+      serifSvg({ text, size, color: look.accent, isStrong: true, stack: font.stack, weight: font.weight, widen: font.widen }),
       text,
-      serifSize({ text, size }).width,
-      serifSize({ text, size }).height,
+      serifSize({ text, size, widen: font.widen }).width,
+      serifSize({ text, size, widen: font.widen }).height,
     ) ?? (
       <Text bold color={look.accent}>
         {text}

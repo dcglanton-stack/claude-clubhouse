@@ -23,6 +23,8 @@ const BAND = {
 }
 const PANE = { title: 'Clubhouse', isFocused: true, bodyColumns: 60, placement: 'dock' as const }
 const BLANK = { type: 'Box', props: {}, children: [] }
+const codesOf = async (drawing: { drawn: () => Promise<unknown> }) =>
+  [...JSON.stringify(await drawing.drawn()).matchAll(/"value":"(#[0-9a-f]{6})"/g)].map(found => found[1] ?? '')
 const LIGHT_APP = 'theme=light\nsystem=Dark\n'
 const DARK_APP = 'theme=system\nsystem=Dark\n'
 const BROKER = '0a1b2c3d-1111-2222-3333-444455556666'
@@ -719,16 +721,16 @@ for (const surface of SURFACES) {
 
     await ui.press({ key: 'slot-background' })
     await ui.press({ key: 'preset-Paper' })
-    expect(await ui.find({ type: 'Text', text: /#f6f3ea/ })).toBeDefined()
+    expect(await codesOf(ui)).toContain('#f6f3ea')
 
-    await ui.input({ key: 'hex', text: 'not a color' })
+    await ui.input({ key: 'hex-background', text: 'not a color' })
     expect(await ui.find({ type: 'Text', text: /not a hex color/ })).toBeDefined()
 
-    await ui.input({ key: 'hex', text: '#123456' })
-    expect(await ui.find({ type: 'Text', text: /#123456/ })).toBeDefined()
+    await ui.input({ key: 'hex-background', text: '#123456' })
+    expect(await codesOf(ui)).toContain('#123456')
 
     await ui.press({ key: 'reset-colors' })
-    expect(await ui.find({ type: 'Text', text: /app default/ })).toBeDefined()
+    expect(await codesOf(ui)).toEqual(['#d97757', '#e8743b'])
     await ui.unmount()
   })
 }
@@ -810,7 +812,6 @@ test('without the helper the background paints the rooms and every conversation 
   await ui.press({ key: 'look-slate' })
   await ui.press({ key: 'reset-colors' })
   expect(await shown(reply)).toBe(native)
-  expect(await ui.find({ type: 'Text', text: /app default/ })).toBeDefined()
   await ui.unmount()
   await mine.unmount()
   await reply.unmount()
@@ -985,9 +986,9 @@ test('the hue buttons give a grey color a hue', async ($, on) => {
   })
 
   await ui.press({ key: 'slot-background' })
-  await ui.input({ key: 'hex', text: '#1e1e1e' })
+  await ui.input({ key: 'hex-background', text: '#1e1e1e' })
   await ui.press({ key: 'hue-on' })
-  const first = (await ui.findAll({ type: 'Text' })).map(one => one.text).find(text => /^#[0-9a-f]{6}$/.test(text) && text !== '#d97757' && text !== '#e8743b')
+  const first = (await codesOf(ui))[0]
 
   expect(first).toBeDefined()
   expect(first).not.toBe('#1e1e1e')
@@ -995,7 +996,7 @@ test('the hue buttons give a grey color a hue', async ($, on) => {
   expect(Math.max(red ?? 0, green ?? 0, blue ?? 0) - Math.min(red ?? 0, green ?? 0, blue ?? 0)).toBeGreaterThan(20)
 
   await ui.press({ key: 'hue-on' })
-  const second = (await ui.findAll({ type: 'Text' })).map(one => one.text).find(text => /^#[0-9a-f]{6}$/.test(text) && text !== '#d97757' && text !== '#e8743b')
+  const second = (await codesOf(ui))[0]
   expect(second).not.toBe(first)
   await ui.unmount()
 })
@@ -1163,7 +1164,7 @@ test('a preset sets all three colors, your own presets save and return them, and
     props: { ...PANE, title: 'Colors' },
   })
   const config = () => JSON.parse(seen.written.at(-1)?.text ?? '{}') as Record<string, unknown>
-  const hexes = async () => (await ui.findAll({ type: 'Text' })).map(one => one.text).filter(text => /^#[0-9a-f]{6}$/.test(text))
+  const hexes = () => codesOf(ui)
 
   expect(await ui.find({ key: 'slot-text' })).toBeUndefined()
   await ui.press({ key: 'preset-Forest' })
@@ -1920,4 +1921,48 @@ test('a nearly full conversation offers a handoff file, written after the next p
   await finish()
   expect(seen.submitted).toHaveLength(1)
   await bar.unmount()
+})
+
+test('Fonts changes the heading font by pick, by description and from a design file, and keeps presets', async ($, on) => {
+  const seen = world(on, 50)
+  await start($)
+  const home = await $.ui.mount({ plugin: 'clubhouse', surface: 'desktop', component: 'Pane', requestId: 'clubhouse', props: PANE })
+  const ui = await $.ui.mount({
+    plugin: 'clubhouse',
+    surface: 'desktop',
+    component: 'Pane',
+    requestId: 'clubhouse-fonts',
+    props: { ...PANE, title: 'Fonts' },
+  })
+  const drawn = async () => JSON.stringify(await ui.drawn())
+
+  expect(await home.find({ key: 'room-fonts' })).toBeDefined()
+  expect(await home.find({ key: 'room-colors' })).toBeDefined()
+  expect(await home.find({ type: 'Text', text: /The font of the Clubhouse headings/ })).toBeUndefined()
+
+  expect(await drawn()).toMatch(/Anthropic Serif', ui-serif/)
+  await ui.press({ key: 'font-Futura' })
+  expect(await ui.find({ type: 'Text', text: /Now: Futura/ })).toBeDefined()
+  expect(await drawn()).toMatch(/font-family=\\"Futura, sans-serif\\"/)
+
+  seen.modelReply = '{"font":"SF Rounded","weight":800}'
+  await ui.input({ key: 'font-wish', text: 'friendly and rounded' })
+  expect(await ui.find({ type: 'Text', text: /Now: SF Rounded/ })).toBeDefined()
+  expect(await drawn()).toMatch(/font-weight=\\"800\\"/)
+
+  seen.modelReply = '{"font":"Comic Sans","weight":400}'
+  await ui.input({ key: 'font-wish', text: 'comic sans' })
+  expect(await ui.find({ type: 'Text', text: /did not come back with a font from the list/ })).toBeDefined()
+
+  await ui.input({ key: 'font-file', text: '~/missing.md' })
+  expect(await ui.find({ type: 'Text', text: /Could not read ~\/missing\.md/ })).toBeDefined()
+
+  await ui.input({ key: 'font-preset-name', text: 'Game day' })
+  await ui.press({ key: 'font-Georgia' })
+  await ui.press({ key: 'font-preset-Game day' })
+  expect(await ui.find({ type: 'Text', text: /Now: SF Rounded/ })).toBeDefined()
+  await ui.press({ key: 'font-preset-delete-Game day' })
+  expect(await ui.find({ key: 'font-preset-Game day' })).toBeUndefined()
+  await home.unmount()
+  await ui.unmount()
 })

@@ -22,6 +22,8 @@ import type {
   ToolsView,
 } from '../../types'
 
+import { DEFAULT_FONT, asFont } from './fonts'
+
 export const DEFAULT_PALETTE: Palette = { accent: '#d97757', clawd: '#e8743b', background: null, text: null }
 
 export const MAX_BARS = 4
@@ -65,6 +67,7 @@ export const DEFAULT_PREFS: Prefs = {
   autoSummary: false,
   spendCap: 0,
   warnsSafeguards: false,
+  font: DEFAULT_FONT,
   appMode: 'dark',
   reach: 'app',
   isHelperReady: false,
@@ -107,13 +110,14 @@ export const WATCH_PANE = 'clubhouse-watch'
 export const NOTES_PANE = 'clubhouse-notes'
 export const TICKER_PANE = 'clubhouse-ticker'
 export const SPORTS_PANE = 'clubhouse-sports'
+export const FONTS_PANE = 'clubhouse-fonts'
 export const OPINION_PANE = 'clubhouse-opinion'
 export const TOOL_RULES_KEY = 'toolRules'
 export const DEFAULT_TOOLS_VIEW: ToolsView = { filter: '', note: null, open: [] }
 export const DEFAULT_RECIPES_VIEW: RecipesView = { note: null, editing: null, trial: null }
 export const COMMANDS_KEY = 'commands'
 
-export type Room = { id: string; title: string; word: string; about: string }
+export type Room = { id: string; title: string; word: string; about: string; isLook?: true }
 
 export const ROOMS: readonly Room[] = [
   {
@@ -193,6 +197,14 @@ export const ROOMS: readonly Room[] = [
     title: 'Colors',
     word: 'colors',
     about: 'Colors for everything the Clubhouse draws.',
+    isLook: true,
+  },
+  {
+    id: FONTS_PANE,
+    title: 'Fonts',
+    word: 'fonts',
+    about: 'The font of the Clubhouse headings.',
+    isLook: true,
   },
 ]
 
@@ -290,6 +302,7 @@ export function mergePrefs(saved: unknown): Prefs {
     shortcuts: asShortcuts(saved.shortcuts, barCount),
     autoSummary: saved.autoSummary === true,
     warnsSafeguards: saved.warnsSafeguards === true,
+    font: asFont(saved.font),
     spendCap: typeof saved.spendCap === 'number' && saved.spendCap > 0 && saved.spendCap <= 90 ? Math.round(saved.spendCap) : 0,
     appMode: saved.appMode === 'light' ? 'light' : 'dark',
     reach: 'app',

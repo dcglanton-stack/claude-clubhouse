@@ -409,7 +409,21 @@ export function colors(on: On): void {
                 onPress={() => void update($, colorsView, held => ({ ...held, slot: id }))}
               />
               {swatch(colorOf(chosen, id))}
+            </Box>
+            {note(about)}
+            {Input === null ? (
               <Text {...ink}>{chosen.palette[id] ?? 'app default'}</Text>
+            ) : (
+              <Input
+                key={`hex-${id}`}
+                label="Code"
+                placeholder="app default"
+                value={chosen.palette[id] ?? ''}
+                submitLabel="Confirm"
+                onSubmit={typed => void takeHex($, id, typed)}
+              />
+            )}
+            <Box justifyContent="flex-end">
               <Button
                 key={`reset-${id}`}
                 label="Reset"
@@ -418,7 +432,6 @@ export function colors(on: On): void {
                 }
               />
             </Box>
-            {note(about)}
           </Box>
         ))}
 
@@ -486,14 +499,6 @@ export function colors(on: On): void {
 
         {Input !== null && (
           <Box flexDirection="column" gap={1}>
-            {heading('Exact color')}
-            <Input
-              key="hex"
-              label="Hex code"
-              placeholder="#d97757"
-              submitLabel="Set"
-              onSubmit={typed => void takeHex($, slot, typed)}
-            />
             {heading('Describe a look')}
             {note('A small model picks all three colors from your words. Costs a few tokens.')}
             <Input

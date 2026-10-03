@@ -17,6 +17,7 @@ import { bar } from './features/bar'
 import { colors } from './features/colors'
 import { commands } from './features/commands'
 import { home } from './features/home'
+import { fontsRoom } from './features/fonts'
 import { nightWatch } from './features/watch'
 import { sportsRoom } from './features/sports'
 import { tickerRoom } from './features/ticker'
@@ -51,6 +52,7 @@ import {
   mergePrefs,
   sameSettings,
 } from './lib/defaults'
+import { FONT_PRESETS_KEY, asFontPresets } from './lib/fonts'
 import { percentLeft } from './lib/format'
 import {
   DEFAULT_SPORTS,
@@ -101,6 +103,7 @@ const watchLog = atom({ plugin: 'clubhouse', key: 'watchLog' } as const, [])
 const savedWatches = atom({ plugin: 'clubhouse', key: 'savedWatches' } as const, [])
 const notes = atom({ plugin: 'clubhouse', key: 'notes' } as const, [])
 const colorPresets = atom({ plugin: 'clubhouse', key: 'colorPresets' } as const, [])
+const fontPresets = atom({ plugin: 'clubhouse', key: 'fontPresets' } as const, [])
 const toolbarPresets = atom({ plugin: 'clubhouse', key: 'toolbarPresets' } as const, [])
 const ticker = atom({ plugin: 'clubhouse', key: 'ticker' } as const, DEFAULT_TICKER)
 const quotes = atom({ plugin: 'clubhouse', key: 'quotes' } as const, {})
@@ -283,6 +286,8 @@ export const register: Register = on => {
       await $.tool.register(toolSpecOf(one)).catch(() => undefined)
     }
 
+    const keptFonts = asFontPresets(await $.store.get(FONT_PRESETS_KEY))
+    await update($, fontPresets, () => keptFonts)
     const keptPresets = asColorPresets(await $.store.get(COLOR_PRESETS_KEY))
     const keptSports = asSportsPlan(await $.store.get(SPORTS_KEY))
     await update($, sports, () => keptSports)
@@ -345,8 +350,8 @@ export const register: Register = on => {
 
     await $.command.register({
       name: 'clubhouse',
-      description: 'Open Claude Clubhouse. Add a room to open it: agents, summary, opinion, tools, recipes, watch, notes, ticker, sports, commands, toolbar, usage, colors; or on, off, color reset',
-      argumentHint: '[on|off|agents|summary|opinion|tools|recipes|watch|notes|ticker|sports|commands|toolbar|usage|colors|color reset]',
+      description: 'Open Claude Clubhouse. Add a room to open it: agents, summary, opinion, tools, recipes, watch, notes, ticker, sports, commands, toolbar, usage, colors, fonts; or on, off, color reset',
+      argumentHint: '[on|off|agents|summary|opinion|tools|recipes|watch|notes|ticker|sports|commands|toolbar|usage|colors|fonts|color reset]',
       immediate: true,
     })
     await $.command
@@ -373,6 +378,7 @@ export const register: Register = on => {
   notesRoom(on)
   tickerRoom(on)
   sportsRoom(on)
+  fontsRoom(on)
   usageRoom(on)
   commands(on)
   agents(on)

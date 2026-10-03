@@ -18,6 +18,7 @@ A Claude Code mod: one plugin that adds a home button and a Clawd usage meter ab
 | `/clubhouse notes` | Session notes: leave a note for a later session |
 | `/clubhouse ticker` | Ticker: a stock or coin price on the toolbar, search and favorites |
 | `/clubhouse sports` | Live sports: games on now and this week; one score on the toolbar |
+| `/clubhouse fonts` | Fonts: the font of the Clubhouse headings |
 | `/ship` | Release what is on main: next version tag, push, GitHub release with notes (asks first) |
 | `/clubhouse commands` | Every slash command, led by your most used and most recent |
 | `/clubhouse toolbar` | Toolbar: add, remove and move toolbar items, add rows, make your own buttons |
@@ -53,6 +54,7 @@ The Clubhouse loads in every session through `CLAUDE_CODE_PLUGIN_DIRS` in `~/.cl
 - **Exact repaint (advanced)**: Colors can copy a one-line style rule for the app's own Developer Mode console, which repaints the app itself until it restarts.
 - **Second opinion**: ask Claude in this session, or a different model that sees only an excerpt, without the question or answer entering the conversation.
 - **Colors**: Background, Accent and Clawd colors. Presets set all three at once, and you can save your own under a name. Fine-tune one color with nudges, a hex code or a described look; each has its own Reset. The same colors apply in every session. Can also write a Claude Code custom theme.
+- **Fonts**: the font of the Clubhouse headings (the app draws all other text in its own font). Pick from fonts on the Mac, describe what you want, or point it at a design file such as DESIGN.md; a small model matches the closest installed font. Save fonts as presets.
 - **Context gauge** and **turn receipt**: optional extras on the bar, off by default.
 
 ## Changing it

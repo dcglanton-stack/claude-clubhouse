@@ -8,6 +8,12 @@ export type Palette = { accent: string; clawd: string; background: string | null
 
 export type HomeTab = 'home' | 'more'
 
+export type FontChoice = { name: string; stack: string; weight: number; widen: number }
+
+export type FontPreset = { name: string; font: FontChoice }
+
+export type FontsView = { note: string | null }
+
 export type ColorPreset = { name: string; palette: Palette }
 
 export type ContextSize = { tokens: number; window: number }
@@ -60,6 +66,7 @@ export type Prefs = {
   autoSummary: boolean
   spendCap: number
   warnsSafeguards: boolean
+  font: FontChoice
   appMode: 'dark' | 'light'
   reach: Reach
   isHelperReady: boolean
@@ -195,6 +202,8 @@ declare module 'claude-code' {
       tab: HomeTab
       colorsView: ColorsView
       colorPresets: ColorPreset[]
+      fontPresets: FontPreset[]
+      fontsView: FontsView
       toolbarPresets: ToolbarPreset[]
       ticker: TickerPlan
       quotes: { [symbol: string]: Quote }
