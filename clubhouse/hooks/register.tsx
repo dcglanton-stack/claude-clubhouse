@@ -15,10 +15,12 @@ import {
   AGENTS_KEY,
   COMMANDS_KEY,
   DEFAULT_PREFS,
+  HIDDEN_KEY,
   LIMITS_KEY,
   PREFS_KEY,
   asBlueprints,
   asCommandStats,
+  asNames,
   isLimitList,
   mergePrefs,
 } from './lib/defaults'
@@ -29,6 +31,7 @@ const now = atom({ plugin: 'clubhouse', key: 'now' } as const, 0)
 const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS)
 const commandStats = atom({ plugin: 'clubhouse', key: 'commandStats' } as const, {})
 const agentBank = atom({ plugin: 'clubhouse', key: 'agentBank' } as const, [])
+const hiddenCommands = atom({ plugin: 'clubhouse', key: 'hiddenCommands' } as const, [])
 
 const TICK_MS = 30_000
 
@@ -39,6 +42,9 @@ export const register: Register = on => {
 
     const savedCommands = asCommandStats(await $.store.get(COMMANDS_KEY))
     await update($, commandStats, () => savedCommands)
+
+    const savedHidden = asNames(await $.store.get(HIDDEN_KEY))
+    await update($, hiddenCommands, () => savedHidden)
 
     const savedAgents: Blueprint[] = asBlueprints(await $.store.get(AGENTS_KEY))
     await update($, agentBank, () => savedAgents)

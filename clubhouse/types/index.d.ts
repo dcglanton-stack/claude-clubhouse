@@ -54,7 +54,7 @@ export type CommandStat = { count: number; lastAt: number }
 
 export type CommandStats = { [name: string]: CommandStat }
 
-export type CommandsView = { filter: string; note: string | null }
+export type CommandsView = { filter: string; note: string | null; open: string[] }
 
 export type AgentModel = 'haiku' | 'sonnet' | 'opus' | 'inherit'
 
@@ -86,6 +86,7 @@ declare module 'claude-code' {
       colorsView: ColorsView
       commandStats: CommandStats
       commandsView: CommandsView
+      hiddenCommands: string[]
       pulse: number
       agentBank: Blueprint[]
       agentDesk: AgentDesk

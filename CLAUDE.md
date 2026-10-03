@@ -38,6 +38,7 @@ A Claude Code function-hooks plugin (a "mod"). The plugin is the `clubhouse/` fo
 - Panes are narrow and a cell is not a fixed pixel width on desktop: never use fixed-width columns. Put a button on one line and its description, wrapped, on the next, with `gap={1}` between entries.
 - Every feature with a screen is a room that opens as its own tab, including features that also sit on the bar.
 - A `$` helper needed in several files is copied into each (see `summarize`); keep its logic in a pure `lib/` function so the copies stay a few lines.
+- Hidden skills are enforced in three places in `commands.tsx`: `command.describe` (slash menu), `prompt.attachment` for `skill_listing` (what Claude is told) and `tool.call` for `Skill` (what Claude can run). Keep all three in step.
 - No unnecessary comments.
 
 ## Release
