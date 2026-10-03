@@ -300,9 +300,11 @@ export function commands(on: On): void {
   on('tool.call', { tool: 'Skill' }, async ($, e, next) => {
     const hidden = await read($, hiddenCommands)
 
-    return hidden.includes(e.skill)
-      ? { deny: `The user hid the skill "${e.skill}" in Claude Clubhouse. Do the task without it.` }
-      : next(e)
+    if (hidden.includes(e.skill)) {
+      return { deny: `The user hid the skill "${e.skill}" in Claude Clubhouse. Do the task without it.` }
+    }
+
+    return next(e)
   })
 
   on('ui.render', { component: 'Pane', requestId: 'clubhouse-commands' }, async ($, e) => {

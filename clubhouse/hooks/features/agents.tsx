@@ -75,6 +75,8 @@ function reason(error: unknown): string {
   return error instanceof Error ? error.message : 'unknown error'
 }
 
+const AFTER_SPAWN_MS = 1500
+
 function spec(one: Blueprint) {
   const base = { name: one.name, description: one.purpose, prompt: one.prompt }
 
@@ -109,7 +111,7 @@ async function saveDraft($: EngineInterface): Promise<void> {
       : AGENT_MODELS.find(model => model === draft.model)
     const made: Blueprint = { name, purpose, prompt, model: picked ?? 'sonnet', isAuto }
 
-    await $.agent.register(spec(made))
+    await $.agent.register({ ...spec(made), permissionMode: 'default' })
     await saveBank($, bank => [...bank.filter(one => one.name !== name), made])
     draft = BLANK_DRAFT
     await update($, agentDesk, desk => ({ ...desk, mode: 'idle', target: null }))
@@ -130,7 +132,7 @@ async function nextModel($: EngineInterface, name: string): Promise<void> {
     const model = AGENT_MODELS[(AGENT_MODELS.indexOf(held.model) + 1) % AGENT_MODELS.length] ?? 'sonnet'
     const made: Blueprint = { ...held, model, isAuto: false }
 
-    await $.agent.register(spec(made))
+    await $.agent.register({ ...spec(made), permissionMode: 'default' })
     await saveBank($, bank => bank.map(one => (one.name === name ? made : one)))
     await tell($, `${name} now runs on ${MODEL_LABEL[model]}.`)
   } catch (error) {
@@ -171,7 +173,7 @@ async function dispatch($: EngineInterface, name: string): Promise<void> {
       )
       .then(async first => {
         if (first !== null) return first
-        await $.agent.register(spec({ ...held, model: 'opus' }))
+        await $.agent.register({ ...spec({ ...held, model: 'opus' }), permissionMode: 'default' })
         await tell($, `Fable was not available, so ${name} runs on Opus this time.`)
 
         return send()
@@ -254,15 +256,9 @@ export function agents(on: On): void {
       }
     }
 
-    const started = await next(e)
+    $.clock.after(AFTER_SPAWN_MS, () => void update($, pulse, beat => beat + 1).catch(() => undefined))
 
-    try {
-      await update($, pulse, beat => beat + 1)
-    } catch {
-      return started
-    }
-
-    return started
+    return next(e)
   })
 
   on('agent.offer', async ($, e, next) => {
