@@ -10,6 +10,9 @@ struct TintConfig: Decodable, Equatable {
     var boost: Double?
     var coverSidebar: Bool?
     var sidebar: String?
+    var stages: [[Float]]?
+    var sidebarStages: [[Float]]?
+    var kept: [[Float]]?
 }
 
 struct SidebarLayout: Equatable {
@@ -33,8 +36,11 @@ struct ScreenWindow {
 
 struct Overlay {
     let window: NSWindow
+    let source: CALayer
     let layers: [CALayer]
     let masks: [CAShapeLayer]
+    let keepers: [CALayer]
+    let keeperMasks: [CAShapeLayer]
 }
 
 let helperDirectory = FileManager.default.homeDirectoryForCurrentUser
@@ -61,7 +67,10 @@ let darkSurfaceLimit = 34.5 / 255
 let lightSurfaceLimit = 226.0 / 255
 let keyFade = 10.0 / 255
 let defaultBoost = 1.9
-let filterStages = 3
+let legacyStages = 3
+let mostStages = 4
+let mostKeepers = 3
+let matrixSize = 20
 let zones = 2
 let sidebarBoostGain = 1.4
 let lumaWeights = [0.2126, 0.7152, 0.0722]
@@ -206,7 +215,17 @@ func sessionFilters(config: TintConfig, isLightApp: Bool) -> [NSObject]? {
     key[19] = Float(1 + targetAlong / fade)
     let filters = [lift, remap, key].compactMap(matrixFilter)
 
-    return filters.count == filterStages ? filters : nil
+    return filters.count == legacyStages ? filters : nil
+}
+
+func givenFilters(_ stages: [[Float]]?, atMost: Int = mostStages) -> [NSObject]? {
+    guard let stages, !stages.isEmpty, stages.count <= atMost, stages.allSatisfy({ $0.count == matrixSize }) else {
+        return nil
+    }
+
+    let filters = stages.compactMap(matrixFilter)
+
+    return filters.count == stages.count ? filters : nil
 }
 
 func fallbackColor(config: TintConfig) -> CGColor {
@@ -315,18 +334,28 @@ final class Tinter {
         beside.boost = (config.boost ?? defaultBoost) * sidebarBoostGain
 
         for (zone, zoneConfig) in [config, beside].enumerated() {
-            let filters = sessionFilters(config: zoneConfig, isLightApp: isLightApp)
+            let given = isLightApp ? nil : givenFilters(zone == 0 ? config.stages : config.sidebarStages)
+            let filters = given ?? sessionFilters(config: zoneConfig, isLightApp: isLightApp)
 
-            for stage in 0..<filterStages {
-                let layer = overlay.layers[zone * filterStages + stage]
-                layer.filters = filters.map { [$0[stage]] }
+            for stage in 0..<mostStages {
+                let layer = overlay.layers[zone * mostStages + stage]
+                let filter = filters.flatMap { stage < $0.count ? $0[stage] : nil }
+                layer.filters = filter.map { [$0] }
                 layer.backgroundColor = filters == nil && stage == 0 ? fallbackColor(config: zoneConfig) : nil
-                layer.isHidden = filters == nil && stage > 0
+                layer.isHidden = filter == nil && !(filters == nil && stage == 0)
             }
+        }
+
+        let keeping = isLightApp || givenFilters(config.stages) == nil ? nil : givenFilters(config.kept, atMost: mostKeepers)
+
+        for (index, layer) in overlay.keepers.enumerated() {
+            let filter = keeping.flatMap { index < $0.count ? $0[index] : nil }
+            layer.filters = filter.map { [$0] }
+            layer.isHidden = filter == nil
         }
     }
 
-    private func backdropLayer() -> (CALayer, CAShapeLayer) {
+    private func backdropLayer(group: String? = nil, capturesOnly: Bool = false) -> (CALayer, CAShapeLayer) {
         let backdropClass = NSClassFromString("CABackdropLayer") as? CALayer.Type
         let layer = backdropClass?.init() ?? CALayer()
 
@@ -334,6 +363,11 @@ final class Tinter {
             layer.setValue(true, forKey: "windowServerAware")
             layer.setValue(1.0, forKey: "scale")
             layer.setValue(0.0, forKey: "bleedAmount")
+
+            if let group {
+                layer.setValue(group, forKey: "groupName")
+                layer.setValue(capturesOnly, forKey: "captureOnly")
+            }
         }
 
         let mask = CAShapeLayer()
@@ -360,10 +394,23 @@ final class Tinter {
 
         let view = NSView(frame: NSRect(origin: .zero, size: frame.size))
         view.wantsLayer = true
-        let stages = (0..<filterStages * zones).map { _ in backdropLayer() }
+        let untouched = "clubhouse-untouched-\(id)"
+        let source = backdropLayer(group: untouched, capturesOnly: true)
+        let stages = (0..<mostStages * zones).map { _ in backdropLayer() }
+        let keepers = (0..<mostKeepers).map { _ in backdropLayer(group: untouched) }
+        source.0.mask = nil
+        view.layer?.addSublayer(source.0)
         stages.forEach { view.layer?.addSublayer($0.0) }
+        keepers.forEach { view.layer?.addSublayer($0.0) }
         window.contentView = view
-        let made = Overlay(window: window, layers: stages.map(\.0), masks: stages.map(\.1))
+        let made = Overlay(
+            window: window,
+            source: source.0,
+            layers: stages.map(\.0),
+            masks: stages.map(\.1),
+            keepers: keepers.map(\.0),
+            keeperMasks: keepers.map(\.1)
+        )
         style(made, with: config, isLightApp: isLightApp)
         overlays[id] = made
 
@@ -485,7 +532,18 @@ final class Tinter {
                 for (index, (layer, mask)) in zip(placed.layers, placed.masks).enumerated() {
                     layer.frame = local
                     mask.frame = local
-                    mask.path = index < filterStages ? path : beside
+                    mask.path = index < mostStages ? path : beside
+                }
+
+                placed.source.frame = local
+                let everywhere = CGMutablePath()
+                everywhere.addPath(path)
+                everywhere.addPath(beside)
+
+                for (layer, mask) in zip(placed.keepers, placed.keeperMasks) {
+                    layer.frame = local
+                    mask.frame = local
+                    mask.path = everywhere
                 }
 
                 if !placed.window.isVisible {

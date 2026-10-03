@@ -1,6 +1,9 @@
-import { contrast, fromHsl, normalizeHex, toHex, toRgb } from './color'
+import { contrast, fromHsl, luminance, mix, normalizeHex, toHex, toRgb } from './color'
 
 export type Triple = readonly [number, number, number]
+export type Stage = readonly number[]
+type Grid = readonly [Triple, Triple, Triple]
+export type Zone = 'session' | 'sidebar'
 
 export type Tone = {
   target: Triple
@@ -8,20 +11,41 @@ export type Tone = {
   targetHex: string
   inkHex: string
   isLightApp: boolean
-  boost: number
+  stages: readonly Stage[]
+  kept: readonly Stage[]
+  places: readonly number[]
+  floor: number
 }
 
 export type ToneSpec = { target: string; ink: string; isLightApp: boolean }
 
 export const HELPER_BOOST = 1.9
 
-const DARK_SURFACE_LIMIT = 34.5 / 255
-const LIGHT_SURFACE_LIMIT = 226 / 255
-const KEY_FADE = 10 / 255
+const LEVELS = 255
+const DARK_APP = {
+  session: { surface: 21 / LEVELS, panel: 32 / LEVELS },
+  sidebar: { surface: 17 / LEVELS, panel: 28 / LEVELS },
+} as const
+const TEXT_LIFT = { from: 62 / LEVELS, full: 110 / LEVELS } as const
+const DEEPER = { from: 0.03, step: 23 / LEVELS, shade: 0.35, gain: 9 } as const
+const OWN_COLOR = { from: 0.12, full: 0.25 } as const
+const CHANNEL_PAIRS: readonly Triple[] = [
+  [1, -1, 0],
+  [0, 1, -1],
+  [-1, 0, 1],
+]
+const CLOSE_ENOUGH = 0.5 / LEVELS
+const SOLVE_STEPS = 6
+const NUDGE = 1 / LEVELS
+const BRIGHTNESS_WEIGHT = 3
+const LIGHT_SURFACE_LIMIT = 226 / LEVELS
+const KEY_FADE = 10 / LEVELS
 const LUMA: Triple = [0.2126, 0.7152, 0.0722]
+const NO_CHANNELS: Triple = [0, 0, 0]
 const SHORTEST_AXIS = 0.0001
 const FLATTEST_AXIS = 0.02
 const CLEAR_STEPS = 24
+const STAGE_DIGITS = 1_000_000
 const TO_DISPLAY: readonly Triple[] = [
   [0.8224621, 0.177538, 0],
   [0.0331941, 0.9668058, 0],
@@ -74,49 +98,170 @@ export function fromDisplay(color: Triple): string {
   return toHex(each(channel => encode(linear[channel]) * 255))
 }
 
-export function toneFor({ target, ink, isLightApp }: ToneSpec): Tone {
-  const shownTarget = toDisplay(target)
-  const shownInk = toDisplay(ink)
+function stageOf(
+  color: (channel: 0 | 1 | 2) => readonly [Triple, number],
+  [weights, kept, bias]: readonly [Triple, number, number],
+): Stage {
+  const rows = ([0, 1, 2] as const).flatMap(channel => {
+    const [mixed, shift] = color(channel)
 
-  return {
-    target: shownTarget,
-    toInk: each(channel => shownInk[channel] - shownTarget[channel]),
-    targetHex: target,
-    inkHex: ink,
-    isLightApp,
-    boost: HELPER_BOOST,
-  }
+    return [...mixed, 0, shift]
+  })
+
+  return [...rows, ...weights, kept, bias].map(value => Math.round(value * STAGE_DIGITS) / STAGE_DIGITS)
 }
 
-function anchorOf(tone: Tone): number {
-  return tone.isLightApp ? LIGHT_SURFACE_LIMIT : DARK_SURFACE_LIMIT
+function own(channel: 0 | 1 | 2): Triple {
+  return each(source => (source === channel ? 1 : 0))
 }
 
-function spanOf(tone: Tone): number {
-  return tone.isLightApp ? LIGHT_SURFACE_LIMIT : 1 - DARK_SURFACE_LIMIT
+function ramp(from: number, full: number): readonly [Triple, number, number] {
+  const slope = 1 / (full - from)
+
+  return [each(source => slope * LUMA[source]), 0, -slope * from]
 }
 
-function along(tone: Tone, color: Triple): number {
+function sunk(surface: number, panel: number): Stage {
+  return stageOf(channel => [own(channel), -DEEPER.step], ramp(surface, panel))
+}
+
+function lifted(from: number, full: number): Stage {
+  return stageOf(channel => [each(source => own(channel)[source] - LUMA[source]), 1], ramp(from, full))
+}
+
+function remapped(target: Triple, toInk: Triple, anchor: number, reach: number): Stage {
+  return stageOf(
+    channel => [
+      each(source => own(channel)[source] + LUMA[source] * (reach * toInk[channel] - 1)),
+      target[channel] - reach * anchor * toInk[channel],
+    ],
+    [NO_CHANNELS, 1, 0],
+  )
+}
+
+function shaded(target: Triple, toInk: Triple, shade: Triple): Stage {
+  const length = Math.max(dot(toInk, toInk), SHORTEST_AXIS)
+
+  return stageOf(
+    channel => [NO_CHANNELS, shade[channel]],
+    [each(source => (-DEEPER.gain * toInk[source]) / length), 0, (DEEPER.gain * dot(target, toInk)) / length],
+  )
+}
+
+function lightAppFloor(): number {
+  const edge = KEY_FADE / LIGHT_SURFACE_LIMIT
+
+  return edge + bound(HELPER_BOOST * edge) * (1 - edge)
+}
+
+function lightAppStages(target: Triple, toInk: Triple): Stage[] {
+  const reach = -1 / LIGHT_SURFACE_LIMIT
+  const length = Math.max(dot(toInk, toInk), SHORTEST_AXIS)
+  const fade = lightAppFloor()
+
+  return [
+    stageOf(
+      channel => [each(source => own(channel)[source] - LUMA[source]), 0],
+      [each(source => HELPER_BOOST * reach * LUMA[source]), 0, -HELPER_BOOST * reach * LIGHT_SURFACE_LIMIT],
+    ),
+    remapped(target, toInk, LIGHT_SURFACE_LIMIT, reach),
+    stageOf(
+      channel => [NO_CHANNELS, target[channel]],
+      [each(source => -toInk[source] / length / fade), 0, 1 + dot(target, toInk) / length / fade],
+    ),
+  ]
+}
+
+export function deepens({ target, ink, isLightApp }: ToneSpec): boolean {
+  return !isLightApp && luminance(ink) > luminance(target) && luminance(target) >= DEEPER.from
+}
+
+function darkAppStages(spec: ToneSpec, zone: Zone, isDeeper: boolean): Stage[] {
+  const target = toDisplay(spec.target)
+  const shownInk = toDisplay(spec.ink)
+  const toInk = each(channel => shownInk[channel] - target[channel])
+  const { surface, panel } = DARK_APP[zone]
+  const step = isDeeper ? DEEPER.step : 0
+
+  return [
+    ...(isDeeper ? [sunk(surface, panel)] : []),
+    lifted(TEXT_LIFT.from - step, TEXT_LIFT.full - step),
+    remapped(target, toInk, surface, 1 / (1 - surface)),
+    ...(isDeeper ? [shaded(target, toInk, toDisplay(mix(spec.target, '#000000', DEEPER.shade)))] : []),
+  ]
+}
+
+function keptStages(): Stage[] {
+  const slope = 1 / (OWN_COLOR.full - OWN_COLOR.from)
+
+  return CHANNEL_PAIRS.map(pair =>
+    stageOf(channel => [own(channel), 0], [each(source => slope * pair[source]), 0, -slope * OWN_COLOR.from]),
+  )
+}
+
+export function helperStages(
+  spec: ToneSpec,
+  sidebar: string,
+): { stages: Stage[]; sidebarStages: Stage[]; kept: Stage[] } | null {
+  return spec.isLightApp
+    ? null
+    : {
+        stages: darkAppStages(spec, 'session', deepens(spec)),
+        sidebarStages: darkAppStages({ ...spec, target: sidebar }, 'sidebar', deepens(spec)),
+        kept: keptStages(),
+      }
+}
+
+function shareOf(stage: Stage, pixel: Triple): number {
+  return bound(dot([stage[15]!, stage[16]!, stage[17]!], pixel) + stage[18]! + stage[19]!)
+}
+
+function staged(stages: readonly Stage[], pixel: Triple): Triple {
+  return stages.reduce<Triple>((seen, stage) => {
+    const share = shareOf(stage, seen)
+
+    return each(channel => {
+      const at = channel * 5
+      const painted = bound(dot([stage[at]!, stage[at + 1]!, stage[at + 2]!], seen) + stage[at + 3]! + stage[at + 4]!)
+
+      return share * painted + (1 - share) * seen[channel]
+    })
+  }, pixel)
+}
+
+function along(tone: Pick<Tone, 'target' | 'toInk'>, color: Triple): number {
   const length = Math.max(dot(tone.toInk, tone.toInk), SHORTEST_AXIS)
 
   return dot(each(channel => color[channel] - tone.target[channel]), tone.toInk) / length
 }
 
-function lifted(tone: Tone, place: number): number {
-  return place + bound(tone.boost * place) * (1 - place)
+function amountOf(tone: Pick<Tone, 'target' | 'toInk'>, color: Triple): number {
+  const rise = dot(LUMA, tone.toInk)
+
+  return Math.abs(rise) > FLATTEST_AXIS
+    ? dot(LUMA, each(channel => color[channel] - tone.target[channel])) / rise
+    : along(tone, color)
 }
 
-function unlifted(tone: Tone, place: number): number {
-  const { boost } = tone
+export function toneFor(spec: ToneSpec): Tone {
+  const target = toDisplay(spec.target)
+  const shownInk = toDisplay(spec.ink)
+  const toInk = each(channel => shownInk[channel] - target[channel])
+  const stages = spec.isLightApp ? lightAppStages(target, toInk) : darkAppStages(spec, 'session', deepens(spec))
 
-  if (boost < SHORTEST_AXIS) return place
-  const root = (1 + boost) ** 2 - 4 * boost * Math.min(1, place)
-
-  return (1 + boost - Math.sqrt(Math.max(0, root))) / (2 * boost)
-}
-
-function floorOf(tone: Tone): number {
-  return lifted(tone, KEY_FADE / spanOf(tone))
+  return {
+    target,
+    toInk,
+    targetHex: spec.target,
+    inkHex: spec.ink,
+    isLightApp: spec.isLightApp,
+    stages,
+    kept: spec.isLightApp ? [] : keptStages(),
+    places: Array.from({ length: LEVELS + 1 }, (_, level) =>
+      amountOf({ target, toInk }, staged(stages, [level / LEVELS, level / LEVELS, level / LEVELS])),
+    ),
+    floor: spec.isLightApp ? lightAppFloor() : 0,
+  }
 }
 
 function towardInk(tone: Tone, color: Triple, share: number): Triple {
@@ -125,40 +270,114 @@ function towardInk(tone: Tone, color: Triple, share: number): Triple {
 
 function onInkSide(tone: Tone, color: Triple): Triple {
   const place = along(tone, color)
-  const floor = floorOf(tone)
 
-  return place >= floor ? color : towardInk(tone, color, (floor - place) / (1 - place))
+  return place >= tone.floor ? color : towardInk(tone, color, (tone.floor - place) / (1 - place))
 }
 
-function placeOf(tone: Tone, pixel: Triple): number {
-  const level = dot(LUMA, pixel)
+function levelFor(tone: Tone, amount: number): number {
+  const first = tone.isLightApp ? 0 : LEVELS
+  const stride = tone.isLightApp ? 1 : -1
 
-  return (tone.isLightApp ? anchorOf(tone) - level : level - anchorOf(tone)) / spanOf(tone)
+  for (let level = first; level >= 0 && level <= LEVELS; level += stride) {
+    const here = tone.places[level]!
+
+    if (here > amount) continue
+    if (level === first) return level / LEVELS
+    const before = tone.places[level - stride]!
+
+    return (level - stride * ((amount - here) / Math.max(before - here, SHORTEST_AXIS))) / LEVELS
+  }
+
+  return (LEVELS - first) / LEVELS
 }
 
 export function shownFrom(tone: Tone, pixel: Triple): Triple {
-  const start = placeOf(tone, pixel)
-  const push = bound(tone.boost * start) * (1 - start) * spanOf(tone) * (tone.isLightApp ? -1 : 1)
-  const raised = each(channel => bound(pixel[channel] + push))
-  const level = dot(LUMA, raised)
-  const place = placeOf(tone, raised)
-  const moved = each(channel => bound(raised[channel] - level + tone.target[channel] + place * tone.toInk[channel]))
-  const kept = bound(along(tone, moved) / floorOf(tone))
+  return tone.kept.reduce<Triple>((seen, stage) => {
+    const share = shareOf(stage, pixel)
 
-  return each(channel => tone.target[channel] + kept * (moved[channel] - tone.target[channel]))
+    return each(channel => share * pixel[channel] + (1 - share) * seen[channel])
+  }, staged(tone.stages, pixel))
+}
+
+function recolored(tone: Tone, goal: Triple): Triple {
+  const reachable = onInkSide(tone, goal)
+  const offset = each(channel => reachable[channel] - tone.target[channel])
+  const amount = amountOf(tone, reachable)
+  const rough = each(channel => offset[channel] - amount * tone.toInk[channel])
+  const stray = dot(LUMA, rough)
+  const level = levelFor(tone, amount)
+
+  return each(channel => bound(level + rough[channel] - stray))
+}
+
+function missBy(tone: Tone, pixel: Triple, goal: Triple): Triple {
+  const shown = shownFrom(tone, pixel)
+
+  return each(channel => shown[channel] - goal[channel])
+}
+
+function sizeOfMiss(miss: Triple): number {
+  return Math.hypot(...miss) + BRIGHTNESS_WEIGHT * Math.abs(dot(LUMA, miss))
+}
+
+function cross(one: Triple, other: Triple): Triple {
+  return [
+    one[1] * other[2] - one[2] * other[1],
+    one[2] * other[0] - one[0] * other[2],
+    one[0] * other[1] - one[1] * other[0],
+  ]
+}
+
+function grid(cell: (row: 0 | 1 | 2, column: 0 | 1 | 2) => number): Grid {
+  return [each(column => cell(0, column)), each(column => cell(1, column)), each(column => cell(2, column))]
+}
+
+function sizeOf([first, second, third]: Grid): number {
+  return dot(first, cross(second, third))
+}
+
+function solved(rows: Grid, right: Triple): Triple | null {
+  const size = sizeOf(rows)
+
+  if (Math.abs(size) < SHORTEST_AXIS) return null
+
+  return each(channel => sizeOf(grid((row, column) => (column === channel ? right[row] : rows[row][column]))) / size)
+}
+
+function closer(tone: Tone, start: Triple, goal: Triple): readonly [Triple, number] {
+  let pixel = start
+  let best: readonly [Triple, number] = [start, sizeOfMiss(missBy(tone, start, goal))]
+
+  for (let step = 0; step < SOLVE_STEPS && best[1] > CLOSE_ENOUGH; step += 1) {
+    const miss = missBy(tone, pixel, goal)
+    const nudged = grid((channel, row) => {
+      const tried = missBy(tone, each(at => pixel[at] + (at === channel ? NUDGE : 0)), goal)
+
+      return (tried[row] - miss[row]) / NUDGE
+    })
+    const move = solved(
+      grid((row, channel) => nudged[channel][row]),
+      miss,
+    )
+
+    if (move === null) break
+    const tried = each(channel => bound(pixel[channel] - move[channel]))
+    const off = sizeOfMiss(missBy(tone, tried, goal))
+
+    pixel = tried
+    if (off < best[1]) best = [tried, off]
+  }
+
+  return best
 }
 
 export function pixelFor(tone: Tone, wanted: string): Triple {
-  const reachable = onInkSide(tone, toDisplay(wanted))
-  const offset = each(channel => reachable[channel] - tone.target[channel])
-  const rise = dot(LUMA, tone.toInk)
-  const amount = Math.abs(rise) > FLATTEST_AXIS ? dot(LUMA, offset) / rise : along(tone, reachable)
-  const rough = each(channel => offset[channel] - amount * tone.toInk[channel])
-  const stray = dot(LUMA, rough)
-  const place = unlifted(tone, amount)
-  const level = anchorOf(tone) + (tone.isLightApp ? -place : place) * spanOf(tone)
+  const goal = toDisplay(wanted)
+  const moved = recolored(tone, goal)
+  const level = dot(LUMA, moved)
+  const starts: readonly Triple[] = [goal, moved, [level, level, level]]
 
-  return each(channel => bound(level + rough[channel] - stray))
+  return starts.map(start => closer(tone, start, goal)).reduce((best, one) => (one[1] < best[1] ? one : best))[0]
 }
 
 export function drawnFor(tone: Tone, wanted: string): string {

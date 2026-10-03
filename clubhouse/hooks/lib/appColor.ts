@@ -1,6 +1,6 @@
 import type { Prefs } from '../../types'
 import { inkOn, isLight, luminance, mix, standOut } from './color'
-import { HELPER_BOOST, clearOn, drawnFor, toneFor } from './tone'
+import { HELPER_BOOST, clearOn, drawnFor, helperStages, toneFor } from './tone'
 import type { Tone } from './tone'
 
 export type Look = {
@@ -110,14 +110,20 @@ export function lookOf(prefs: Prefs, surface: string): Look {
 }
 
 export function helperConfig(prefs: Prefs): string {
+  const target = backdropOf(prefs)
+  const ink = inkOf(prefs)
+  const isLightApp = prefs.appMode === 'light'
+  const sidebar = mix(target, '#000000', isLight(target) ? SIDEBAR_SHADE.light : SIDEBAR_SHADE.dark)
+
   return `${JSON.stringify({
     enabled: coversApp(prefs),
-    target: backdropOf(prefs),
-    ink: inkOf(prefs),
+    target,
+    ink,
     radius: CORNER_RADIUS,
-    isLightApp: prefs.appMode === 'light',
+    isLightApp,
     boost: HELPER_BOOST,
     coverSidebar: prefs.coversSidebar === true,
-    sidebar: mix(backdropOf(prefs), '#000000', isLight(backdropOf(prefs)) ? SIDEBAR_SHADE.light : SIDEBAR_SHADE.dark),
+    sidebar,
+    ...helperStages({ target, ink, isLightApp }, sidebar),
   })}\n`
 }
