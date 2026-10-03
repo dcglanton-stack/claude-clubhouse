@@ -1,8 +1,11 @@
-import { atom, read } from 'claude-code'
-import type { On } from 'claude-code'
+import { atom, read, update } from 'claude-code'
+import type { EngineInterface, On } from 'claude-code'
 
-import { DEFAULT_PREFS, PREFS_SHAPE } from '../lib/defaults'
-import { cacheNote, receiptNote } from '../lib/format'
+import type { Prefs } from '../../types'
+import { CAP_LEVELS, capLabel, fiveHourLeft, isCapped } from '../lib/cap'
+import { DEFAULT_PREFS, PREFS_KEY, PREFS_SHAPE } from '../lib/defaults'
+import { cacheNote, formatSpan, receiptNote } from '../lib/format'
+import { nextOf } from '../lib/watch'
 import { makeParts } from '../lib/parts'
 
 const contextPercent = atom({ plugin: 'clubhouse', key: 'contextPercent' } as const, null)
@@ -13,6 +16,12 @@ const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS
   shape: PREFS_SHAPE,
 })
 const receipt = atom({ plugin: 'clubhouse', key: 'receipt' } as const, null)
+const capLiftedUntil = atom({ plugin: 'clubhouse', key: 'capLiftedUntil' } as const, null)
+
+async function keep($: EngineInterface, change: (held: Prefs) => Prefs): Promise<void> {
+  await update($, prefs, change)
+  await $.store.set(PREFS_KEY, await read($, prefs))
+}
 
 const METER_WIDTH = 360
 const METER_HEIGHT = 56
@@ -27,7 +36,11 @@ export function usageRoom(on: On): void {
     const context = await read($, contextPercent)
     const made = await read($, receipt)
     const last = await read($, lastReplyAt)
-    const { card, frame, meter, note, plain, title } = makeParts(elements, chosen, e.surface)
+    const { card, frame, meter, note, plain, title, Button } = makeParts(elements, chosen, e.surface)
+    const cap = chosen.spendCap ?? 0
+    const lifted = await read($, capLiftedUntil)
+    const left = fiveHourLeft(list, at)
+    const isLifted = lifted !== null && lifted > at
 
     return (
       <Box flexDirection="column" gap={1} {...frame}>
@@ -35,6 +48,31 @@ export function usageRoom(on: On): void {
         {card('5-hour limit', [
           meter({ kind: 'five_hour', limits: list, at, width: METER_WIDTH, height: METER_HEIGHT }),
           note('Resets on a rolling five hours. Clawd gets unhappier as it drains.'),
+        ])}
+        {card('Spend cap', [
+          <Box gap={1} flexWrap="wrap">
+            <Button
+              key="spend-cap"
+              label={capLabel(cap)}
+              variant={cap > 0 ? 'primary' : 'secondary'}
+              onPress={() => void keep($, held => ({ ...held, spendCap: nextOf(CAP_LEVELS, held.spendCap ?? 0) }))}
+            />
+            {isLifted && (
+              <Button key="spend-cap-restore" label="Put the cap back" onPress={() => void update($, capLiftedUntil, () => null)} />
+            )}
+          </Box>,
+          note(
+            'Helper agents use your limit quickly. With a cap set, Claude has to ask you before starting one once your 5-hour limit drops under that level. You can allow one, allow them all until the limit resets, or say no. Agents you send yourself from Agent HQ are never stopped.',
+          ),
+          cap === 0
+            ? null
+            : plain(
+                isLifted
+                  ? `You lifted the cap for the next ${formatSpan(lifted - at)}.`
+                  : isCapped({ cap, left, liftedUntil: lifted, at })
+                    ? 'You are under the cap now: Claude will ask before starting a helper agent.'
+                    : 'You are above the cap: helper agents start as usual.',
+              ),
         ])}
         {card('Weekly limit', [
           meter({ kind: 'seven_day', limits: list, at, width: METER_WIDTH, height: METER_HEIGHT }),

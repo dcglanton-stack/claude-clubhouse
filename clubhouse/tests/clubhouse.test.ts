@@ -363,7 +363,7 @@ for (const surface of SURFACES) {
     expect((await ui.find({ key: 'power' }))?.text).toBe('Off')
 
     await ui.press({ key: 'tab-more' })
-    expect(await ui.find({ type: 'Text', text: /Zen mode/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /Session notes/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /Workshop: recipes/ })).toBeUndefined()
     await ui.unmount()
   })
@@ -1483,5 +1483,54 @@ test('a watch can be saved, started with one press in a later session, and delet
 
   await ui.press({ key: 'watch-saved-delete-BOTfort check' })
   expect(await ui.find({ key: 'watch-saved-start-BOTfort check' })).toBeUndefined()
+  await ui.unmount()
+})
+
+test('the spend cap makes Claude ask before starting a helper agent when the limit is low', async ($, on) => {
+  const seen = world(on, 85)
+  await start($)
+  const ui = await $.ui.mount({
+    plugin: 'clubhouse',
+    surface: 'desktop',
+    component: 'Pane',
+    requestId: 'clubhouse-usage',
+    props: { ...PANE, title: 'Usage' },
+  })
+  const spawn = () =>
+    $.agent.spawn({ subagentType: 'Explore', prompt: 'Look around', description: 'map the repo' } as Parameters<
+      Engine['agent']['spawn']
+    >[0])
+
+  expect((await ui.find({ key: 'spend-cap' }))?.text).toBe('Spend cap: off')
+  expect((await spawn()).deny).toBeUndefined()
+  expect(seen.spawned).toHaveLength(1)
+
+  await ui.press({ key: 'spend-cap' })
+  expect((await ui.find({ key: 'spend-cap' }))?.text).toBe('Spend cap: ask under 10% left')
+  expect(await ui.find({ type: 'Text', text: /You are above the cap/ })).toBeDefined()
+  expect((await spawn()).deny).toBeUndefined()
+
+  await ui.press({ key: 'spend-cap' })
+  expect((await ui.find({ key: 'spend-cap' }))?.text).toBe('Spend cap: ask under 20% left')
+  expect(await ui.find({ type: 'Text', text: /You are under the cap now/ })).toBeDefined()
+
+  seen.answer = 'Do not start it'
+  const refused = await spawn()
+  expect(refused.deny).toMatch(/spend cap in Claude Clubhouse stopped this helper agent: 15% of the 5-hour limit is left/)
+  expect(seen.spawned).toHaveLength(2)
+
+  seen.answer = 'Start this one'
+  expect((await spawn()).deny).toBeUndefined()
+  expect(seen.spawned).toHaveLength(3)
+
+  seen.answer = 'Start them until the limit resets'
+  expect((await spawn()).deny).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /You lifted the cap for the next 2h 0m\./ })).toBeDefined()
+  seen.answer = 'Do not start it'
+  expect((await spawn()).deny).toBeUndefined()
+  expect(seen.spawned).toHaveLength(5)
+
+  await ui.press({ key: 'spend-cap-restore' })
+  expect((await spawn()).deny).toMatch(/spend cap/)
   await ui.unmount()
 })

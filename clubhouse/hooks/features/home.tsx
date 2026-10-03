@@ -31,8 +31,6 @@ const TABS: readonly (readonly [HomeTab, string])[] = [
 ]
 
 const PLANNED: readonly (readonly [string, string])[] = [
-  ['Zen mode', 'Hide tool rows while work runs; show progress and the answer only.'],
-  ['Spend cap', 'Pause new subagents below a usage level, with a continue button.'],
   ['Session notes', 'A note you leave for the next session.'],
   ['Release helper', 'A /ship command for tag plus GitHub Release.'],
 ]

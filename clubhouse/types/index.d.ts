@@ -48,6 +48,7 @@ export type Prefs = {
   barCount: number
   shortcuts: Shortcut[]
   autoSummary: boolean
+  spendCap: number
   appMode: 'dark' | 'light'
   reach: Reach
   isHelperReady: boolean
@@ -172,6 +173,7 @@ declare module 'claude-code' {
       watchLog: WatchEntry[]
       watchView: WatchView
       savedWatches: SavedWatch[]
+      capLiftedUntil: number | null
     }
   }
 }
