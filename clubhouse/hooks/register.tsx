@@ -8,7 +8,9 @@ import { bar } from './features/bar'
 import { colors } from './features/colors'
 import { commands } from './features/commands'
 import { home } from './features/home'
+import { opinionRoom } from './features/opinion'
 import { summaryRoom } from './features/summary'
+import { tint } from './features/tint'
 import { tools } from './features/tools'
 import { usage } from './features/usage'
 import { usageRoom } from './features/usageRoom'
@@ -80,8 +82,8 @@ export const register: Register = on => {
 
     await $.command.register({
       name: 'clubhouse',
-      description: 'Open Claude Clubhouse. Add a room to open it: agents, summary, tools, commands, bar, usage, colors; or on, off',
-      argumentHint: '[on|off|agents|summary|tools|commands|bar|usage|colors]',
+      description: 'Open Claude Clubhouse. Add a room to open it: agents, summary, opinion, tools, commands, bar, usage, colors; or on, off, reset',
+      argumentHint: '[on|off|agents|summary|opinion|tools|commands|bar|usage|colors|reset]',
       immediate: true,
     })
 
@@ -93,9 +95,11 @@ export const register: Register = on => {
   home(on)
   bar(on)
   summaryRoom(on)
+  opinionRoom(on)
   tools(on)
   usageRoom(on)
   commands(on)
   agents(on)
   colors(on)
+  tint(on)
 }

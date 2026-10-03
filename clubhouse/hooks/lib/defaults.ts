@@ -51,6 +51,8 @@ export const DEFAULT_PREFS: Prefs = {
   autoSummary: false,
   appMode: 'dark',
   tintChat: false,
+  gapFill: 'off',
+  opinionModel: 'sonnet',
   palette: DEFAULT_PALETTE,
   previousTheme: null,
 }
@@ -83,6 +85,7 @@ export const BAR_PANE = 'clubhouse-bar'
 export const USAGE_PANE = 'clubhouse-usage'
 export const SUMMARY_PANE = 'clubhouse-summary'
 export const TOOLS_PANE = 'clubhouse-tools'
+export const OPINION_PANE = 'clubhouse-opinion'
 export const TOOL_RULES_KEY = 'toolRules'
 export const DEFAULT_TOOLS_VIEW: ToolsView = { filter: '', note: null, open: [] }
 export const COMMANDS_KEY = 'commands'
@@ -101,6 +104,12 @@ export const ROOMS: readonly Room[] = [
     title: 'Summary',
     word: 'summary',
     about: 'The last reply, cut down to the points that matter.',
+  },
+  {
+    id: OPINION_PANE,
+    title: 'Second opinion',
+    word: 'opinion',
+    about: 'Ask about this session without adding to it.',
   },
   {
     id: TOOLS_PANE,
@@ -211,6 +220,8 @@ export function mergePrefs(saved: unknown): Prefs {
     autoSummary: saved.autoSummary === true,
     appMode: saved.appMode === 'light' ? 'light' : 'dark',
     tintChat: saved.tintChat === true,
+    gapFill: saved.gapFill === 'soft' || saved.gapFill === 'full' ? saved.gapFill : 'off',
+    opinionModel: saved.opinionModel === 'haiku' || saved.opinionModel === 'opus' ? saved.opinionModel : 'sonnet',
     palette: { ...DEFAULT_PALETTE, ...palette } as Palette,
     previousTheme: typeof saved.previousTheme === 'string' ? saved.previousTheme : null,
   }
@@ -232,6 +243,10 @@ export function withBarCount(held: Prefs, barCount: number): Prefs {
     },
     shortcuts: held.shortcuts.map(one => ({ ...one, spot: fit(one.spot) })),
   }
+}
+
+export function resetLook(held: Prefs): Prefs {
+  return { ...held, palette: DEFAULT_PALETTE, tintChat: false, gapFill: 'off', appMode: 'dark' }
 }
 
 export function nextZone(zone: BarZone): BarZone {

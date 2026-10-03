@@ -146,7 +146,12 @@ export function band(on: On): void {
     const meterWidth = columns >= COLUMNS_FOR_WIDE_METER ? WIDE_METER : SLIM_METER
     const { accent, background } = chosen.palette
     const ink = background === null ? {} : { color: inkOn(background) }
-    const frame = background === null ? {} : { backgroundColor: background }
+    const frame =
+      background === null
+        ? {}
+        : chosen.gapFill === 'off'
+          ? { backgroundColor: background }
+          : { backgroundColor: background, marginX: -1, paddingX: 1 }
     const flipWindow = () =>
       void keep($, held => ({
         ...held,
