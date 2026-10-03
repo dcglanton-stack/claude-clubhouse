@@ -189,7 +189,7 @@ async function scoreCheck($: EngineInterface): Promise<void> {
   const days = [undefined, ...(plan.gameDay === null ? [] : [plan.gameDay, dayOf(Date.parse(`${plan.gameDay.slice(0, 4)}-${plan.gameDay.slice(4, 6)}-${plan.gameDay.slice(6)}`) - 86_400_000)])]
 
   for (const day of days) {
-    const page = await $.http.fetch(scoreboardUrl(league, day)).catch(() => null)
+    const page = await $.http.fetch(scoreboardUrl(league, day), { headers: FEED_HEADERS }).catch(() => null)
     const found = page !== null && page.ok ? gamesFrom(page.text, league).find(game => game.id === plan.gameId) : undefined
 
     if (found !== undefined) {

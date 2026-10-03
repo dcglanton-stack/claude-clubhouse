@@ -16,6 +16,7 @@ import {
   listed,
   scoreboardUrl,
 } from '../lib/sports'
+import { FEED_HEADERS } from '../lib/ticker'
 import { arranged } from '../lib/toolbar'
 
 const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS, {
@@ -42,7 +43,7 @@ async function loadGames($: EngineInterface, leagueId: string): Promise<void> {
   let hasAnswered = false
 
   for (const day of daysToFetch(league, at)) {
-    const page = await $.http.fetch(scoreboardUrl(league, day)).catch(() => null)
+    const page = await $.http.fetch(scoreboardUrl(league, day), { headers: FEED_HEADERS }).catch(() => null)
 
     if (page !== null && page.ok) {
       hasAnswered = true

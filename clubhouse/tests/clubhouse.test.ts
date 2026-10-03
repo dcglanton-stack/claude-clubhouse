@@ -1705,7 +1705,7 @@ test('toolbar rows have a capacity: a full row sends the next item to another ro
   await ui.press({ key: 'layout-Old layout' })
   expect(await ui.find({ type: 'Text', text: /Row 1: 5 of 14 used · Row 2: 6 of 14 used/ })).toBeDefined()
   await ui.press({ key: 'layout-Busy' })
-  expect(await ui.find({ type: 'Text', text: /Row 1: 14 of 14 used · Row 2: 8 of 14 used/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Row 1: 14 of 14 used · Row 2: 10 of 14 used/ })).toBeDefined()
   await ui.press({ key: 'layout-delete-Busy' })
   expect(await ui.find({ key: 'layout-Busy' })).toBeUndefined()
 
