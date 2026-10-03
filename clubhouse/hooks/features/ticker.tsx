@@ -19,10 +19,12 @@ import {
   withFavorite,
 } from '../lib/ticker'
 import { arranged } from '../lib/toolbar'
+import { forStore } from '../lib/project'
 
 const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS, {
   shape: PREFS_SHAPE,
 })
+const sharedPalette = atom({ plugin: 'clubhouse', key: 'sharedPalette' } as const, null)
 const ticker = atom({ plugin: 'clubhouse', key: 'ticker' } as const, DEFAULT_TICKER)
 const quotes = atom({ plugin: 'clubhouse', key: 'quotes' } as const, {})
 const tickerView = atom({ plugin: 'clubhouse', key: 'tickerView' } as const, { note: null, hits: [] })
@@ -80,7 +82,7 @@ async function showOnToolbar($: EngineInterface, symbol: string): Promise<void> 
 
   const outcome = arranged(chosen, { kind: 'item', id: 'ticker' }, 'toggle')
   await update($, prefs, () => outcome.prefs)
-  await $.store.set(PREFS_KEY, outcome.prefs)
+  await $.store.set(PREFS_KEY, forStore(outcome.prefs, await read($, sharedPalette)))
   await say($, outcome.note ?? `${symbol} is on the toolbar.`)
 }
 

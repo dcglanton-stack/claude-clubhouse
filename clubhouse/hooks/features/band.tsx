@@ -36,6 +36,7 @@ import { clearOn, drawnFor } from '../lib/tone'
 import { serifSize, serifSvg } from '../lib/type'
 import { KIND_WORD, weatherSvg } from '../lib/weather'
 import { TIDY_MIN_CHARS, tidyRequest } from '../lib/tidy'
+import { forStore } from '../lib/project'
 
 const contextPercent = atom({ plugin: 'clubhouse', key: 'contextPercent' } as const, null)
 const contextSize = atom({ plugin: 'clubhouse', key: 'contextSize' } as const, null)
@@ -52,6 +53,7 @@ const now = atom({ plugin: 'clubhouse', key: 'now' } as const, 0)
 const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS, {
   shape: PREFS_SHAPE,
 })
+const sharedPalette = atom({ plugin: 'clubhouse', key: 'sharedPalette' } as const, null)
 const receipt = atom({ plugin: 'clubhouse', key: 'receipt' } as const, null)
 const lastAnswer = atom({ plugin: 'clubhouse', key: 'lastAnswer' } as const, '')
 const summary = atom({ plugin: 'clubhouse', key: 'summary' } as const, IDLE_SUMMARY)
@@ -73,7 +75,7 @@ const GASLIGHT_LINE = 'Chat GPT did this easily. Figure it out.'
 
 async function keep($: EngineInterface, change: (held: Prefs) => Prefs): Promise<void> {
   await update($, prefs, change)
-  await $.store.set(PREFS_KEY, await read($, prefs))
+  await $.store.set(PREFS_KEY, forStore(await read($, prefs), await read($, sharedPalette)))
 }
 
 async function summarize($: EngineInterface): Promise<void> {

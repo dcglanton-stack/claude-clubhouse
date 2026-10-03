@@ -7,6 +7,7 @@ import { DEFAULT_PREFS, PREFS_KEY, PREFS_SHAPE, ROOMS, topCommands } from '../li
 import { cacheNote, receiptNote } from '../lib/format'
 import { homeIconSvg } from '../lib/icon'
 import { makeParts } from '../lib/parts'
+import { forStore } from '../lib/project'
 
 const commandStats = atom({ plugin: 'clubhouse', key: 'commandStats' } as const, {})
 const contextPercent = atom({ plugin: 'clubhouse', key: 'contextPercent' } as const, null)
@@ -16,6 +17,7 @@ const now = atom({ plugin: 'clubhouse', key: 'now' } as const, 0)
 const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS, {
   shape: PREFS_SHAPE,
 })
+const sharedPalette = atom({ plugin: 'clubhouse', key: 'sharedPalette' } as const, null)
 const pulse = atom({ plugin: 'clubhouse', key: 'pulse' } as const, 0)
 const receipt = atom({ plugin: 'clubhouse', key: 'receipt' } as const, null)
 const tab = atom({ plugin: 'clubhouse', key: 'tab' } as const, 'home')
@@ -36,7 +38,7 @@ const PLANNED: readonly (readonly [string, string])[] = [
 async function keep($: EngineInterface, change: (held: Prefs) => Prefs): Promise<void> {
   await update($, prefs, change)
   const chosen = await read($, prefs)
-  await $.store.set(PREFS_KEY, chosen)
+  await $.store.set(PREFS_KEY, forStore(chosen, await read($, sharedPalette)))
   const userFolder = await $.env.get('HOME')
 
   if (userFolder === undefined) return

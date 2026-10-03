@@ -29,12 +29,14 @@ import {
   withToolbarPreset,
 } from '../lib/toolbar'
 import type { ItemKey } from '../lib/toolbar'
+import { forStore } from '../lib/project'
 
 const barNote = atom({ plugin: 'clubhouse', key: 'barNote' } as const, null)
 const toolbarPresets = atom({ plugin: 'clubhouse', key: 'toolbarPresets' } as const, [])
 const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS, {
   shape: PREFS_SHAPE,
 })
+const sharedPalette = atom({ plugin: 'clubhouse', key: 'sharedPalette' } as const, null)
 
 type ShortcutDraft = { label: string; text: string }
 
@@ -44,7 +46,7 @@ let draft: ShortcutDraft = BLANK_SHORTCUT
 
 async function keep($: EngineInterface, change: (held: Prefs) => Prefs): Promise<void> {
   await update($, prefs, change)
-  await $.store.set(PREFS_KEY, await read($, prefs))
+  await $.store.set(PREFS_KEY, forStore(await read($, prefs), await read($, sharedPalette)))
 }
 
 async function arrange($: EngineInterface, key: ItemKey, wish: 'toggle' | 'row'): Promise<void> {

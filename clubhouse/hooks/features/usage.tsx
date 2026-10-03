@@ -26,6 +26,7 @@ import {
 import { dueSketches, keepsSketch, sketchesIn } from '../lib/draw'
 import { contextOf } from '../lib/notes'
 import { summaryOf, summaryRequest } from '../lib/summary'
+import { HELPER_CONFIG, HELPER_FRONT, helperConfig } from '../lib/appColor'
 
 const contextPercent = atom({ plugin: 'clubhouse', key: 'contextPercent' } as const, null)
 const contextSize = atom({ plugin: 'clubhouse', key: 'contextSize' } as const, null)
@@ -74,10 +75,26 @@ async function summarize($: EngineInterface, answer: string): Promise<void> {
   $.ui.toast('Summary ready: /clubhouse summary')
 }
 
+async function claim($: EngineInterface): Promise<void> {
+  const userFolder = await $.env.get('HOME')
+  const mine = await $.session.id().catch(() => '')
+
+  if (userFolder === undefined || mine === '') return
+  const holder = await $.fs.read(`${userFolder}/${HELPER_FRONT}`).then(
+    text => text.trim(),
+    () => '',
+  )
+
+  if (holder === mine) return
+  await $.fs.write(`${userFolder}/${HELPER_FRONT}`, mine).catch(() => undefined)
+  await $.fs.write(`${userFolder}/${HELPER_CONFIG}`, helperConfig(await read($, prefs))).catch(() => undefined)
+}
+
 export function usage(on: On): void {
   let turnBase: number | null = null
 
   on('prompt.submit', async ($, e, next) => {
+    if ((e.origin?.kind ?? 'composer') === 'composer') await claim($)
     turnBase = usedOf(await read($, limits), 'five_hour')
     const chosen = await read($, prefs)
     const userFolder = await $.env.get('HOME')

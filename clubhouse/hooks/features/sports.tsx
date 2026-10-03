@@ -18,10 +18,12 @@ import {
 } from '../lib/sports'
 import { FEED_HEADERS } from '../lib/ticker'
 import { arranged } from '../lib/toolbar'
+import { forStore } from '../lib/project'
 
 const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS, {
   shape: PREFS_SHAPE,
 })
+const sharedPalette = atom({ plugin: 'clubhouse', key: 'sharedPalette' } as const, null)
 const sports = atom({ plugin: 'clubhouse', key: 'sports' } as const, DEFAULT_SPORTS)
 const games = atom({ plugin: 'clubhouse', key: 'games' } as const, [])
 const liveGame = atom({ plugin: 'clubhouse', key: 'liveGame' } as const, null)
@@ -78,7 +80,7 @@ async function showGame($: EngineInterface, game: Game): Promise<void> {
       ? { prefs: chosen, note: null }
       : arranged(chosen, { kind: 'item', id: 'sports' }, 'toggle')
   await update($, prefs, () => outcome.prefs)
-  await $.store.set(PREFS_KEY, outcome.prefs)
+  await $.store.set(PREFS_KEY, forStore(outcome.prefs, await read($, sharedPalette)))
   await update($, sportsView, view => ({
     ...view,
     note: outcome.note ?? `${game.away.abbr} at ${game.home.abbr} is on the toolbar. Team logos arrive within half a minute.`,
