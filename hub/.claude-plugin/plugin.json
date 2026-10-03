@@ -1,0 +1,7 @@
+{
+  "name": "hub",
+  "version": "0.2.0",
+  "description": "The Hub: a usage meter with Clawd above the prompt, a color picker, and a /hub pane that lists and toggles every feature",
+  "author": { "name": "Davis Glanton" },
+  "types": "./types/index.d.ts"
+}
