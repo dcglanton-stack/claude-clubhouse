@@ -6,15 +6,20 @@ export type PaletteSlot = 'accent' | 'clawd' | 'background'
 
 export type Palette = { accent: string; clawd: string; background: string | null }
 
-export type HomeTab = 'home' | 'next'
+export type HomeTab = 'home' | 'bar' | 'more'
+
+export type BarItemId = 'home' | 'meter' | 'context' | 'receipt'
+
+export type BarZone = 'left' | 'center' | 'right'
+
+export type BarSpot = { isShown: boolean; row: number; zone: BarZone }
+
+export type BarLayout = { home: BarSpot; meter: BarSpot; context: BarSpot; receipt: BarSpot }
 
 export type Prefs = {
   isEnabled: boolean
   window: WindowKind
-  showHome: boolean
-  showMeter: boolean
-  showContext: boolean
-  showReceipt: boolean
+  bar: BarLayout
   palette: Palette
   previousTheme: string | null
 }
@@ -34,6 +39,23 @@ export type CommandStats = { [name: string]: CommandStat }
 
 export type CommandsView = { filter: string; note: string | null }
 
+export type AgentModel = 'haiku' | 'sonnet' | 'opus' | 'inherit'
+
+export type Blueprint = {
+  name: string
+  purpose: string
+  prompt: string
+  model: AgentModel
+  isAuto: boolean
+}
+
+export type AgentDesk = {
+  mode: 'idle' | 'form' | 'send'
+  target: string | null
+  note: string | null
+  dismissed: string[]
+}
+
 declare module 'claude-code' {
   interface PluginState {
     clubhouse: {
@@ -48,7 +70,8 @@ declare module 'claude-code' {
       commandStats: CommandStats
       commandsView: CommandsView
       pulse: number
-      agentNote: string | null
+      agentBank: Blueprint[]
+      agentDesk: AgentDesk
     }
   }
 }

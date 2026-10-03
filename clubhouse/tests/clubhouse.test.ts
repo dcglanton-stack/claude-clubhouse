@@ -15,10 +15,26 @@ const BAND = {
 const PANE = { title: 'Clubhouse', isFocused: true, bodyColumns: 60, placement: 'dock' as const }
 const BLANK = { type: 'Box', props: {}, children: [] }
 
-type World = { open: string[]; filled: string[]; stopped: string[]; toasts: string[] }
+type World = {
+  open: string[]
+  filled: string[]
+  stopped: string[]
+  toasts: string[]
+  registered: { name: string; model?: string }[]
+  spawned: { subagentType: string; prompt: string }[]
+  appended: string[]
+}
 
 function world(on: On, fiveHourUsed: number): World {
-  const seen: World = { open: [], filled: [], stopped: [], toasts: [] }
+  const seen: World = {
+    open: [],
+    filled: [],
+    stopped: [],
+    toasts: [],
+    registered: [],
+    spawned: [],
+    appended: [],
+  }
 
   mock.clock(on, { now: NOW })
   mock.store(on)
@@ -81,6 +97,23 @@ function world(on: On, fiveHourUsed: number): World {
       { id: 'a2', description: 'Review the diff', type: 'general-purpose', status: 'completed' },
     ],
   }))
+  on('agent.register', (_$, e) => {
+    seen.registered.push({ name: e.name, model: e.model })
+
+    return { value: { agent: `clubhouse:${e.name}` } }
+  })
+  on('agent.offer', () => ({ isOffered: true }))
+  on('agent.spawn', (_$, e) => {
+    seen.spawned.push({ subagentType: e.subagentType, prompt: e.prompt })
+
+    return { model: 'claude-haiku-4-5', agentId: 'spawned-1' }
+  })
+  on('session.append', (_$, e) => {
+    seen.appended.push(JSON.stringify(e.message.content))
+
+    return { message: e.message, uuid: 'row-1' }
+  })
+  on('model.classify', () => ({ value: 'quick lookup or formatting' }))
   on('tool.call', (_$, e) => {
     seen.stopped.push(String((e as { task_id?: string }).task_id))
 
@@ -141,7 +174,7 @@ for (const surface of SURFACES) {
     await ui.unmount()
   })
 
-  test(`home opens and closes rooms and toggles the bar on ${surface}`, async ($, on) => {
+  test(`home opens rooms, offers commands and switches off on ${surface}`, async ($, on) => {
     const seen = world(on, 95)
     await start($)
     const ui = await $.ui.mount({
@@ -153,32 +186,65 @@ for (const surface of SURFACES) {
     })
 
     expect(await ui.find({ type: 'Text', text: /5-hour window: 5% left/ })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: /Context window: 12% full/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /Context 12% full/ })).toBeDefined()
 
     await ui.press({ key: 'room-agents' })
     expect(seen.open).toEqual(['clubhouse-agents'])
     expect((await ui.find({ key: 'room-agents' }))?.text).toBe('Close Agent HQ')
-
-    await ui.press({ key: 'close-rooms' })
+    await ui.press({ key: 'room-agents' })
     expect(seen.open).toEqual([])
-    expect((await ui.find({ key: 'room-agents' }))?.text).toBe('Agent HQ')
-
-    expect((await ui.find({ key: 'showContext' }))?.text).toBe('Off')
-    await ui.press({ key: 'showContext' })
-    expect((await ui.find({ key: 'showContext' }))?.text).toBe('On')
 
     await ui.press({ key: 'top-compact' })
     expect(seen.filled).toEqual(['/compact '])
 
     await ui.press({ key: 'power' })
-    expect((await ui.find({ key: 'power' }))?.text).toBe('Clubhouse is off')
+    expect((await ui.find({ key: 'power' }))?.text).toBe('Off')
 
-    await ui.press({ key: 'tab-next' })
+    await ui.press({ key: 'tab-more' })
     expect(await ui.find({ type: 'Text', text: /Workshop: tools/ })).toBeDefined()
     await ui.unmount()
   })
 
-  test(`Agent HQ lists agents and stands one down on ${surface}`, async ($, on) => {
+  test(`bar layout moves, hides and stacks items on ${surface}`, async ($, on) => {
+    world(on, 18)
+    await start($)
+    const bar = await $.ui.mount({ plugin: 'clubhouse', surface, component: 'AbovePrompt', props: BAND })
+    const ui = await $.ui.mount({
+      plugin: 'clubhouse',
+      surface,
+      component: 'Pane',
+      requestId: 'clubhouse',
+      props: PANE,
+    })
+    const rowCount = async () =>
+      ((await bar.drawn()) as { children: unknown[] }).children.length
+
+    await ui.press({ key: 'tab-bar' })
+    expect((await ui.find({ key: 'bar-home-zone' }))?.text).toBe('Center')
+    expect((await ui.find({ key: 'bar-context-show' }))?.text).toBe('Hidden')
+    expect(await rowCount()).toBe(1)
+
+    await ui.press({ key: 'bar-context-show' })
+    expect(await bar.find({ type: 'Text', text: /context 12% full/ })).toBeDefined()
+
+    await ui.press({ key: 'bar-meter-row' })
+    expect((await ui.find({ key: 'bar-meter-row' }))?.text).toBe('Bar 2')
+    expect(await rowCount()).toBe(2)
+
+    await ui.press({ key: 'bar-home-zone' })
+    expect((await ui.find({ key: 'bar-home-zone' }))?.text).toBe('Right')
+
+    await ui.press({ key: 'bar-home-show' })
+    expect(await bar.find({ key: 'home' })).toBeUndefined()
+
+    await ui.press({ key: 'bar-reset' })
+    expect(await bar.find({ key: 'home' })).toBeDefined()
+    expect(await rowCount()).toBe(1)
+    await ui.unmount()
+    await bar.unmount()
+  })
+
+  test(`Agent HQ lists agents, stands one down and dismisses one on ${surface}`, async ($, on) => {
     const seen = world(on, 50)
     await start($)
     const ui = await $.ui.mount({
@@ -189,7 +255,7 @@ for (const surface of SURFACES) {
       props: { ...PANE, title: 'Agent HQ' },
     })
 
-    expect(await ui.find({ type: 'Text', text: /On assignment \(1\)/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /In the field \(1\)/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /Scout the test suite/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /mission complete/ })).toBeDefined()
     expect(await ui.find({ key: 'stop-a2' })).toBeUndefined()
@@ -197,6 +263,49 @@ for (const surface of SURFACES) {
     await ui.press({ key: 'stop-a1' })
     expect(seen.stopped).toEqual(['a1'])
     expect(await ui.find({ type: 'Text', text: /told to stand down/ })).toBeDefined()
+
+    await ui.press({ key: 'dismiss-a2' })
+    expect(await ui.find({ type: 'Text', text: /Review the diff/ })).toBeUndefined()
+    await ui.unmount()
+  })
+
+  test(`Agent HQ saves, re-models, sends and deletes an agent on ${surface}`, async ($, on) => {
+    const seen = world(on, 50)
+    await start($)
+    const ui = await $.ui.mount({
+      plugin: 'clubhouse',
+      surface,
+      component: 'Pane',
+      requestId: 'clubhouse-agents',
+      props: { ...PANE, title: 'Agent HQ' },
+    })
+
+    await ui.press({ key: 'agent-new' })
+    await ui.press({ key: 'agent-save' })
+    expect(await ui.find({ type: 'Text', text: /needs a name, a purpose and instructions/ })).toBeDefined()
+
+    await ui.input({ key: 'agent-name', text: 'Test Scout' })
+    await ui.input({ key: 'agent-purpose', text: 'Finds which tests cover a change' })
+    await ui.input({ key: 'agent-prompt', text: 'Read code and report file paths.' })
+    await ui.press({ key: 'agent-save' })
+
+    expect(seen.registered).toEqual([{ name: 'test-scout', model: 'haiku' }])
+    expect(await ui.find({ type: 'Text', text: /Your agents \(1\)/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /picked for you/ })).toBeDefined()
+
+    await ui.press({ key: 'model-test-scout' })
+    expect(seen.registered.at(-1)).toEqual({ name: 'test-scout', model: 'sonnet' })
+
+    await ui.press({ key: 'send-test-scout' })
+    await ui.input({ key: 'agent-task', text: 'Check the usage tests' })
+    await ui.press({ key: 'agent-dispatch' })
+    expect(seen.spawned.map(one => one.prompt)).toEqual(['Check the usage tests'])
+    expect(seen.appended).toHaveLength(1)
+    expect(seen.appended[0]).toMatch(/dispatched the agent/)
+    expect(await ui.find({ type: 'Text', text: /is on assignment/ })).toBeDefined()
+
+    await ui.press({ key: 'delete-test-scout' })
+    expect(await ui.find({ type: 'Text', text: /Your agents \(0\)/ })).toBeDefined()
     await ui.unmount()
   })
 

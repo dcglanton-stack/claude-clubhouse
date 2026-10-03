@@ -21,7 +21,7 @@ A Claude Code function-hooks plugin (a "mod"). The plugin is the `clubhouse/` fo
 2. Add one line to `hooks/register.tsx`.
 3. Declare any new state in `types/index.d.ts`.
 4. A feature with its own screen is a room: add it to `ROOMS` in `hooks/lib/defaults.ts` and render pane `clubhouse-<name>`; the home screen and `/clubhouse <word>` pick it up.
-5. A feature on the bar gets an on/off switch with a one-line description in `BAND_TOGGLES` (`hooks/features/home.tsx`).
+5. A feature on the bar is a bar item: add it to `BAR_ITEMS`, `DEFAULT_BAR` and `BarLayout`, and draw it in `piece()` in `hooks/features/band.tsx`. The Bar layout tab picks it up.
 6. Remove it from `PLANNED` in `home.tsx` and add a test in `tests/`.
 
 ## Conventions
@@ -32,7 +32,9 @@ A Claude Code function-hooks plugin (a "mod"). The plugin is the `clubhouse/` fo
 - Desktop draws with `Svg`; the terminal has none, so every `Svg` needs a text fallback (`'Svg' in elements`).
 - Text on a user-chosen background takes `inkOn(background)` so it stays readable.
 - Everything the Clubhouse shows respects `prefs.isEnabled`.
-- Keep the bar quiet: new bar items default to off.
+- Keep the bar quiet: new bar items default to hidden.
+- Form fields live in module variables (`draft` in `agents.tsx`), not state, so typing does not redraw the pane.
+- Sections in a pane are bordered cards (`card(title, body)`), one idea per card, one line per row.
 - No unnecessary comments.
 
 ## Release

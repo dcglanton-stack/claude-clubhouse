@@ -1,10 +1,10 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, On } from 'claude-code'
 
-import type { Prefs } from '../../types'
+import type { BarItemId, BarZone, Prefs } from '../../types'
 import { meterSvg, moodFor, moodName } from '../lib/clawd'
 import { inkOn, rampColor } from '../lib/color'
-import { DEFAULT_PREFS, PREFS_KEY } from '../lib/defaults'
+import { BAR_ITEMS, BAR_ROWS, DEFAULT_PREFS, PREFS_KEY } from '../lib/defaults'
 import {
   WINDOW_LABEL,
   cacheNote,
@@ -23,13 +23,12 @@ const now = atom({ plugin: 'clubhouse', key: 'now' } as const, 0)
 const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS)
 const receipt = atom({ plugin: 'clubhouse', key: 'receipt' } as const, null)
 
-const METER_WIDTH = 210
-const METER_HEIGHT = 30
-const ICON_SIZE = 26
+const BAR_HEIGHT = 32
+const WIDE_METER = 210
+const SLIM_METER = 150
 const TEXT_CELLS = 16
-const HOME_CELLS = 18
-const SIDE_FOR_DETAILS = 62
-const SIDE_FOR_CENTER = 38
+const COLUMNS_FOR_WIDE_METER = 110
+const COLUMNS_FOR_DETAILS = 150
 
 async function keep($: EngineInterface, change: (held: Prefs) => Prefs): Promise<void> {
   await update($, prefs, change)
@@ -39,10 +38,11 @@ async function keep($: EngineInterface, change: (held: Prefs) => Prefs): Promise
 export function band(on: On): void {
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const chosen = await read($, prefs)
-    const isEmpty =
-      !chosen.showHome && !chosen.showMeter && !chosen.showContext && !chosen.showReceipt
+    const rows = Array.from({ length: BAR_ROWS }, (_, index) => index + 1).filter(row =>
+      BAR_ITEMS.some(([id]) => chosen.bar[id].isShown && chosen.bar[id].row === row),
+    )
 
-    if (e.props.hasSurvey || !chosen.isEnabled || isEmpty) {
+    if (e.props.hasSurvey || !chosen.isEnabled || rows.length === 0) {
       return next(e)
     }
 
@@ -55,9 +55,7 @@ export function band(on: On): void {
     const last = await read($, lastReplyAt)
     const limit = list.find(one => one.kind === chosen.window)
     const columns = e.props.bodyColumns
-    const side = Math.floor((columns - HOME_CELLS) / 2)
-    const isCentered = chosen.showHome && side >= SIDE_FOR_CENTER
-    const hasDetails = chosen.showHome ? side >= SIDE_FOR_DETAILS : columns >= SIDE_FOR_DETAILS + 8
+    const meterWidth = columns >= COLUMNS_FOR_WIDE_METER ? WIDE_METER : SLIM_METER
     const { accent, background } = chosen.palette
     const ink = background === null ? {} : { color: inkOn(background) }
     const frame = background === null ? {} : { backgroundColor: background }
@@ -70,13 +68,13 @@ export function band(on: On): void {
       void $.ui.open({ id: 'clubhouse', title: 'Clubhouse', focus: true, closeOnEscape: true })
 
     const home = () => (
-      <Box gap={1} alignItems="center">
+      <Box gap={1} alignItems="center" flexShrink={0}>
         {'Svg' in elements && (
           <elements.Svg
-            source={homeIconSvg({ size: ICON_SIZE, accent })}
+            source={homeIconSvg({ size: BAR_HEIGHT, accent })}
             alt="Claude Clubhouse"
-            width={ICON_SIZE}
-            height={ICON_SIZE}
+            width={BAR_HEIGHT}
+            height={BAR_HEIGHT}
           />
         )}
         <Button
@@ -87,21 +85,6 @@ export function band(on: On): void {
       </Box>
     )
 
-    const extras = () => (
-      <Box gap={2} alignItems="center">
-        {chosen.showContext && context !== null && (
-          <Text {...ink} dimColor wrap="truncate">
-            context {context}% full
-          </Text>
-        )}
-        {chosen.showReceipt && made !== null && (
-          <Text {...ink} dimColor wrap="truncate">
-            {receiptNote(made)}
-          </Text>
-        )}
-      </Box>
-    )
-
     const meter = () => {
       const windowButton = (
         <Button key="window" label={WINDOW_LABEL[chosen.window]} onPress={flipWindow} />
@@ -109,7 +92,7 @@ export function band(on: On): void {
 
       if (limit === undefined) {
         return (
-          <Box gap={1} alignItems="center">
+          <Box gap={1} alignItems="center" flexShrink={0}>
             {windowButton}
             <Text {...ink} dimColor>
               usage shows after the first reply
@@ -129,7 +112,7 @@ export function band(on: On): void {
       const { filled, empty } = textBar(left, TEXT_CELLS)
 
       return (
-        <Box gap={1} alignItems="center">
+        <Box gap={1} alignItems="center" flexShrink={0}>
           {windowButton}
           {'Svg' in elements ? (
             <elements.Svg
@@ -137,12 +120,12 @@ export function band(on: On): void {
                 left,
                 barColor: rampColor(left),
                 clawdColor: chosen.palette.clawd,
-                width: METER_WIDTH,
-                height: METER_HEIGHT,
+                width: meterWidth,
+                height: BAR_HEIGHT,
               })}
               alt={`${left}% of the ${WINDOW_LABEL[chosen.window]} limit left; Clawd looks ${moodName(moodFor(left))}`}
-              width={METER_WIDTH}
-              height={METER_HEIGHT}
+              width={meterWidth}
+              height={BAR_HEIGHT}
             />
           ) : (
             <Box>
@@ -153,7 +136,7 @@ export function band(on: On): void {
           <Text {...ink} bold>
             {left}%
           </Text>
-          {hasDetails && (
+          {columns >= COLUMNS_FOR_DETAILS && (
             <Text {...ink} dimColor>
               {details}
             </Text>
@@ -162,29 +145,46 @@ export function band(on: On): void {
       )
     }
 
-    if (isCentered) {
+    const piece = (id: BarItemId) => {
+      if (id === 'home') return home()
+      if (id === 'meter') return meter()
+
+      if (id === 'context') {
+        return (
+          <Text {...ink} dimColor wrap="truncate">
+            {context === null ? 'context: no reading yet' : `context ${context}% full`}
+          </Text>
+        )
+      }
+
       return (
-        <Box width={columns} alignItems="center" {...frame}>
-          <Box width={side} overflow="hidden">
-            {extras()}
-          </Box>
-          <Box width={columns - side * 2} justifyContent="center">
-            {home()}
-          </Box>
-          <Box width={side} justifyContent="flex-end">
-            {chosen.showMeter && meter()}
-          </Box>
-        </Box>
+        <Text {...ink} dimColor wrap="truncate">
+          {made === null ? 'last turn: none yet' : receiptNote(made)}
+        </Text>
       )
     }
 
+    const zone = (row: number, where: BarZone) =>
+      BAR_ITEMS.filter(
+        ([id]) =>
+          chosen.bar[id].isShown && chosen.bar[id].row === row && chosen.bar[id].zone === where,
+      ).map(([id]) => piece(id))
+
     return (
-      <Box width={columns} justifyContent="space-between" alignItems="center" {...frame}>
-        <Box gap={2} alignItems="center">
-          {chosen.showHome && home()}
-          {extras()}
-        </Box>
-        {chosen.showMeter && meter()}
+      <Box flexDirection="column" width={columns} {...frame}>
+        {rows.map(row => (
+          <Box width={columns} alignItems="center">
+            <Box width={0} flexGrow={1} gap={2} alignItems="center">
+              {zone(row, 'left')}
+            </Box>
+            <Box flexShrink={0} gap={2} alignItems="center" justifyContent="center">
+              {zone(row, 'center')}
+            </Box>
+            <Box width={0} flexGrow={1} gap={2} alignItems="center" justifyContent="flex-end">
+              {zone(row, 'right')}
+            </Box>
+          </Box>
+        ))}
       </Box>
     )
   })

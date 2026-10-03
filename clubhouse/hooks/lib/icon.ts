@@ -31,7 +31,7 @@ export function homeIconSvg({ size, accent }: HomeIconSpec): string {
     '</defs>' +
     '<rect x="1" y="1" width="62" height="62" rx="16" fill="url(#badge)"/>' +
     '<rect x="1.5" y="1.5" width="61" height="61" rx="15.5" fill="none" stroke="#ffffff" stroke-opacity="0.1"/>' +
-    `<path d="M 40.4 18.8 A 17.5 17.5 0 1 0 40.4 41.2" fill="none" stroke="${accent}" stroke-width="9" stroke-linecap="round"/>` +
+    `<path d="M 29.4 12.7 A 17.5 17.5 0 1 0 40.4 41.2" fill="none" stroke="${accent}" stroke-width="9" stroke-linecap="round"/>` +
     `<g transform="translate(23 18.5) scale(0.07)">${house}</g>` +
     '</svg>'
   )

@@ -1,22 +1,33 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, On } from 'claude-code'
 
+import type { AgentModel, Blueprint } from '../../types'
 import { agentStatus, agentSvg } from '../lib/clawd'
 import { inkOn } from '../lib/color'
-import { DEFAULT_PREFS } from '../lib/defaults'
+import {
+  AGENTS_KEY,
+  AGENT_MODELS,
+  AGENT_PREFIX,
+  DEFAULT_AGENT_DESK,
+  DEFAULT_PREFS,
+  MODEL_LABEL,
+  agentSlug,
+} from '../lib/defaults'
 
-const agentNote = atom({ plugin: 'clubhouse', key: 'agentNote' } as const, null)
+const agentBank = atom({ plugin: 'clubhouse', key: 'agentBank' } as const, [])
+const agentDesk = atom({ plugin: 'clubhouse', key: 'agentDesk' } as const, DEFAULT_AGENT_DESK)
 const now = atom({ plugin: 'clubhouse', key: 'now' } as const, 0)
 const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS)
 const pulse = atom({ plugin: 'clubhouse', key: 'pulse' } as const, 0)
 
-const CARD_UNIT = 5
-const HERO_UNIT = 9
-const PAST_SHOWN = 8
-const CARD_WIDTH = Math.ceil(17.4 * CARD_UNIT)
-const CARD_HEIGHT = Math.ceil(12 * CARD_UNIT)
-const HERO_WIDTH = Math.ceil(17.4 * HERO_UNIT)
-const HERO_HEIGHT = Math.ceil(12 * HERO_UNIT)
+const ROW_UNIT = 2
+const HEAD_UNIT = 3
+const ROW_WIDTH = Math.ceil(17.4 * ROW_UNIT)
+const ROW_HEIGHT = Math.ceil(12 * ROW_UNIT)
+const HEAD_WIDTH = Math.ceil(17.4 * HEAD_UNIT)
+const HEAD_HEIGHT = Math.ceil(12 * HEAD_UNIT)
+const PAST_SHOWN = 6
+const AUTO = 'auto'
 
 const STATUS_WORD: Record<string, string> = {
   running: 'on assignment',
@@ -25,19 +36,154 @@ const STATUS_WORD: Record<string, string> = {
   killed: 'stood down',
 }
 
+const EFFORT_LABELS = [
+  'quick lookup or formatting',
+  'everyday coding or research',
+  'deep reasoning or careful review',
+] as const
+
+const EFFORT_MODEL: Record<string, AgentModel> = {
+  'quick lookup or formatting': 'haiku',
+  'everyday coding or research': 'sonnet',
+  'deep reasoning or careful review': 'opus',
+}
+
+type Draft = { name: string; purpose: string; prompt: string; model: string }
+
+const BLANK_DRAFT: Draft = { name: '', purpose: '', prompt: '', model: AUTO }
+
+let draft: Draft = BLANK_DRAFT
+let task = ''
+
+function reason(error: unknown): string {
+  return error instanceof Error ? error.message : 'unknown error'
+}
+
+function spec(one: Blueprint) {
+  const base = { name: one.name, description: one.purpose, prompt: one.prompt }
+
+  return one.model === 'inherit' ? base : { ...base, model: one.model }
+}
+
+async function tell($: EngineInterface, note: string): Promise<void> {
+  await update($, agentDesk, desk => ({ ...desk, note }))
+  await update($, pulse, beat => beat + 1)
+}
+
+async function saveBank($: EngineInterface, change: (bank: Blueprint[]) => Blueprint[]): Promise<void> {
+  await update($, agentBank, change)
+  await $.store.set(AGENTS_KEY, await read($, agentBank))
+}
+
+async function saveDraft($: EngineInterface): Promise<void> {
+  const name = agentSlug(draft.name)
+  const purpose = draft.purpose.trim()
+  const prompt = draft.prompt.trim()
+
+  if (name === '' || purpose === '' || prompt === '') {
+    await tell($, 'An agent needs a name, a purpose and instructions. Press Enter in each box to set it.')
+
+    return
+  }
+
+  try {
+    const isAuto = draft.model === AUTO
+    const picked = isAuto
+      ? EFFORT_MODEL[(await $.model.classify(`${purpose}\n${prompt}`, EFFORT_LABELS)) ?? '']
+      : AGENT_MODELS.find(model => model === draft.model)
+    const made: Blueprint = { name, purpose, prompt, model: picked ?? 'sonnet', isAuto }
+
+    await $.agent.register(spec(made))
+    await saveBank($, bank => [...bank.filter(one => one.name !== name), made])
+    draft = BLANK_DRAFT
+    await update($, agentDesk, desk => ({ ...desk, mode: 'idle', target: null }))
+    await tell(
+      $,
+      `Saved ${name} on ${MODEL_LABEL[made.model]}${isAuto ? ' (picked for you)' : ''}. Claude can now send it out, or press Send.`,
+    )
+  } catch (error) {
+    await tell($, `Could not save the agent: ${reason(error)}`)
+  }
+}
+
+async function nextModel($: EngineInterface, name: string): Promise<void> {
+  try {
+    const held = (await read($, agentBank)).find(one => one.name === name)
+
+    if (held === undefined) return
+    const model = AGENT_MODELS[(AGENT_MODELS.indexOf(held.model) + 1) % AGENT_MODELS.length] ?? 'sonnet'
+    const made: Blueprint = { ...held, model, isAuto: false }
+
+    await $.agent.register(spec(made))
+    await saveBank($, bank => bank.map(one => (one.name === name ? made : one)))
+    await tell($, `${name} now runs on ${MODEL_LABEL[model]}.`)
+  } catch (error) {
+    await tell($, `Could not change the model: ${reason(error)}`)
+  }
+}
+
+async function removeBlueprint($: EngineInterface, name: string): Promise<void> {
+  await saveBank($, bank => bank.filter(one => one.name !== name))
+  await tell($, `${name} was removed from your agents. Claude can no longer send it out.`)
+}
+
+async function dispatch($: EngineInterface, name: string): Promise<void> {
+  const orders = task.trim()
+  const held = (await read($, agentBank)).find(one => one.name === name)
+
+  if (held === undefined || orders === '') {
+    await tell($, 'Type the task and press Enter, then press Dispatch.')
+
+    return
+  }
+
+  try {
+    const started = await $.agent.spawn({
+      subagentType: `${AGENT_PREFIX}${name}`,
+      prompt: orders,
+      description: `${name}: ${orders.slice(0, 48)}`,
+    })
+
+    if (started.deny !== undefined) {
+      await tell($, `${name} was not sent: ${started.deny}`)
+
+      return
+    }
+
+    task = ''
+    await update($, agentDesk, desk => ({ ...desk, mode: 'idle', target: null }))
+    await tell($, `${name} is on assignment.`)
+    await $.session.append({
+      message: {
+        type: 'user',
+        content: [
+          {
+            type: 'text',
+            text:
+              `Claude Clubhouse notice: the user dispatched the agent "${AGENT_PREFIX}${name}" from Agent HQ. ` +
+              `It runs in the background on ${MODEL_LABEL[held.model]}. Purpose: ${held.purpose} ` +
+              `Its instructions: ${held.prompt} Its task: ${orders} ` +
+              'Do not start a duplicate of this work; its result arrives when it finishes.',
+          },
+        ],
+      },
+    })
+  } catch (error) {
+    await tell($, `Something went wrong sending ${name}: ${reason(error)}`)
+  }
+}
+
 async function standDown($: EngineInterface, id: string, label: string): Promise<void> {
   try {
     const stopped = await $.tool.call({ tool: 'TaskStop', task_id: id })
     const refusal = stopped.deny ?? (stopped.isError === true ? 'the engine could not stop it' : null)
-    await update($, agentNote, () =>
+    await tell(
+      $,
       refusal === null ? `${label} was told to stand down.` : `Could not stop ${label}: ${refusal}`,
     )
   } catch (error) {
-    const why = error instanceof Error ? error.message : 'unknown error'
-    await update($, agentNote, () => `Could not stop ${label}: ${why}`)
+    await tell($, `Could not stop ${label}: ${reason(error)}`)
   }
-
-  await update($, pulse, beat => beat + 1)
 }
 
 export function agents(on: On): void {
@@ -53,14 +199,27 @@ export function agents(on: On): void {
     return started
   })
 
+  on('agent.offer', async ($, e, next) => {
+    if (!e.agent.startsWith(AGENT_PREFIX)) {
+      return next(e)
+    }
+
+    const bank = await read($, agentBank)
+
+    return bank.some(one => `${AGENT_PREFIX}${one.name}` === e.agent)
+      ? next(e)
+      : { isOffered: false }
+  })
+
   on('ui.render', { component: 'Pane', requestId: 'clubhouse-agents' }, async ($, e) => {
     const elements = $.ui.resolve(e)
     const { Box, Button, Text } = elements
     const chosen = await read($, prefs)
     await read($, pulse)
     await read($, now)
-    const said = await read($, agentNote)
-    const roster = await $.agent.list()
+    const desk = await read($, agentDesk)
+    const bank = await read($, agentBank)
+    const roster = (await $.agent.list()).filter(one => !desk.dismissed.includes(one.id))
     const working = roster.filter(one => agentStatus(one.status) === 'running')
     const past = roster
       .filter(one => agentStatus(one.status) !== 'running')
@@ -69,79 +228,218 @@ export function agents(on: On): void {
     const { accent, background, clawd } = chosen.palette
     const ink = background === null ? {} : { color: inkOn(background) }
     const frame = background === null ? {} : { backgroundColor: background, padding: 1 }
+    const target = bank.find(one => one.name === desk.target)
 
-    const heading = (title: string) => (
-      <Text bold color={accent}>
-        {title}
-      </Text>
-    )
     const note = (text: string) => (
       <Text {...ink} dimColor wrap="wrap">
         {text}
       </Text>
     )
-    const card = (one: (typeof roster)[number]) => {
+    const card = (title: string, body: unknown) => (
+      <Box flexDirection="column" borderStyle="round" borderColor={accent} paddingX={1}>
+        <Text bold color={accent}>
+          {title}
+        </Text>
+        {body}
+      </Box>
+    )
+    const setDesk = (mode: 'idle' | 'form' | 'send', name: string | null) =>
+      void update($, agentDesk, held => ({ ...held, mode, target: name, note: null }))
+    const openForm = (one: Blueprint | null) => {
+      draft =
+        one === null
+          ? BLANK_DRAFT
+          : { name: one.name, purpose: one.purpose, prompt: one.prompt, model: one.isAuto ? AUTO : one.model }
+      setDesk('form', one?.name ?? null)
+    }
+    const dismiss = (id: string) =>
+      void update($, agentDesk, held => ({ ...held, dismissed: [...held.dismissed, id] }))
+
+    const fieldRow = (one: (typeof roster)[number]) => {
       const status = agentStatus(one.status)
       const label = one.name ?? one.description
 
       return (
-        <Box gap={2} alignItems="center">
+        <Box gap={1} alignItems="center">
           {'Svg' in elements ? (
             <elements.Svg
-              source={agentSvg({ color: clawd, unit: CARD_UNIT, status })}
+              source={agentSvg({ color: clawd, unit: ROW_UNIT, status })}
               alt={`Agent ${label}, ${STATUS_WORD[one.status] ?? one.status}`}
-              width={CARD_WIDTH}
-              height={CARD_HEIGHT}
+              width={ROW_WIDTH}
+              height={ROW_HEIGHT}
             />
           ) : (
             <Text {...ink}>{status === 'running' ? '[■_■]' : status === 'completed' ? '[■_■]✓' : '[■_■]✗'}</Text>
           )}
           <Box flexDirection="column">
-            <Text {...ink} bold wrap="wrap">
+            <Text {...ink} wrap="truncate">
               {one.description}
             </Text>
-            {note(`${one.type} · ${STATUS_WORD[one.status] ?? one.status}`)}
-            {status === 'running' && (
-              <Box>
+            <Box gap={1} alignItems="center">
+              <Text {...ink} dimColor>
+                {one.type} · {STATUS_WORD[one.status] ?? one.status}
+              </Text>
+              {status === 'running' ? (
                 <Button
                   key={`stop-${one.id}`}
                   label="Stand down"
                   onPress={() => void standDown($, one.id, label)}
                 />
-              </Box>
-            )}
+              ) : (
+                <Button key={`dismiss-${one.id}`} label="Dismiss" onPress={() => dismiss(one.id)} />
+              )}
+            </Box>
           </Box>
         </Box>
       )
     }
 
+    const bankRow = (one: Blueprint) => (
+      <Box flexDirection="column">
+        <Box gap={1}>
+          <Text {...ink} bold>
+            {one.name}
+          </Text>
+          <Text {...ink} dimColor wrap="truncate">
+            {one.purpose}
+          </Text>
+        </Box>
+        <Box gap={1} flexWrap="wrap">
+          <Button key={`send-${one.name}`} label="Send" variant="primary" onPress={() => setDesk('send', one.name)} />
+          <Button key={`edit-${one.name}`} label="Edit" onPress={() => openForm(one)} />
+          <Button
+            key={`model-${one.name}`}
+            label={MODEL_LABEL[one.model].split(' ')[0] ?? one.model}
+            onPress={() => void nextModel($, one.name)}
+          />
+          <Button key={`delete-${one.name}`} label="Delete" onPress={() => void removeBlueprint($, one.name)} />
+        </Box>
+      </Box>
+    )
+
+    const form = () =>
+      'Input' in elements && 'Select' in elements
+        ? card(target === undefined ? 'New agent' : `Edit ${target.name}`, [
+            note('Press Enter in each box to set it, then Save.'),
+            <elements.Input
+              key="agent-name"
+              label="Name"
+              placeholder="test-scout"
+              value={draft.name}
+              onInput={typed => {
+                draft = { ...draft, name: typed }
+              }}
+              onSubmit={typed => {
+                draft = { ...draft, name: typed }
+              }}
+            />,
+            <elements.Input
+              key="agent-purpose"
+              label="When to use it"
+              placeholder="Finds which tests cover a change"
+              value={draft.purpose}
+              onInput={typed => {
+                draft = { ...draft, purpose: typed }
+              }}
+              onSubmit={typed => {
+                draft = { ...draft, purpose: typed }
+              }}
+            />,
+            <elements.Input
+              key="agent-prompt"
+              label="Instructions"
+              placeholder="You read code and report file paths. Never edit files."
+              value={draft.prompt}
+              onInput={typed => {
+                draft = { ...draft, prompt: typed }
+              }}
+              onSubmit={typed => {
+                draft = { ...draft, prompt: typed }
+              }}
+            />,
+            <elements.Select
+              key="agent-model"
+              label="Model"
+              value={draft.model}
+              options={[
+                { value: AUTO, label: 'Auto (cheapest that fits the job)' },
+                ...AGENT_MODELS.map(model => ({ value: model, label: MODEL_LABEL[model] })),
+              ]}
+              onSelect={picked => {
+                draft = { ...draft, model: picked }
+              }}
+            />,
+            <Box gap={1}>
+              <Button key="agent-save" label="Save agent" variant="primary" onPress={() => void saveDraft($)} />
+              <Button key="agent-cancel" label="Cancel" onPress={() => setDesk('idle', null)} />
+            </Box>,
+          ])
+        : card('New agent', [note('Adding agents needs a text box, which this screen does not have. Use the desktop app or terminal.')])
+
+    const send = (one: Blueprint) =>
+      'Input' in elements
+        ? card(`Send ${one.name}`, [
+            note(`Runs on ${MODEL_LABEL[one.model]}. Claude is told what it was sent to do.`),
+            <elements.Input
+              key="agent-task"
+              label="Task"
+              placeholder="What should it do right now?"
+              onInput={typed => {
+                task = typed
+              }}
+              onSubmit={typed => {
+                task = typed
+              }}
+            />,
+            <Box gap={1}>
+              <Button key="agent-dispatch" label="Dispatch" variant="primary" onPress={() => void dispatch($, one.name)} />
+              <Button key="agent-cancel" label="Cancel" onPress={() => setDesk('idle', null)} />
+            </Box>,
+          ])
+        : card(`Send ${one.name}`, [note('Sending needs a text box, which this screen does not have.')])
+
     return (
       <Box flexDirection="column" gap={1} {...frame}>
-        {note(
-          'Agent HQ. Every helper Claude sends out in this session reports here. Stand down stops one. /clubhouse agents opens this.',
-        )}
-        {roster.length === 0 && (
-          <Box flexDirection="column" gap={1}>
-            {'Svg' in elements && (
-              <elements.Svg
-                source={agentSvg({ color: clawd, unit: HERO_UNIT, status: 'running' })}
-                alt="A Clawd agent in a suit and sunglasses, waiting for orders"
-                width={HERO_WIDTH}
-                height={HERO_HEIGHT}
-              />
-            )}
-            {note('No agents in the field yet. They show up here the moment one is sent out.')}
-          </Box>
-        )}
-        {working.length > 0 && heading(`On assignment (${working.length})`)}
-        {working.map(card)}
-        {past.length > 0 && heading('Back from the field')}
-        {past.map(card)}
-        {said !== null && (
+        <Box gap={1} alignItems="center">
+          {'Svg' in elements && (
+            <elements.Svg
+              source={agentSvg({ color: clawd, unit: HEAD_UNIT, status: 'running' })}
+              alt="A Clawd agent in a suit and sunglasses"
+              width={HEAD_WIDTH}
+              height={HEAD_HEIGHT}
+            />
+          )}
+          <Text {...ink} bold>
+            Agent HQ
+          </Text>
+          {desk.mode === 'idle' && (
+            <Button key="agent-new" label="+ New agent" variant="primary" onPress={() => openForm(null)} />
+          )}
+        </Box>
+
+        {desk.mode === 'form' && form()}
+        {desk.mode === 'send' && target !== undefined && send(target)}
+        {desk.note !== null && (
           <Text {...ink} wrap="wrap">
-            {said}
+            {desk.note}
           </Text>
         )}
+
+        {card(`In the field (${working.length})`, [
+          working.length === 0 && note('No agents out right now.'),
+          ...working.map(fieldRow),
+        ])}
+
+        {card(
+          `Your agents (${bank.length})`,
+          bank.length === 0
+            ? [note('None saved yet. Press + New agent to make one you can reuse in any session.')]
+            : bank.map(bankRow),
+        )}
+
+        {past.length > 0 && card('Back from the field', past.map(fieldRow))}
+
+        {note('An agent can be stood down but not paused: Claude Code has no pause. /clubhouse agents opens this room.')}
       </Box>
     )
   })

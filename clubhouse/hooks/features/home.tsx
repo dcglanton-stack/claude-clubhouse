@@ -1,10 +1,19 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, On } from 'claude-code'
 
-import type { HomeTab, Prefs, WindowKind } from '../../types'
+import type { BarItemId, HomeTab, Prefs, WindowKind } from '../../types'
 import { agentSvg, meterSvg, moodFor, moodName } from '../lib/clawd'
 import { inkOn, rampColor } from '../lib/color'
-import { DEFAULT_PREFS, PREFS_KEY, ROOMS, topCommands } from '../lib/defaults'
+import {
+  BAR_ITEMS,
+  BAR_ROWS,
+  BAR_ZONES,
+  DEFAULT_BAR,
+  DEFAULT_PREFS,
+  PREFS_KEY,
+  ROOMS,
+  topCommands,
+} from '../lib/defaults'
 import {
   WINDOW_NAME,
   cacheNote,
@@ -26,52 +35,27 @@ const pulse = atom({ plugin: 'clubhouse', key: 'pulse' } as const, 0)
 const receipt = atom({ plugin: 'clubhouse', key: 'receipt' } as const, null)
 const tab = atom({ plugin: 'clubhouse', key: 'tab' } as const, 'home')
 
-const BIG_METER_WIDTH = 300
-const BIG_METER_HEIGHT = 44
-const LOGO_SIZE = 44
-const BADGE_UNIT = 2.6
+const BIG_METER_WIDTH = 280
+const BIG_METER_HEIGHT = 40
+const LOGO_SIZE = 40
+const BADGE_UNIT = 2
 const BADGE_WIDTH = Math.ceil(17.4 * BADGE_UNIT)
 const BADGE_HEIGHT = Math.ceil(12 * BADGE_UNIT)
 const TEXT_CELLS = 28
 const TOP_SIZE = 5
+const BUTTON_COLUMN = 20
+const NAME_COLUMN = 16
 
 const TABS: readonly (readonly [HomeTab, string])[] = [
   ['home', 'Home'],
-  ['next', 'Coming next'],
+  ['bar', 'Bar layout'],
+  ['more', 'More'],
 ]
 
-type BandToggle = 'showHome' | 'showMeter' | 'showContext' | 'showReceipt'
-
-const BAND_TOGGLES: readonly (readonly [BandToggle, string, string, string])[] = [
-  [
-    'showHome',
-    '1',
-    'Home button',
-    'The house in the middle of the bar. It opens this screen. With it off, type /clubhouse.',
-  ],
-  [
-    'showMeter',
-    '2',
-    'Usage meter',
-    'Clawd rides a bar that drains as you use your limit: green and happy when full, red and wiped out near empty. Its 5h/7d button switches windows.',
-  ],
-  [
-    'showContext',
-    '3',
-    'Context gauge',
-    'How full this conversation is. A fuller context makes every turn cost more.',
-  ],
-  [
-    'showReceipt',
-    '4',
-    'Turn receipt',
-    'After each turn: how long it took, tokens in and out, and the share of your 5-hour limit it used.',
-  ],
-]
+const ZONE_LABEL = { left: 'Left', center: 'Center', right: 'Right' } as const
 
 const PLANNED: readonly (readonly [string, string])[] = [
   ['Workshop: tools', 'Set any tool to Allow, Ask first or Block. Trade safeguards live here.'],
-  ['Workshop: agents', 'Create, save and reuse your own agent types from a form, and pick the model each one runs on.'],
   ['Workshop: recipes', 'Turn a shell command into a tool without writing code.'],
   ['Prompt tidy', 'Spell-fix or shorten the draft in the prompt box before you send it.'],
   ['Second opinion', 'Ask an outside model about the session without touching it.'],
@@ -93,14 +77,6 @@ async function visit($: EngineInterface, id: string, title: string, isOpen: bool
     await $.ui.close({ id })
   } else {
     await $.ui.open({ id, title, focus: true, closeOnEscape: true })
-  }
-
-  await update($, pulse, beat => beat + 1)
-}
-
-async function closeRooms($: EngineInterface): Promise<void> {
-  for (const room of ROOMS) {
-    await $.ui.close({ id: room.id })
   }
 
   await update($, pulse, beat => beat + 1)
@@ -130,16 +106,21 @@ export function home(on: On): void {
     const ink = background === null ? {} : { color: inkOn(background) }
     const frame = background === null ? {} : { backgroundColor: background, padding: 1 }
 
-    const heading = (title: string) => (
-      <Text bold color={accent}>
-        {title}
-      </Text>
-    )
     const note = (text: string) => (
       <Text {...ink} dimColor wrap="wrap">
         {text}
       </Text>
     )
+    const card = (title: string, body: unknown) => (
+      <Box flexDirection="column" borderStyle="round" borderColor={accent} paddingX={1}>
+        <Text bold color={accent}>
+          {title}
+        </Text>
+        {body}
+      </Box>
+    )
+    const moveSpot = (id: BarItemId, change: (spot: Prefs['bar'][BarItemId]) => Prefs['bar'][BarItemId]) =>
+      void keep($, held => ({ ...held, bar: { ...held.bar, [id]: change(held.bar[id]) } }))
 
     const header = (
       <Box flexDirection="column" gap={1}>
@@ -155,8 +136,15 @@ export function home(on: On): void {
           <Text {...ink} bold>
             Claude Clubhouse
           </Text>
+          <Button
+            key="power"
+            hotkey="0"
+            label={chosen.isEnabled ? 'On' : 'Off'}
+            variant={chosen.isEnabled ? 'primary' : 'secondary'}
+            onPress={() => void keep($, held => ({ ...held, isEnabled: !held.isEnabled }))}
+          />
         </Box>
-        <Box gap={1} flexWrap="wrap">
+        <Box gap={1}>
           {TABS.map(([id, label]) => (
             <Button
               key={`tab-${id}`}
@@ -165,13 +153,6 @@ export function home(on: On): void {
               onPress={() => void update($, tab, () => id)}
             />
           ))}
-          <Button
-            key="power"
-            hotkey="0"
-            label={chosen.isEnabled ? 'Clubhouse is on' : 'Clubhouse is off'}
-            variant={chosen.isEnabled ? 'primary' : 'secondary'}
-            onPress={() => void keep($, held => ({ ...held, isEnabled: !held.isEnabled }))}
-          />
         </Box>
       </Box>
     )
@@ -182,9 +163,7 @@ export function home(on: On): void {
       const made = await read($, receipt)
       const last = await read($, lastReplyAt)
       const stats = await read($, commandStats)
-      const open = await $.ui.panes()
-      const openIds = open.map(one => one.id)
-      const isAnyRoomOpen = ROOMS.some(room => openIds.includes(room.id))
+      const openIds = (await $.ui.panes()).map(one => one.id)
 
       const bigMeter = (kind: WindowKind) => {
         const limit = list.find(one => one.kind === kind)
@@ -201,8 +180,8 @@ export function home(on: On): void {
 
         return (
           <Box flexDirection="column">
-            <Text {...ink} bold>
-              {WINDOW_NAME[kind]}: {left}% left
+            <Text {...ink}>
+              {WINDOW_NAME[kind]}: {left}% left{reset}
             </Text>
             {'Svg' in elements ? (
               <elements.Svg
@@ -223,114 +202,141 @@ export function home(on: On): void {
                 {empty !== '' && <Text dimColor>{empty}</Text>}
               </Box>
             )}
-            {note(`${limit.percentUsed}% used${reset}`)}
           </Box>
         )
       }
 
       return (
         <Box flexDirection="column" gap={1}>
-          {note(
-            'Everything the Clubhouse adds starts here. Click the house on the bar or type /clubhouse to come back; /clubhouse off hides it all, /clubhouse on brings it back. Esc closes.',
-          )}
+          {card(
+            'Rooms',
+            ROOMS.map(room => {
+              const isOpen = openIds.includes(room.id)
 
-          {heading('Rooms')}
-          {ROOMS.map(room => {
-            const isOpen = openIds.includes(room.id)
-
-            return (
-              <Box flexDirection="column">
+              return (
                 <Box gap={1} alignItems="center">
-                  {room.word === 'agents' && 'Svg' in elements && (
-                    <elements.Svg
-                      source={agentSvg({ color: clawd, unit: BADGE_UNIT, status: 'running' })}
-                      alt="A Clawd agent in a suit and sunglasses"
-                      width={BADGE_WIDTH}
-                      height={BADGE_HEIGHT}
+                  <Box width={BUTTON_COLUMN} gap={1} alignItems="center">
+                    {room.word === 'agents' && 'Svg' in elements && (
+                      <elements.Svg
+                        source={agentSvg({ color: clawd, unit: BADGE_UNIT, status: 'running' })}
+                        alt="A Clawd agent in a suit and sunglasses"
+                        width={BADGE_WIDTH}
+                        height={BADGE_HEIGHT}
+                      />
+                    )}
+                    <Button
+                      key={`room-${room.word}`}
+                      label={isOpen ? `Close ${room.title}` : room.title}
+                      variant={isOpen ? 'primary' : 'secondary'}
+                      onPress={() => void visit($, room.id, room.title, isOpen)}
                     />
-                  )}
-                  <Button
-                    key={`room-${room.word}`}
-                    label={isOpen ? `Close ${room.title}` : room.title}
-                    variant={room.word === 'agents' && !isOpen ? 'primary' : 'secondary'}
-                    onPress={() => void visit($, room.id, room.title, isOpen)}
-                  />
-                  {isOpen && <Text {...ink}>open</Text>}
+                  </Box>
+                  <Text {...ink} dimColor wrap="truncate">
+                    {room.about}
+                  </Text>
                 </Box>
-                {note(`${room.about} /clubhouse ${room.word}`)}
-              </Box>
-            )
-          })}
-          {isAnyRoomOpen && (
-            <Box>
-              <Button key="close-rooms" label="Close all rooms" onPress={() => void closeRooms($)} />
-            </Box>
+              )
+            }),
           )}
 
-          {heading('Your commands')}
-          <Box gap={1} flexWrap="wrap">
-            {topCommands(stats, TOP_SIZE).map(name => (
-              <Button key={`top-${name}`} label={`/${name}`} onPress={() => void offer($, name)} />
-            ))}
-          </Box>
-          {note('Your most used and most recent. Clicking one puts it in the prompt box. The Commands room has the full list.')}
+          {card('Quick commands', [
+            <Box gap={1} flexWrap="wrap">
+              {topCommands(stats, TOP_SIZE).map(name => (
+                <Button key={`top-${name}`} label={`/${name}`} onPress={() => void offer($, name)} />
+              ))}
+            </Box>,
+            note('Your most used and most recent. A click puts one in the prompt box.'),
+          ])}
 
-          {heading('On the bar')}
-          {BAND_TOGGLES.map(([key, hotkey, title, about]) => (
-            <Box flexDirection="column">
-              <Box gap={1}>
-                <Button
-                  key={key}
-                  hotkey={hotkey}
-                  label={chosen[key] ? 'On' : 'Off'}
-                  variant={chosen[key] ? 'primary' : 'secondary'}
-                  onPress={() => void keep($, held => ({ ...held, [key]: !held[key] }))}
-                />
-                <Text {...ink} bold>
-                  {title}
-                </Text>
-              </Box>
-              {note(about)}
-            </Box>
-          ))}
-
-          {heading('Usage')}
-          {bigMeter('five_hour')}
-          {bigMeter('seven_day')}
-          {note(
-            `${context === null ? 'Context: no reading yet' : `Context window: ${context}% full`} · ${cacheNote(last, at)}`,
-          )}
-          {note(
-            'The cache timer counts one hour down from the last reply. After it runs out, the next turn re-reads the whole conversation at full price.',
-          )}
-          {made !== null && note(receiptNote(made))}
-
-          {heading('Changing the Clubhouse')}
-          {note(
-            'To add or change anything, tell Claude in any session: "in the clubhouse, ..." and it edits the code in ~/claude-clubhouse. Saved changes show up on their own.',
-          )}
+          {card('Usage', [
+            bigMeter('five_hour'),
+            bigMeter('seven_day'),
+            note(
+              `${context === null ? 'Context: no reading yet' : `Context ${context}% full`} · ${cacheNote(last, at)}${made === null ? '' : ` · ${receiptNote(made)}`}`,
+            ),
+          ])}
         </Box>
       )
     }
 
-    const planned = () => (
+    const bar = () => (
       <Box flexDirection="column" gap={1}>
-        {note('Planned features. Each becomes a room or a switch on the Home tab once it is built.')}
-        {PLANNED.map(([name, about]) => (
-          <Box flexDirection="column">
-            <Text {...ink} bold>
-              {name}
-            </Text>
-            {note(about)}
-          </Box>
-        ))}
+        {note(
+          'Choose what sits on the bar above the prompt and where. Each item has three buttons: show or hide it, which bar it is on, and left, center or right.',
+        )}
+        {BAR_ITEMS.map(([id, title, about]) => {
+          const spot = chosen.bar[id]
+
+          return card(title, [
+            <Box gap={1}>
+              <Button
+                key={`bar-${id}-show`}
+                label={spot.isShown ? 'Shown' : 'Hidden'}
+                variant={spot.isShown ? 'primary' : 'secondary'}
+                onPress={() => moveSpot(id, held => ({ ...held, isShown: !held.isShown }))}
+              />
+              <Button
+                key={`bar-${id}-row`}
+                label={`Bar ${spot.row}`}
+                onPress={() => moveSpot(id, held => ({ ...held, row: (held.row % BAR_ROWS) + 1 }))}
+              />
+              <Button
+                key={`bar-${id}-zone`}
+                label={ZONE_LABEL[spot.zone]}
+                onPress={() =>
+                  moveSpot(id, held => ({
+                    ...held,
+                    zone: BAR_ZONES[(BAR_ZONES.indexOf(held.zone) + 1) % BAR_ZONES.length] ?? 'left',
+                  }))
+                }
+              />
+            </Box>,
+            note(about),
+          ])
+        })}
+        <Box>
+          <Button
+            key="bar-reset"
+            label="Reset the bar"
+            onPress={() => void keep($, held => ({ ...held, bar: DEFAULT_BAR }))}
+          />
+        </Box>
+        {note('Bar 2 appears above the prompt as a second row as soon as something is placed on it.')}
+      </Box>
+    )
+
+    const more = () => (
+      <Box flexDirection="column" gap={1}>
+        {card('How to get here', [
+          note('Click Clubhouse on the bar, or type /clubhouse. Esc closes this screen.'),
+          note('/clubhouse off hides everything the Clubhouse adds; /clubhouse on brings it back.'),
+          note('/clubhouse agents, /clubhouse commands and /clubhouse colors open a room directly.'),
+        ])}
+        {card('Changing the Clubhouse', [
+          note(
+            'Tell Claude in any session: "in the clubhouse, ..." and it edits the code in ~/claude-clubhouse. Saved changes show up on their own.',
+          ),
+        ])}
+        {card(
+          'Coming next',
+          PLANNED.map(([name, about]) => (
+            <Box gap={1}>
+              <Box width={NAME_COLUMN + 4}>
+                <Text {...ink}>{name}</Text>
+              </Box>
+              <Text {...ink} dimColor wrap="truncate">
+                {about}
+              </Text>
+            </Box>
+          )),
+        )}
       </Box>
     )
 
     return (
       <Box flexDirection="column" gap={1} {...frame}>
         {header}
-        {shown === 'next' ? planned() : await main()}
+        {shown === 'bar' ? bar() : shown === 'more' ? more() : await main()}
       </Box>
     )
   })
