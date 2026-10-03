@@ -31,6 +31,17 @@ import {
   subjectsOf,
 } from '../lib/ship'
 import { forStore } from '../lib/project'
+import {
+  BUILD_DONE,
+  BUILD_NEEDS_TOOLS,
+  BUILD_NO_FOLDER,
+  BUILD_SCRIPT,
+  BUILD_TIMEOUT_MS,
+  FIND_COMPILER,
+  STOP_HELPER,
+  buildFailed,
+} from '../lib/build'
+import { ownFolder } from '../lib/own'
 
 const commandStats = atom({ plugin: 'clubhouse', key: 'commandStats' } as const, {})
 const commandsView = atom({ plugin: 'clubhouse', key: 'commandsView' } as const, DEFAULT_COMMANDS_VIEW)
@@ -193,6 +204,25 @@ async function ship($: EngineInterface, wish: string): Promise<string> {
     : `${version} is tagged and pushed, but the GitHub release could not be created. Run: gh release create ${version}`
 }
 
+async function build($: EngineInterface): Promise<string> {
+  const folder = ownFolder(await $.env.get('CLAUDE_CODE_PLUGIN_DIRS'))
+
+  if (folder === null) return BUILD_NO_FOLDER
+  const compiler = await $.process.run(FIND_COMPILER).catch(() => null)
+
+  if (compiler === null || compiler.exitCode !== 0) return BUILD_NEEDS_TOOLS
+  const built = await $.process.run(['/bin/sh', `${folder}/${BUILD_SCRIPT}`], { timeoutMs: BUILD_TIMEOUT_MS }).catch(() => null)
+
+  if (built === null || built.exitCode !== 0) {
+    return buildFailed(built === null ? '' : `${built.stdout}\n${built.stderr}`)
+  }
+
+  await $.process.run(STOP_HELPER).catch(() => undefined)
+  await keep($, held => ({ ...held, isHelperReady: true }))
+
+  return BUILD_DONE
+}
+
 export function commands(on: On): void {
   on('command.run', async ($, e, next) => {
     await count($, e.command)
@@ -220,6 +250,10 @@ export function commands(on: On): void {
             ? 'Clubhouse is on.'
             : 'Clubhouse is off. Type /clubhouse on to bring it back.',
       }
+    }
+
+    if (wish === 'build') {
+      return { text: await build($) }
     }
 
     if (wish === 'color reset' || wish === 'colors reset') {

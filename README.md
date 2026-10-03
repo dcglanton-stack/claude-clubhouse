@@ -69,6 +69,7 @@ Cloning gives you a complete copy on your own computer. Changing it, by hand or 
 | `/clubhouse usage` | Both limits, context and the cache timer, full size |
 | `/clubhouse colors` | The color picker |
 | `/clubhouse color reset` | Puts the colors back to their defaults |
+| `/clubhouse build` | Builds the helper for whole-window color (same as the Build the helper button in Colors) |
 
 The Clubhouse loads in every session through `CLAUDE_CODE_PLUGIN_DIRS` in `~/.claude/settings.json`, which points at the `clubhouse/` folder of your copy.
 

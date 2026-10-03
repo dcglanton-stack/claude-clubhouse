@@ -1320,6 +1320,23 @@ test('Build the helper builds it from the Colors room, and says what is missing 
   await ui.unmount()
 })
 
+test('/clubhouse build builds the helper and says how it went', async ($, on) => {
+  const seen = world(on, 50, { env: { CLAUDE_CODE_PLUGIN_DIRS: '/tmp/clubhouse-home/claude-clubhouse/clubhouse' } })
+  await start($)
+  const build = '/bin/sh /tmp/clubhouse-home/claude-clubhouse/helper/build.sh'
+
+  seen.replies = { '/usr/bin/xcrun --find swiftc': { stdout: '', exitCode: 1 } }
+  expect((await $.command.run({ command: 'clubhouse', args: 'build' })).text).toMatch(/xcode-select --install/)
+
+  seen.replies = {
+    '/usr/bin/xcrun --find swiftc': { stdout: '/usr/bin/swiftc\n', exitCode: 0 },
+    [build]: { stdout: 'Built window-tint\n', exitCode: 0 },
+  }
+  expect((await $.command.run({ command: 'clubhouse', args: 'build' })).text).toMatch(/The helper is built/)
+  expect(seen.launched).toContain(build)
+  expect(seen.launched).toContain('/usr/bin/pkill -x window-tint')
+})
+
 test('without a known folder the build button says how to build by hand', async ($, on) => {
   world(on, 50)
   await start($)
