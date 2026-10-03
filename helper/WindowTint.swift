@@ -39,6 +39,9 @@ let helperDirectory = FileManager.default.homeDirectoryForCurrentUser
     .appendingPathComponent(".claude/clubhouse-helper", isDirectory: true)
 let configURL = helperDirectory.appendingPathComponent("tint.json")
 let lockPath = helperDirectory.appendingPathComponent("tint.lock").path
+let logURL = helperDirectory.appendingPathComponent("tint.log")
+let largestLog = 200_000
+let tallestMenuBar: CGFloat = 60
 let appLayoutURL = FileManager.default.homeDirectoryForCurrentUser
     .appendingPathComponent("Library/Application Support/Claude/config.json")
 let narrowestWindowWithSidebar: CGFloat = 700
@@ -62,6 +65,22 @@ let lightInk = "#faf9f5"
 let darkInk = "#141413"
 let luminanceWhereDarkInkWins = 0.22
 let fallbackAlpha: CGFloat = 0.3
+
+func note(_ text: String) {
+    let line = "\(ISO8601DateFormatter().string(from: Date())) \(text)\n"
+    let size = (try? FileManager.default.attributesOfItem(atPath: logURL.path))?[.size] as? Int ?? 0
+
+    if size > largestLog || size == 0 {
+        try? line.write(to: logURL, atomically: true, encoding: .utf8)
+        return
+    }
+
+    if let handle = try? FileHandle(forWritingTo: logURL) {
+        handle.seekToEndOfFile()
+        handle.write(line.data(using: .utf8) ?? Data())
+        try? handle.close()
+    }
+}
 
 func screenWindows() -> [ScreenWindow] {
     let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
@@ -274,6 +293,7 @@ final class Tinter {
         since = started
 
         if Date().timeIntervalSince(started) > limit {
+            note("exit after \(limit)s: \(config == nil ? "no readable config" : config?.enabled == false ? "disabled" : "Claude not running")")
             exit(0)
         }
     }
@@ -371,8 +391,20 @@ final class Tinter {
         appMissingSince = nil
         let mainHeight = NSScreen.screens.first?.frame.height ?? 0
         let onScreen = screenWindows()
-        let menuBars = onScreen.filter { $0.layer == menuBarLayer }.map(\.bounds)
+        let menuBars = onScreen
+            .filter { $0.layer == menuBarLayer && $0.bounds.minY <= 0 && $0.bounds.height <= tallestMenuBar }
+            .map(\.bounds)
         let isLightApp = appIsLight(config)
+        let appWindows = onScreen.filter { window in
+            pids.contains(window.pid) && window.layer == 0 && window.alpha > 0.01
+                && window.bounds.width >= smallestTarget.width && window.bounds.height >= smallestTarget.height
+                && !menuBars.contains { bar in bar.intersection(window.bounds).height > menuBarOverlapAllowed }
+        }
+        let isDialog = { (window: ScreenWindow) -> Bool in
+            appWindows.contains { other in
+                other.id != window.id && other.bounds != window.bounds && other.bounds.contains(window.bounds)
+            }
+        }
         let isRestyled = appliedConfig != config || appliedIsLight != isLightApp
         var occluders: [CGRect] = []
         var covered: [CGRect] = []
@@ -393,6 +425,7 @@ final class Tinter {
             if pids.contains(candidate.pid),
                size.width >= smallestTarget.width,
                size.height >= smallestTarget.height,
+               !isDialog(candidate),
                !covered.contains(candidate.bounds) {
                 covered.append(candidate.bounds)
                 let frame = NSRect(
@@ -456,6 +489,8 @@ final class Tinter {
         appliedIsLight = isLightApp
 
         if layout != lastLayout {
+            let front = onScreen.prefix(12).map { "\($0.owner):\($0.layer):\(Int($0.bounds.minX)),\(Int($0.bounds.minY)) \(Int($0.bounds.width))x\(Int($0.bounds.height))" }
+            note("covering \(kept.count) window(s); in front: \(front.joined(separator: " | "))")
             lastLayout = layout
             hotUntil = Date().addingTimeInterval(secondsHotAfterChange)
         }
@@ -479,6 +514,7 @@ if lock < 0 || flock(lock, LOCK_EX | LOCK_NB) != 0 {
 
 let application = NSApplication.shared
 application.setActivationPolicy(.accessory)
+note("started")
 let tinter = Tinter()
 tinter.start()
 application.run()

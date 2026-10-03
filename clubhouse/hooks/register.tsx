@@ -28,6 +28,7 @@ import { usage } from './features/usage'
 import { usageRoom } from './features/usageRoom'
 import {
   AGENTS_KEY,
+  COLOR_PRESETS_KEY,
   COMMANDS_KEY,
   DEFAULT_HIDDEN_PLAN,
   DEFAULT_PREFS,
@@ -38,14 +39,18 @@ import {
   PREFS_SHAPE,
   TOOL_RULES_KEY,
   asBlueprints,
+  asColorPresets,
   asCommandStats,
   asHiddenPlan,
   asNames,
   asToolRules,
+  asToolbarPresets,
   isLimitList,
   mergePrefs,
+  sameSettings,
 } from './lib/defaults'
 import { percentLeft } from './lib/format'
+import { TOOLBAR_PRESETS_KEY } from './lib/toolbar'
 import { NOTES_KEY, asNotes, claim } from './lib/notes'
 import { RECIPES_KEY, asRecipes, toolSpecOf } from './lib/recipes'
 import {
@@ -78,6 +83,8 @@ const watches = atom({ plugin: 'clubhouse', key: 'watches' } as const, [])
 const watchLog = atom({ plugin: 'clubhouse', key: 'watchLog' } as const, [])
 const savedWatches = atom({ plugin: 'clubhouse', key: 'savedWatches' } as const, [])
 const notes = atom({ plugin: 'clubhouse', key: 'notes' } as const, [])
+const colorPresets = atom({ plugin: 'clubhouse', key: 'colorPresets' } as const, [])
+const toolbarPresets = atom({ plugin: 'clubhouse', key: 'toolbarPresets' } as const, [])
 const receivedNotes = atom({ plugin: 'clubhouse', key: 'receivedNotes' } as const, [])
 const pendingNotes = atom({ plugin: 'clubhouse', key: 'pendingNotes' } as const, [])
 const sessionFolder = atom({ plugin: 'clubhouse', key: 'sessionFolder' } as const, '')
@@ -97,8 +104,19 @@ async function tick($: EngineInterface): Promise<void> {
   const mode = await appModeNow($)
   const held = await read($, prefs)
 
-  if (mode === null || mode === held.appMode) return
-  const turned = { ...held, appMode: mode }
+  if (coversApp(held)) {
+    await $.process.run(['/bin/sh', '-c', START_HELPER]).catch(() => undefined)
+  }
+
+  const shared = mergePrefs(await $.store.get(PREFS_KEY))
+  const isChangedElsewhere = !sameSettings(shared, held)
+
+  if (!isChangedElsewhere && (mode === null || mode === held.appMode)) return
+  const turned = {
+    ...(isChangedElsewhere ? shared : held),
+    isHelperReady: held.isHelperReady,
+    appMode: mode ?? held.appMode,
+  }
   await update($, prefs, () => turned)
   const userFolder = await $.env.get('HOME')
 
@@ -171,6 +189,10 @@ export const register: Register = on => {
       await $.tool.register(toolSpecOf(one)).catch(() => undefined)
     }
 
+    const keptPresets = asColorPresets(await $.store.get(COLOR_PRESETS_KEY))
+    const keptLayouts = asToolbarPresets(await $.store.get(TOOLBAR_PRESETS_KEY))
+    await update($, toolbarPresets, () => keptLayouts)
+    await update($, colorPresets, () => keptPresets)
     await update($, sessionFolder, () => e.cwd)
     const keptNotes = asNotes(await $.store.get(NOTES_KEY))
     const isNewSession = !(await read($, hasBooted))

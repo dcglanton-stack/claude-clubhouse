@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, On } from 'claude-code'
 
-import type { Palette, PaletteSlot, Prefs, Reach } from '../../types'
+import type { Palette, PaletteSlot, Prefs } from '../../types'
 import {
   HELPER_CONFIG,
   READ_APP_MODE,
@@ -17,6 +17,7 @@ import { clawdSvg, wheelSvg } from '../lib/clawd'
 import { contrast, isLight, mix, normalizeHex, rgbString, shift, toHsl } from '../lib/color'
 import type { Hsl } from '../lib/color'
 import {
+  COLOR_PRESETS_KEY,
   DEFAULT_COLORS_VIEW,
   DEFAULT_PALETTE,
   DEFAULT_PREFS,
@@ -24,10 +25,12 @@ import {
   PREFS_SHAPE,
   isRecord,
   resetLook,
+  withPreset,
 } from '../lib/defaults'
 import { makeParts } from '../lib/parts'
 import { WINDOW_TINT_UNDO, windowTintSnippet } from '../lib/windowTint'
 
+const colorPresets = atom({ plugin: 'clubhouse', key: 'colorPresets' } as const, [])
 const colorsView = atom({ plugin: 'clubhouse', key: 'colorsView' } as const, DEFAULT_COLORS_VIEW)
 const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS, {
   shape: PREFS_SHAPE,
@@ -36,6 +39,7 @@ const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS
 const THEME_SLUG = 'clubhouse'
 const THEME_REF = `custom:${THEME_SLUG}`
 const WHEEL_SIZE = 110
+const PRESET_NAME_CHARS = 24
 const COMFORTABLE_CONTRAST = 4.5
 const LOOK_MODEL = 'haiku'
 const LOOK_SYSTEM =
@@ -45,34 +49,22 @@ const LOOK_SYSTEM =
   'background is a panel background. Keep accent and clawd clearly visible on background.'
 
 const SLOTS: readonly (readonly [PaletteSlot, string, string])[] = [
-  ['background', 'Background', 'The color behind everything the Clubhouse reaches.'],
-  [
-    'text',
-    'Text',
-    'The conversation text, icons and borders, while the button above says the whole session. Automatic picks dark or light, whichever reads better.',
-  ],
+  ['background', 'Background', 'The color of the whole session. Text turns dark or light on its own to stay readable.'],
   ['accent', 'Accent', 'Headings and highlights in the Clubhouse.'],
   ['clawd', 'Clawd', 'The mascot in the usage meter.'],
 ]
 
-const UNSET: Record<PaletteSlot, string> = {
-  background: 'app default',
-  text: 'automatic',
-  accent: 'app default',
-  clawd: 'app default',
-}
-
-const PRESETS: readonly (readonly [string, string])[] = [
-  ['Claude', '#d97757'],
-  ['Plush', '#e8743b'],
-  ['Sun', '#f2b632'],
-  ['Forest', '#2e8b57'],
-  ['Ocean', '#2f7fd1'],
-  ['Grape', '#7c5cd6'],
-  ['Rose', '#e0528a'],
-  ['Slate', '#3a4252'],
-  ['Night', '#15171c'],
-  ['Paper', '#f6f3ea'],
+const PRESETS: readonly (readonly [string, Palette])[] = [
+  ['Claude', { accent: '#d97757', clawd: '#d97757', background: '#262624', text: null }],
+  ['Plush', { accent: '#f0a35e', clawd: '#e8743b', background: '#3a2418', text: null }],
+  ['Forest', { accent: '#ffb81c', clawd: '#db7037', background: '#0b3d2c', text: null }],
+  ['Ocean', { accent: '#5cc8ff', clawd: '#e8743b', background: '#0d243d', text: null }],
+  ['Grape', { accent: '#c9a7ff', clawd: '#f08a5d', background: '#2a1b4a', text: null }],
+  ['Slate', { accent: '#ffd166', clawd: '#e8743b', background: '#3a4252', text: null }],
+  ['Night', { accent: '#d97757', clawd: '#e8743b', background: '#15171c', text: null }],
+  ['Sun', { accent: '#b45309', clawd: '#e8743b', background: '#fff3c4', text: null }],
+  ['Rose', { accent: '#c2255c', clawd: '#e8743b', background: '#fde8ef', text: null }],
+  ['Paper', { accent: '#c6613f', clawd: '#d97757', background: '#f6f3ea', text: null }],
 ]
 
 const ANTHROPIC: readonly (readonly [string, string])[] = [
@@ -95,12 +87,6 @@ const LOOKS: readonly (readonly [string, string, Palette])[] = [
   ['look-slate', 'Anthropic slate', { accent: '#d97757', clawd: '#d97757', background: '#141413', text: null }],
 ]
 
-const REACH_NEXT: Record<Reach, Reach> = { app: 'conversation', conversation: 'rooms', rooms: 'app' }
-const REACH_LABEL: Record<Reach, string> = {
-  app: 'Background covers: the whole session',
-  conversation: 'Background covers: the conversation',
-  rooms: 'Background covers: the Clubhouse only',
-}
 const TINT_FILE = '.claude/clubhouse-window-tint.js'
 
 const NUDGES: readonly (readonly [string, string, Partial<Hsl>])[] = [
@@ -145,7 +131,7 @@ function reason(error: unknown): string {
 }
 
 function colorOf(held: Prefs, slot: PaletteSlot): string {
-  return held.palette[slot] ?? (slot === 'text' ? inkOf(held) : backdropOf(held))
+  return held.palette[slot] ?? backdropOf(held)
 }
 
 async function appModeNow($: EngineInterface): Promise<Prefs['appMode'] | null> {
@@ -171,6 +157,27 @@ async function keep($: EngineInterface, change: (held: Prefs) => Prefs): Promise
 
 async function say($: EngineInterface, note: string): Promise<void> {
   await update($, colorsView, view => ({ ...view, note }))
+}
+
+async function savePreset($: EngineInterface, typed: string): Promise<void> {
+  const name = typed.trim().slice(0, PRESET_NAME_CHARS)
+
+  if (name === '') {
+    await say($, 'Type a name for the preset, then press Save current colors.')
+
+    return
+  }
+
+  const { palette } = await read($, prefs)
+  await update($, colorPresets, held => withPreset(held, { name, palette }))
+  await $.store.set(COLOR_PRESETS_KEY, await read($, colorPresets))
+  await say($, `Saved your colors as "${name}".`)
+}
+
+async function dropPreset($: EngineInterface, name: string): Promise<void> {
+  await update($, colorPresets, held => held.filter(one => one.name !== name))
+  await $.store.set(COLOR_PRESETS_KEY, await read($, colorPresets))
+  await say($, `Deleted the preset "${name}".`)
 }
 
 async function applyToApp($: EngineInterface): Promise<void> {
@@ -365,6 +372,7 @@ export function colors(on: On): void {
       }))
     const isHardToRead =
       coversApp(chosen) && contrast(backdropOf(chosen), inkOf(chosen)) < COMFORTABLE_CONTRAST
+    const mine = await read($, colorPresets)
 
     return (
       <Box flexDirection="column" gap={1} {...frame}>
@@ -373,23 +381,13 @@ export function colors(on: On): void {
           'Pick the colors of everything the Clubhouse draws. Choose what to color, then nudge it, pick a preset, type a hex code or describe a look. /clubhouse colors opens this.',
         )}
 
-        <Box gap={1} flexWrap="wrap">
-          <Button
-            key="reach"
-            label={REACH_LABEL[chosen.reach] ?? REACH_LABEL.app}
-            variant="primary"
-            onPress={() => void keep($, held => ({ ...held, reach: REACH_NEXT[held.reach] }))}
-          />
+        <Box>
           <Button key="reset-colors" label="Reset all to default" onPress={() => void keep($, resetLook)} />
         </Box>
         {note(
-          chosen.reach !== 'app'
-            ? 'Press the button to make your Background color the color of the whole session.'
-            : !chosen.isHelperReady
-              ? 'The helper that colors the whole session is not installed on this Mac, so the Background color stops at the conversation. Ask Claude to build it.'
-              : chosen.palette.background === null
-                ? 'Pick a Background color below and it becomes the color of the whole session: the conversation, the toolbar, the text box and the Clubhouse rooms. The sidebar keeps the app\'s own look.'
-                : 'Your Background color is the color of the whole session: the conversation, the toolbar, the text box and the Clubhouse rooms. Text, icons and borders take your Text color. The sidebar keeps the app\'s own look.',
+          !chosen.isHelperReady
+            ? 'The helper that colors the whole session is not installed on this Mac, so the Background only colors the Clubhouse and the conversation rows. Ask Claude to build it.'
+            : 'Your Background is the color of the whole session: the conversation, the toolbar, the text box and the Clubhouse rooms. The sidebar keeps the app\'s own look. These colors are the same in every session.',
         )}
         {swapsLightAndDark(chosen) &&
           note(
@@ -411,7 +409,7 @@ export function colors(on: On): void {
                 onPress={() => void update($, colorsView, held => ({ ...held, slot: id }))}
               />
               {swatch(colorOf(chosen, id))}
-              <Text {...ink}>{chosen.palette[id] ?? UNSET[id]}</Text>
+              <Text {...ink}>{chosen.palette[id] ?? 'app default'}</Text>
               <Button
                 key={`reset-${id}`}
                 label="Reset"
@@ -441,37 +439,49 @@ export function colors(on: On): void {
         </Box>
 
         {heading('Presets')}
+        {note('Each preset sets all three colors at once.')}
         <Box gap={1} flexWrap="wrap">
-          {PRESETS.map(([name, hex]) => (
-            <Button key={`preset-${name}`} label={name} onPress={() => setSlot(hex)} />
+          {PRESETS.map(([name, palette]) => (
+            <Button key={`preset-${name}`} label={name} onPress={() => void keep($, held => ({ ...held, palette }))} />
           ))}
-          {(slot === 'background' || slot === 'text') && (
-            <Button
-              key="preset-none"
-              label={slot === 'text' ? 'Automatic' : 'None'}
-              onPress={() => setSlot(null)}
-            />
-          )}
+          {LOOKS.map(([key, label, palette]) => (
+            <Button key={key} label={label} onPress={() => void keep($, held => ({ ...held, palette }))} />
+          ))}
         </Box>
 
-        {heading('Anthropic colors')}
-        {note("The palette from Anthropic's own design: warm ivory and oat neutrals with one clay accent.")}
+        {heading('Your presets')}
+        {note('Found colors you like? Give them a name and save them. A preset keeps all three colors as they are right now.')}
+        {Input !== null && (
+          <Input
+            key="preset-name"
+            label="Name"
+            placeholder="Game day"
+            submitLabel="Save current colors"
+            onSubmit={typed => void savePreset($, typed)}
+          />
+        )}
+        {mine.map(one => (
+          <Box gap={1} flexWrap="wrap" alignItems="center">
+            <Button
+              key={`mine-${one.name}`}
+              label={one.name}
+              variant="primary"
+              onPress={() => void keep($, held => ({ ...held, palette: one.palette }))}
+            />
+            {swatch(one.palette.background ?? backdropOf(chosen))}
+            {swatch(one.palette.accent)}
+            {swatch(one.palette.clawd)}
+            <Button key={`mine-delete-${one.name}`} label="Delete" onPress={() => void dropPreset($, one.name)} />
+          </Box>
+        ))}
+
+        {heading(`One color for ${slot}`)}
+        {note("Anthropic's own palette: warm ivory and oat neutrals with one clay accent. A press changes only the color chosen under What to color.")}
         <Box gap={1} flexWrap="wrap">
           {ANTHROPIC.map(([name, hex]) => (
             <Button key={`anthropic-${name}`} label={name} onPress={() => setSlot(hex)} />
           ))}
-        </Box>
-
-        {heading('Ready-made looks')}
-        {note('Sets all three colors at once.')}
-        <Box gap={1} flexWrap="wrap">
-          {LOOKS.map(([key, label, palette]) => (
-            <Button
-              key={key}
-              label={label}
-              onPress={() => void keep($, held => ({ ...held, palette }))}
-            />
-          ))}
+          {slot === 'background' && <Button key="preset-none" label="None" onPress={() => setSlot(null)} />}
         </Box>
 
         {Input !== null && (

@@ -6,6 +6,8 @@ import { DEFAULT_PREFS, PREFS_KEY, PREFS_SHAPE } from '../lib/defaults'
 import {
   DEFAULT_QUESTION,
   IDLE_OPINION,
+  FALLBACK_MODEL,
+  FALLBACK_NOTE,
   OPINION_MODELS,
   OPINION_MODEL_LABEL,
   hereRequest,
@@ -41,11 +43,16 @@ async function askHere($: EngineInterface): Promise<void> {
 async function askOutside($: EngineInterface): Promise<void> {
   await update($, opinion, () => ({ status: 'working', text: '', source: 'outside' }))
   const { opinionModel } = await read($, prefs)
-  const reply = await $.session
-    .messages()
-    .then(rows => $.model.complete(outsideRequest(opinionModel, asked(), rows)))
-    .catch(() => null)
-  await update($, opinion, () => opinionOf(reply, 'outside'))
+  const rows = await $.session.messages().catch(() => null)
+  const first = rows === null ? null : await $.model.complete(outsideRequest(opinionModel, asked(), rows)).catch(() => null)
+  const isFallback = rows !== null && opinionModel === 'fable' && (first === null || !first.isAnswered)
+  const reply = isFallback
+    ? await $.model.complete(outsideRequest(FALLBACK_MODEL, asked(), rows)).catch(() => null)
+    : first
+  const answer = opinionOf(reply, 'outside')
+  await update($, opinion, () =>
+    isFallback && answer.status === 'ready' ? { ...answer, text: `${FALLBACK_NOTE}\n\n${answer.text}` } : answer,
+  )
 }
 
 export function opinionRoom(on: On): void {

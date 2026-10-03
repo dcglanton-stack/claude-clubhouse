@@ -6,6 +6,7 @@ import type {
   BarSpot,
   BarZone,
   Blueprint,
+  ColorPreset,
   ColorsView,
   CommandStats,
   CommandsView,
@@ -17,12 +18,13 @@ import type {
   Shortcut,
   Summary,
   ToolRules,
+  ToolbarPreset,
   ToolsView,
 } from '../../types'
 
 export const DEFAULT_PALETTE: Palette = { accent: '#d97757', clawd: '#e8743b', background: null, text: null }
 
-export const MAX_BARS = 3
+export const MAX_BARS = 4
 export const MAX_SHORTCUTS = 8
 export const BAR_ZONES: readonly BarZone[] = ['left', 'center', 'right']
 
@@ -76,11 +78,12 @@ export const AGENTS_KEY = 'agents'
 export const AGENT_PREFIX = 'clubhouse:'
 export const DEFAULT_AGENT_DESK: AgentDesk = { mode: 'idle', target: null, note: null, dismissed: [] }
 
-export const AGENT_MODELS: readonly AgentModel[] = ['haiku', 'sonnet', 'opus', 'inherit']
+export const AGENT_MODELS: readonly AgentModel[] = ['haiku', 'sonnet', 'opus', 'fable', 'inherit']
 export const MODEL_LABEL: Record<AgentModel, string> = {
   haiku: 'Haiku (fast, cheapest)',
   sonnet: 'Sonnet (balanced)',
-  opus: 'Opus (strongest)',
+  opus: 'Opus (strong)',
+  fable: 'Fable (most capable; Opus steps in if you cannot use it)',
   inherit: 'Same as this session',
 }
 
@@ -226,6 +229,29 @@ function asShortcuts(saved: unknown, barCount: number): Shortcut[] {
     .slice(0, MAX_SHORTCUTS)
 }
 
+export function asBarLayout(bar: Record<string, unknown>, barCount: number): BarLayout {
+  return Object.fromEntries(BAR_ITEMS.map(([id]) => [id, asSpot(bar[id], DEFAULT_BAR[id], barCount)])) as BarLayout
+}
+
+export function asToolbarPresets(stored: unknown): ToolbarPreset[] {
+  if (!Array.isArray(stored)) return []
+
+  return stored.flatMap(one => {
+    if (!isRecord(one) || typeof one.name !== 'string' || one.name.trim() === '') return []
+    const barCount =
+      typeof one.barCount === 'number' && one.barCount >= 1 && one.barCount <= MAX_BARS ? Math.round(one.barCount) : 1
+
+    return [
+      {
+        name: one.name,
+        barCount,
+        bar: asBarLayout(isRecord(one.bar) ? one.bar : {}, barCount),
+        shortcuts: asShortcuts(one.shortcuts, barCount),
+      },
+    ]
+  })
+}
+
 export function mergePrefs(saved: unknown): Prefs {
   if (!isRecord(saved)) return DEFAULT_PREFS
   const palette = isRecord(saved.palette) ? saved.palette : {}
@@ -238,24 +264,19 @@ export function mergePrefs(saved: unknown): Prefs {
   return {
     isEnabled: typeof saved.isEnabled === 'boolean' ? saved.isEnabled : DEFAULT_PREFS.isEnabled,
     window: saved.window === 'seven_day' ? 'seven_day' : 'five_hour',
-    bar: {
-      home: asSpot(bar.home, DEFAULT_BAR.home, barCount),
-      meter: asSpot(bar.meter, DEFAULT_BAR.meter, barCount),
-      summary: asSpot(bar.summary, DEFAULT_BAR.summary, barCount),
-      tidy: asSpot(bar.tidy, DEFAULT_BAR.tidy, barCount),
-      cache: asSpot(bar.cache, DEFAULT_BAR.cache, barCount),
-      context: asSpot(bar.context, DEFAULT_BAR.context, barCount),
-      receipt: asSpot(bar.receipt, DEFAULT_BAR.receipt, barCount),
-    },
+    bar: asBarLayout(bar, barCount),
     barCount,
     shortcuts: asShortcuts(saved.shortcuts, barCount),
     autoSummary: saved.autoSummary === true,
     spendCap: typeof saved.spendCap === 'number' && saved.spendCap > 0 && saved.spendCap <= 90 ? Math.round(saved.spendCap) : 0,
     appMode: saved.appMode === 'light' ? 'light' : 'dark',
-    reach: saved.reach === 'rooms' || saved.reach === 'conversation' ? saved.reach : 'app',
+    reach: 'app',
     isHelperReady: saved.isHelperReady === true,
-    opinionModel: saved.opinionModel === 'haiku' || saved.opinionModel === 'opus' ? saved.opinionModel : 'sonnet',
-    palette: { ...DEFAULT_PALETTE, ...palette } as Palette,
+    opinionModel:
+      saved.opinionModel === 'haiku' || saved.opinionModel === 'opus' || saved.opinionModel === 'fable'
+        ? saved.opinionModel
+        : 'sonnet',
+    palette: { ...DEFAULT_PALETTE, ...palette, text: null } as Palette,
     previousTheme: typeof saved.previousTheme === 'string' ? saved.previousTheme : null,
   }
 }
@@ -266,15 +287,7 @@ export function withBarCount(held: Prefs, barCount: number): Prefs {
   return {
     ...held,
     barCount,
-    bar: {
-      home: fit(held.bar.home),
-      meter: fit(held.bar.meter),
-      summary: fit(held.bar.summary),
-      tidy: fit(held.bar.tidy),
-      cache: fit(held.bar.cache),
-      context: fit(held.bar.context),
-      receipt: fit(held.bar.receipt),
-    },
+    bar: Object.fromEntries(BAR_ITEMS.map(([id]) => [id, fit(held.bar[id])])) as BarLayout,
     shortcuts: held.shortcuts.map(one => ({ ...one, spot: fit(one.spot) })),
   }
 }
@@ -363,4 +376,56 @@ export function asHiddenPlan(saved: unknown): HiddenPlan {
   const startWith = typeof saved.startWith === 'string' && saved.startWith in presets ? saved.startWith : null
 
   return { presets, startWith }
+}
+
+export const COLOR_PRESETS_KEY = 'colorPresets'
+export const MAX_COLOR_PRESETS = 12
+
+export function withPreset(held: readonly ColorPreset[], preset: ColorPreset): ColorPreset[] {
+  return [preset, ...held.filter(one => one.name !== preset.name)].slice(0, MAX_COLOR_PRESETS)
+}
+
+export function asColorPresets(stored: unknown): ColorPreset[] {
+  if (!Array.isArray(stored)) return []
+  const hex = /^#[0-9a-f]{6}$/
+
+  return stored
+    .flatMap(one => {
+      const palette = isRecord(one) && isRecord(one.palette) ? one.palette : null
+
+      return isRecord(one) &&
+        typeof one.name === 'string' &&
+        one.name.trim() !== '' &&
+        palette !== null &&
+        typeof palette.accent === 'string' &&
+        typeof palette.clawd === 'string' &&
+        hex.test(palette.accent) &&
+        hex.test(palette.clawd) &&
+        (palette.background === null || (typeof palette.background === 'string' && hex.test(palette.background)))
+        ? [
+            {
+              name: one.name,
+              palette: { accent: palette.accent, clawd: palette.clawd, background: palette.background, text: null },
+            },
+          ]
+        : []
+    })
+    .slice(0, MAX_COLOR_PRESETS)
+}
+
+function sorted(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sorted)
+  if (!isRecord(value)) return value
+
+  return Object.fromEntries(
+    Object.keys(value)
+      .sort()
+      .map(key => [key, sorted(value[key])]),
+  )
+}
+
+export function sameSettings(one: Prefs, other: Prefs): boolean {
+  const comparable = (prefs: Prefs) => JSON.stringify(sorted({ ...prefs, isHelperReady: null, appMode: null }))
+
+  return comparable(one) === comparable(other)
 }

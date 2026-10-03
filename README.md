@@ -28,7 +28,7 @@ The Clubhouse loads in every session through `CLAUDE_CODE_PLUGIN_DIRS` in `~/.cl
 ## What is in it
 
 - **Home button**: a house with a C behind it, in the middle of the bar.
-- **Toolbar**: the strip above the prompt. Add or remove each item, move it left, center or right, and use up to three rows. Items include the Clubhouse button, usage meter, Summarize, Tidy, cache timer, context gauge and turn receipt. Make your own buttons that type a prompt or command into the prompt box.
+- **Toolbar**: the strip above the prompt. Add or remove each item, move it left, center or right, and use up to three rows. Items include the Clubhouse button, usage meter, Summarize, Tidy, cache timer, context gauge and turn receipt. Make your own buttons that type a prompt or command into the prompt box. Every item has a size and a row has a capacity, so items never overlap: a full row sends the next item to another row (up to four). Layouts can be saved and switched.
 - **Summary**: a Summarize button on the bar shortens the last reply with a small model; Auto does it for every long reply.
 - **Usage meter**: Clawd rides a bar that drains as the 5-hour or weekly limit is used. Green and happy when full, red and wiped out near empty. Shows time to reset and a one-hour cache countdown from the last reply.
 - **Agent HQ**: each subagent drawn as Clawd in a suit and sunglasses, with Stand down and Dismiss. Create your own agents from a form, save them, pick their model (or let Auto pick the cheapest that fits), and send one out with a task; Claude is told what was dispatched.
@@ -45,7 +45,7 @@ The Clubhouse loads in every session through `CLAUDE_CODE_PLUGIN_DIRS` in `~/.cl
 - **Session color**: the Background color you pick becomes the color of the whole session: conversation, bar, text box, footer and the Clubhouse rooms, flat and exact. Text, icons and borders take your Text color (dark or light automatically, or any color you choose), dim text is pulled close to it, and Clawd, the usage bar and the headings keep their own colors. The app's sidebar keeps its own look. A small macOS helper does this from outside the app (`helper/WindowTint.swift`, built by `helper/build.sh`); it notices dark or light mode on its own and stops when the Clubhouse is off or Claude quits.
 - **Exact repaint (advanced)**: Colors can copy a one-line style rule for the app's own Developer Mode console, which repaints the app itself until it restarts.
 - **Second opinion**: ask Claude in this session, or a different model that sees only an excerpt, without the question or answer entering the conversation.
-- **Colors**: Background, Text, Accent and Clawd colors by preset, hex code, nudges or a described look, each with its own Reset. Can also write a Claude Code custom theme.
+- **Colors**: Background, Accent and Clawd colors. Presets set all three at once, and you can save your own under a name. Fine-tune one color with nudges, a hex code or a described look; each has its own Reset. The same colors apply in every session. Can also write a Claude Code custom theme.
 - **Context gauge** and **turn receipt**: optional extras on the bar, off by default.
 
 ## Changing it

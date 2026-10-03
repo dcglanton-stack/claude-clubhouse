@@ -2,11 +2,13 @@ export type WindowKind = 'five_hour' | 'seven_day'
 
 export type Limit = { kind: string; percentUsed: number; resetsAt: string | null }
 
-export type PaletteSlot = 'accent' | 'clawd' | 'background' | 'text'
+export type PaletteSlot = 'accent' | 'clawd' | 'background'
 
 export type Palette = { accent: string; clawd: string; background: string | null; text: string | null }
 
 export type HomeTab = 'home' | 'more'
+
+export type ColorPreset = { name: string; palette: Palette }
 
 export type ContextSize = { tokens: number; window: number }
 
@@ -28,13 +30,15 @@ export type BarLayout = {
 
 export type Shortcut = { id: string; label: string; text: string; spot: BarSpot }
 
+export type ToolbarPreset = { name: string; bar: BarLayout; barCount: number; shortcuts: Shortcut[] }
+
 export type Summary = {
   status: 'idle' | 'working' | 'ready' | 'failed'
   text: string
   sourceChars: number
 }
 
-export type OpinionModel = 'haiku' | 'sonnet' | 'opus'
+export type OpinionModel = 'haiku' | 'sonnet' | 'opus' | 'fable'
 
 export type Opinion = {
   status: 'idle' | 'working' | 'ready' | 'failed'
@@ -133,7 +137,7 @@ export type WatchView = {
   isQuiet: boolean
 }
 
-export type AgentModel = 'haiku' | 'sonnet' | 'opus' | 'inherit'
+export type AgentModel = 'haiku' | 'sonnet' | 'opus' | 'fable' | 'inherit'
 
 export type Blueprint = {
   name: string
@@ -162,6 +166,8 @@ declare module 'claude-code' {
       receipt: Receipt | null
       tab: HomeTab
       colorsView: ColorsView
+      colorPresets: ColorPreset[]
+      toolbarPresets: ToolbarPreset[]
       commandStats: CommandStats
       commandsView: CommandsView
       hiddenCommands: string[]

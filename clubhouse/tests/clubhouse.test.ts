@@ -3,8 +3,10 @@ import type { On } from 'claude-code'
 import type { Engine, MockClock } from 'claude-code/testing'
 
 import { appModeFrom } from '../hooks/lib/appColor'
+import { mergePrefs, sameSettings } from '../hooks/lib/defaults'
 import { pixelFor, shownFrom, toDisplay, toneFor } from '../hooks/lib/tone'
 import { nextVersion, subjectsOf } from '../hooks/lib/ship'
+import { arranged, rowLoad } from '../hooks/lib/toolbar'
 import { serifSize } from '../hooks/lib/type'
 import { DEFAULT_WATCH_VIEW, stepOf, watchFrom } from '../hooks/lib/watch'
 
@@ -308,7 +310,7 @@ for (const surface of SURFACES) {
 
     expect(await ui.find({ type: 'Text', text: /82%/ })).toBeDefined()
     expect((await ui.find({ key: 'window' }))?.text).toBe('5h')
-    expect((await ui.find({ key: 'home' }))?.text).toMatch(surface === 'terminal' ? /Clubhouse/ : /▸/)
+    expect((await ui.find({ key: 'home' }))?.text).toMatch(surface === 'terminal' ? /Clubhouse/ : /→/)
 
     if (surface === 'desktop') {
       expect(await ui.findAll({ type: 'Svg' })).toHaveLength(2)
@@ -400,7 +402,7 @@ for (const surface of SURFACES) {
     expect(await bar.find({ type: 'Text', text: /context 24k\/200k full/ })).toBeDefined()
 
     await ui.press({ key: 'bar-add' })
-    expect(await ui.find({ type: 'Text', text: /You have 2 bars/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /Row 1: 14 of 14 used · Row 2: 0 of 14 used/ })).toBeDefined()
     await ui.press({ key: 'bar-meter-row' })
     expect((await ui.find({ key: 'bar-meter-row' }))?.text).toBe('Row 2')
     expect(await rowCount()).toBe(2)
@@ -779,15 +781,7 @@ test('without the helper the background paints the rooms and every conversation 
   }
   expect(JSON.stringify(await ui.drawn())).toMatch(/"backgroundColor":"#141413","padding":1/)
 
-  await ui.press({ key: 'reach' })
-  expect((await ui.find({ key: 'reach' }))?.text).toBe('Background covers: the conversation')
-  expect(await shown(reply)).toBe(tinted('#141413', [BLANK]))
-
-  await ui.press({ key: 'reach' })
-  expect((await ui.find({ key: 'reach' }))?.text).toBe('Background covers: the Clubhouse only')
-  expect(await shown(reply)).toBe(native)
-
-  await ui.press({ key: 'reach' })
+  expect(await ui.find({ key: 'reach' })).toBeUndefined()
   await ui.press({ key: 'look-ivory' })
   expect(await shown(reply)).toBe(
     tinted('#faf9f5', [
@@ -859,15 +853,6 @@ test('with the helper the whole app takes the color and the Clubhouse paints not
   await ui.press({ key: 'look-slate' })
   expect(config().enabled).toBe(true)
 
-  await ui.press({ key: 'reach' })
-  expect(config().enabled).toBe(false)
-  expect(await painted(ui)).toBe(true)
-  expect(await painted(reply)).toBe(true)
-  expect(await painted(bar)).toBe(true)
-
-  await ui.press({ key: 'reach' })
-  await ui.press({ key: 'reach' })
-  expect(config().enabled).toBe(true)
 
   expect((await run($, 'clubhouse', 'off')).text).toMatch(/Clubhouse is off/)
   expect(config().enabled).toBe(false)
@@ -1149,8 +1134,11 @@ test('the Clubhouse reads dark or light from the app instead of asking', async (
   await ui.unmount()
 })
 
-test('the Text color is what the helper writes with, and each color resets on its own', async ($, on) => {
-  const seen = world(on, 50, { hasHelper: true })
+test('a preset sets all three colors, your own presets save and return them, and each color resets alone', async ($, on) => {
+  const seen = world(on, 50, {
+    hasHelper: true,
+    stored: { colorPresets: [{ name: 'Old one', palette: { accent: '#112233', clawd: '#445566', background: '#778899' } }, { name: '', palette: {} }] },
+  })
   await start($)
   const ui = await $.ui.mount({
     plugin: 'clubhouse',
@@ -1160,36 +1148,46 @@ test('the Text color is what the helper writes with, and each color resets on it
     props: { ...PANE, title: 'Colors' },
   })
   const config = () => JSON.parse(seen.written.at(-1)?.text ?? '{}') as Record<string, unknown>
+  const hexes = async () => (await ui.findAll({ type: 'Text' })).map(one => one.text).filter(text => /^#[0-9a-f]{6}$/.test(text))
 
-  await ui.press({ key: 'preset-Night' })
-  expect(config()).toMatchObject({ enabled: true, target: '#15171c', ink: '#faf9f5' })
-
-  await ui.press({ key: 'slot-text' })
-  expect((await ui.find({ key: 'preset-none' }))?.text).toBe('Automatic')
-  await ui.press({ key: 'preset-Sun' })
-  expect(config().ink).toBe('#f2b632')
-  await ui.press({ key: 'preset-none' })
-  expect(config().ink).toBe('#faf9f5')
-  expect(await ui.find({ type: 'Text', text: /^automatic$/ })).toBeDefined()
-
-  await ui.press({ key: 'preset-Sun' })
-  await ui.press({ key: 'reset-text' })
-  expect(config().ink).toBe('#faf9f5')
+  expect(await ui.find({ key: 'slot-text' })).toBeUndefined()
+  await ui.press({ key: 'preset-Forest' })
+  expect(await hexes()).toEqual(['#0b3d2c', '#ffb81c', '#db7037'])
+  expect(config()).toMatchObject({ enabled: true, target: '#0b3d2c', ink: '#faf9f5' })
 
   await ui.press({ key: 'slot-accent' })
-  await ui.press({ key: 'preset-Ocean' })
-  expect(await ui.find({ type: 'Text', text: /^#2f7fd1$/ })).toBeDefined()
-  await ui.press({ key: 'reset-accent' })
-  expect(await ui.find({ type: 'Text', text: /^#2f7fd1$/ })).toBeUndefined()
-  expect(config().enabled).toBe(true)
+  await ui.press({ key: 'anthropic-Clay' })
+  await ui.input({ key: 'preset-name', text: '' })
+  expect(await ui.find({ type: 'Text', text: /Type a name for the preset/ })).toBeDefined()
+  await ui.input({ key: 'preset-name', text: 'Game day' })
+  expect(await ui.find({ key: 'mine-Game day' })).toBeDefined()
 
+  await ui.press({ key: 'mine-Old one' })
+  expect(await hexes()).toEqual(['#778899', '#112233', '#445566'])
+  await ui.press({ key: 'mine-Game day' })
+  expect(await hexes()).toEqual(['#0b3d2c', '#d97757', '#db7037'])
+
+  await ui.press({ key: 'reset-accent' })
+  expect(await hexes()).toEqual(['#0b3d2c', '#d97757', '#db7037'])
+  await ui.press({ key: 'reset-clawd' })
+  expect(await hexes()).toEqual(['#0b3d2c', '#d97757', '#e8743b'])
   await ui.press({ key: 'reset-background' })
   expect(config().enabled).toBe(false)
 
-  await ui.press({ key: 'slot-text' })
-  await ui.press({ key: 'preset-Sun' })
-  expect(config()).toMatchObject({ enabled: true, target: '#151515', ink: '#f2b632' })
+  await ui.press({ key: 'mine-delete-Old one' })
+  expect(await ui.find({ key: 'mine-Old one' })).toBeUndefined()
   await ui.unmount()
+})
+
+test('settings count as changed elsewhere only when something the user set differs', () => {
+  const held = mergePrefs({ palette: { accent: '#d97757', clawd: '#e8743b', background: '#141413' } })
+  const reordered = { ...held, palette: { background: '#141413', clawd: '#e8743b', text: null, accent: '#d97757' } }
+
+  expect(sameSettings(held, reordered)).toBe(true)
+  expect(sameSettings(held, { ...held, isHelperReady: true, appMode: 'light' })).toBe(true)
+  expect(sameSettings(held, { ...held, palette: { ...held.palette, background: '#faf9f5' } })).toBe(false)
+  expect(mergePrefs({ reach: 'rooms', palette: { text: '#ff0000' } }).reach).toBe('app')
+  expect(mergePrefs({ palette: { text: '#ff0000' } }).palette.text).toBeNull()
 })
 
 test('under the helper pictures are redrawn for the screen and your own prompts get a border', async ($, on) => {
@@ -1230,8 +1228,6 @@ test('under the helper pictures are redrawn for the screen and your own prompts 
   expect(await shown(notice)).toBe(native)
   expect(await shown(reply)).toBe(native)
 
-  await ui.press({ key: 'reach' })
-  expect(await shown(bar)).not.toMatch(/display-p3/)
   await ui.unmount()
   await bar.unmount()
   await mine.unmount()
@@ -1665,4 +1661,48 @@ test('/ship works out the version, asks, then tags, pushes and publishes, and on
   expect(seen.launched.at(-1)).toMatch(/^gh release create v0\.16\.0 --title v0\.16\.0 --notes /)
 
   expect((await run($, 'ship', 'soon')).text).toMatch(/"soon" is not a version/)
+})
+
+test('toolbar rows have a capacity: a full row sends the next item to another row, and layouts can be saved', async ($, on) => {
+  world(on, 50, { stored: { toolbarPresets: [{ name: 'Old layout', barCount: 2, bar: { meter: { isShown: true, row: 2, zone: 'left' } }, shortcuts: [] }] } })
+  await start($)
+  const ui = await $.ui.mount({
+    plugin: 'clubhouse',
+    surface: 'desktop',
+    component: 'Pane',
+    requestId: 'clubhouse-bar',
+    props: { ...PANE, title: 'Toolbar' },
+  })
+  const bar = await $.ui.mount({ plugin: 'clubhouse', surface: 'desktop', component: 'AbovePrompt', props: BAND })
+  const rowCount = async () => ((await bar.drawn()) as { children: unknown[] }).children.length
+
+  expect(await ui.find({ type: 'Text', text: /Row 1: 11 of 14 used/ })).toBeDefined()
+  await ui.press({ key: 'bar-context-show' })
+  await ui.press({ key: 'bar-receipt-show' })
+  expect(await ui.find({ type: 'Text', text: /Every row was full, so a new row 2 was added for it\./ })).toBeDefined()
+  expect((await ui.find({ key: 'bar-receipt-row' }))?.text).toBe('Row 2')
+  expect(await rowCount()).toBe(2)
+
+  await ui.press({ key: 'bar-cache-show' })
+  expect(await ui.find({ type: 'Text', text: /Row 1 is full, so it went on row 2\./ })).toBeDefined()
+  await ui.press({ key: 'bar-receipt-row' })
+  expect(await ui.find({ type: 'Text', text: /No other row has room for it/ })).toBeDefined()
+
+  await ui.input({ key: 'layout-name', text: 'Busy' })
+  await ui.press({ key: 'layout-Old layout' })
+  expect(await ui.find({ type: 'Text', text: /Row 1: 5 of 14 used · Row 2: 6 of 14 used/ })).toBeDefined()
+  await ui.press({ key: 'layout-Busy' })
+  expect(await ui.find({ type: 'Text', text: /Row 1: 14 of 14 used · Row 2: 8 of 14 used/ })).toBeDefined()
+  await ui.press({ key: 'layout-delete-Busy' })
+  expect(await ui.find({ key: 'layout-Busy' })).toBeUndefined()
+
+  const full = mergePrefs({ barCount: 4, bar: Object.fromEntries(['home', 'meter', 'summary', 'tidy', 'context'].map(id => [id, { isShown: true, row: 1, zone: 'left' }])) })
+  const packed = [2, 3, 4].reduce(
+    (held, row) => ({ ...held, shortcuts: [...held.shortcuts, ...Array.from({ length: 5 }, (_, at) => ({ id: `s${row}${at}`, label: 'A long label for a button', text: 'x', spot: { isShown: true, row, zone: 'left' as const } }))] }),
+    full,
+  )
+  expect(rowLoad(packed, 2)).toBe(15)
+  expect(arranged(packed, { kind: 'item', id: 'receipt' }, 'toggle').note).toMatch(/All 4 rows are full/)
+  await ui.unmount()
+  await bar.unmount()
 })
