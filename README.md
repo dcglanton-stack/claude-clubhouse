@@ -15,8 +15,10 @@ A Claude Code mod: one plugin that adds a home button and a Clawd usage meter ab
 | `/clubhouse tools` | Tool rules: make Claude ask first, or block it, per tool; one-click money safeguard |
 | `/clubhouse recipes` | Recipes: turn a terminal command into a tool Claude can call |
 | `/clubhouse watch` | Night watch: check on things on a timer while you are away |
+| `/clubhouse notes` | Session notes: leave a note for a later session |
+| `/ship` | Release what is on main: next version tag, push, GitHub release with notes (asks first) |
 | `/clubhouse commands` | Every slash command, led by your most used and most recent |
-| `/clubhouse bar` | Bar layout: add, remove and move bar items, add bars, make your own buttons |
+| `/clubhouse toolbar` | Toolbar: add, remove and move toolbar items, add rows, make your own buttons |
 | `/clubhouse usage` | Both limits, context and the cache timer, full size |
 | `/clubhouse colors` | The color picker |
 | `/clubhouse color reset` | Puts the colors back to their defaults |
@@ -26,7 +28,7 @@ The Clubhouse loads in every session through `CLAUDE_CODE_PLUGIN_DIRS` in `~/.cl
 ## What is in it
 
 - **Home button**: a house with a C behind it, in the middle of the bar.
-- **Bar layout**: add or remove each bar item, move it left, center or right, and use up to three bars. Make your own buttons that type a prompt or command into the prompt box.
+- **Toolbar**: the strip above the prompt. Add or remove each item, move it left, center or right, and use up to three rows. Items include the Clubhouse button, usage meter, Summarize, Tidy, cache timer, context gauge and turn receipt. Make your own buttons that type a prompt or command into the prompt box.
 - **Summary**: a Summarize button on the bar shortens the last reply with a small model; Auto does it for every long reply.
 - **Usage meter**: Clawd rides a bar that drains as the 5-hour or weekly limit is used. Green and happy when full, red and wiped out near empty. Shows time to reset and a one-hour cache countdown from the last reply.
 - **Agent HQ**: each subagent drawn as Clawd in a suit and sunglasses, with Stand down and Dismiss. Create your own agents from a form, save them, pick their model (or let Auto pick the cheapest that fits), and send one out with a task; Claude is told what was dispatched.
@@ -35,6 +37,8 @@ The Clubhouse loads in every session through `CLAUDE_CODE_PLUGIN_DIRS` in `~/.cl
 - **Recipes**: give a command you would type in a terminal a name, and it becomes a tool Claude can call the same way every time. Put a blank in braces, like `{file}`, for what changes; Claude fills it in, and the value reaches the command as one argument, never as shell code. Recipes run in the session's folder, are kept across sessions, follow Tool rules and the session's permission mode, and can be tried from the room.
 - **Night watch**: a timer for when you step away. Every 5 to 120 minutes it wakes Claude with your instruction, or first runs a check command (your own, or a saved recipe), which costs nothing, and only wakes Claude when the command fails, its output stops changing, or its output changes. It can also just note trouble for when you are back. A watch can be saved and started again with one press in any session, and ended at any time. A watch stops after its number of checks, will not wake Claude when under 10% of the 5-hour limit is left or while Claude is still busy with the last wake-up, and stops itself after three wake-ups in a row. It belongs to the session: the app must stay open and the Mac awake.
 - **Spend cap**: in the Usage room, pick a level (10, 20, 30 or 50% of the 5-hour limit left). Under it, Claude has to ask before starting a helper agent; you can allow one, allow them all until the limit resets, or say no. Agents you send yourself from Agent HQ are never stopped.
+- **Session notes**: a note for a later session to read. Choose who gets it (the next session in this folder, or in any folder) and how often (once, or every new session until deleted). Sessions already running never pick a note up, so two open sessions cannot both take it; "Give to this session" hands one over by hand. Claude reads a note with the session's first message.
+- **Release helper**: `/ship` (or `/ship minor`, `/ship major`, `/ship v1.2.0`) only runs from a clean `main`: it reads the last tag, drafts notes from the commits since, shows them, and after you confirm it tags, pushes and publishes the GitHub release.
 - **Design**: follows `DESIGN.md` (Anthropic's style): serif headings, hairline borders, warm neutrals and one clay accent. The Anthropic palette and three ready-made looks are in Colors.
 - **Tidy**: a bar button that fixes spelling and trims the draft in the prompt box with a small model; press it again to get your original back.
 - **Readable controls**: buttons and text boxes get a contrasting backing when your background would hide them.

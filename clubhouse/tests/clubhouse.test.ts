@@ -4,6 +4,7 @@ import type { Engine, MockClock } from 'claude-code/testing'
 
 import { appModeFrom } from '../hooks/lib/appColor'
 import { pixelFor, shownFrom, toDisplay, toneFor } from '../hooks/lib/tone'
+import { nextVersion, subjectsOf } from '../hooks/lib/ship'
 import { serifSize } from '../hooks/lib/type'
 import { DEFAULT_WATCH_VIEW, stepOf, watchFrom } from '../hooks/lib/watch'
 
@@ -44,7 +45,9 @@ type World = {
   verdict: 'allow' | 'ask' | 'deny'
   output: string
   exitCode: number
+  replies: Record<string, { stdout: string; exitCode: number }>
   submitted: string[]
+  contexts: (readonly string[])[]
   clock: MockClock
 }
 
@@ -72,12 +75,15 @@ function world(on: On, fiveHourUsed: number, setup: Setup = {}): World {
     verdict: 'allow',
     output: '',
     exitCode: 0,
+    replies: {},
     submitted: [],
+    contexts: [],
     clock: mock.clock(on, { now: NOW }),
   }
 
   on('prompt.submit', (_$, e) => {
     seen.submitted.push(e.text)
+    seen.contexts.push(e.context ?? [])
 
     return { text: e.text }
   })
@@ -92,12 +98,14 @@ function world(on: On, fiveHourUsed: number, setup: Setup = {}): World {
     const line = e.argv.join(' ')
     const isModeCheck = line.includes('userThemeMode')
 
+    const reply = Object.entries(seen.replies).find(([start]) => line.startsWith(start))?.[1]
+
     if (!isModeCheck) seen.launched.push(line)
 
     return {
       value: {
-        exitCode: isModeCheck ? 0 : seen.exitCode,
-        stdout: isModeCheck ? seen.appTheme : seen.output,
+        exitCode: isModeCheck ? 0 : (reply?.exitCode ?? seen.exitCode),
+        stdout: isModeCheck ? seen.appTheme : (reply?.stdout ?? seen.output),
         stderr: '',
         isStdoutTruncated: false,
         isStderrTruncated: false,
@@ -300,7 +308,7 @@ for (const surface of SURFACES) {
 
     expect(await ui.find({ type: 'Text', text: /82%/ })).toBeDefined()
     expect((await ui.find({ key: 'window' }))?.text).toBe('5h')
-    expect((await ui.find({ key: 'home' }))?.text).toMatch(/Clubhouse/)
+    expect((await ui.find({ key: 'home' }))?.text).toMatch(surface === 'terminal' ? /Clubhouse/ : /▸/)
 
     if (surface === 'desktop') {
       expect(await ui.findAll({ type: 'Svg' })).toHaveLength(2)
@@ -349,7 +357,7 @@ for (const surface of SURFACES) {
     expect(await ui.find({ key: 'close-agents' })).toBeUndefined()
 
     await ui.press({ key: 'room-agents' })
-    await ui.press({ key: 'room-bar' })
+    await ui.press({ key: 'room-toolbar' })
     expect(seen.open).toEqual(['clubhouse-agents', 'clubhouse-bar'])
 
     await ui.press({ key: 'close-agents' })
@@ -363,7 +371,7 @@ for (const surface of SURFACES) {
     expect((await ui.find({ key: 'power' }))?.text).toBe('Off')
 
     await ui.press({ key: 'tab-more' })
-    expect(await ui.find({ type: 'Text', text: /Session notes/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /Draw it/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /Workshop: recipes/ })).toBeUndefined()
     await ui.unmount()
   })
@@ -377,24 +385,24 @@ for (const surface of SURFACES) {
       surface,
       component: 'Pane',
       requestId: 'clubhouse-bar',
-      props: { ...PANE, title: 'Bar layout' },
+      props: { ...PANE, title: 'Toolbar' },
     })
     const rowCount = async () =>
       ((await bar.drawn()) as { children: unknown[] }).children.length
 
     expect((await ui.find({ key: 'bar-home-zone' }))?.text).toBe('Center')
-    expect((await ui.find({ key: 'bar-context-show' }))?.text).toBe('Add to bar')
+    expect((await ui.find({ key: 'bar-context-show' }))?.text).toBe('Add to toolbar')
     expect(await ui.find({ key: 'bar-meter-row' })).toBeUndefined()
     expect(await rowCount()).toBe(1)
 
     await ui.press({ key: 'bar-context-show' })
-    expect((await ui.find({ key: 'bar-context-show' }))?.text).toBe('On the bar')
-    expect(await bar.find({ type: 'Text', text: /context 12% full/ })).toBeDefined()
+    expect((await ui.find({ key: 'bar-context-show' }))?.text).toBe('On the toolbar')
+    expect(await bar.find({ type: 'Text', text: /context 24k\/200k full/ })).toBeDefined()
 
     await ui.press({ key: 'bar-add' })
     expect(await ui.find({ type: 'Text', text: /You have 2 bars/ })).toBeDefined()
     await ui.press({ key: 'bar-meter-row' })
-    expect((await ui.find({ key: 'bar-meter-row' }))?.text).toBe('Bar 2')
+    expect((await ui.find({ key: 'bar-meter-row' }))?.text).toBe('Row 2')
     expect(await rowCount()).toBe(2)
 
     await ui.press({ key: 'bar-remove' })
@@ -423,7 +431,7 @@ for (const surface of SURFACES) {
       surface,
       component: 'Pane',
       requestId: 'clubhouse-bar',
-      props: { ...PANE, title: 'Bar layout' },
+      props: { ...PANE, title: 'Toolbar' },
     })
 
     await ui.press({ key: 'shortcut-add' })
@@ -1533,4 +1541,128 @@ test('the spend cap makes Claude ask before starting a helper agent when the lim
   await ui.press({ key: 'spend-cap-restore' })
   expect((await spawn()).deny).toMatch(/spend cap/)
   await ui.unmount()
+})
+
+test('the toolbar can show the cache timer, and /clubhouse bar still opens the Toolbar room', async ($, on) => {
+  const seen = world(on, 50)
+  await start($)
+  const ui = await $.ui.mount({
+    plugin: 'clubhouse',
+    surface: 'desktop',
+    component: 'Pane',
+    requestId: 'clubhouse-bar',
+    props: { ...PANE, title: 'Toolbar' },
+  })
+  const bar = await $.ui.mount({ plugin: 'clubhouse', surface: 'desktop', component: 'AbovePrompt', props: BAND })
+
+  expect(await bar.find({ type: 'Text', text: /cache —$/ })).toBeDefined()
+  await ui.press({ key: 'bar-cache-show' })
+  expect(await bar.find({ type: 'Text', text: /^cache —$/ })).toBeDefined()
+  expect(await bar.find({ type: 'Text', text: /resets 2h 0m$/ })).toBeDefined()
+
+  expect((await run($, 'clubhouse', 'bar')).text).toBe('Toolbar opened.')
+  expect((await run($, 'clubhouse', 'toolbar')).text).toBe('Toolbar opened.')
+  expect(seen.open).toContain('clubhouse-bar')
+  await ui.unmount()
+  await bar.unmount()
+})
+
+test('a session note goes to the next new session that fits, once, and never to a reload', async ($, on) => {
+  const seen = world(on, 50, {
+    stored: {
+      notes: [
+        { id: 'note-1', text: 'Pick up at the Stripe webhook', folder: '/tmp/clubhouse-home', keep: 'once', at: 1 },
+        { id: 'note-2', text: 'Other project only', folder: '/somewhere/else', keep: 'once', at: 2 },
+        { id: 'note-3', text: 'Always use British spelling', folder: null, keep: 'always', at: 3 },
+        { id: 'note-4', text: '', folder: null, keep: 'once', at: 4 },
+      ],
+    },
+  })
+  await start($)
+  const ui = await $.ui.mount({
+    plugin: 'clubhouse',
+    surface: 'desktop',
+    component: 'Pane',
+    requestId: 'clubhouse-notes',
+    props: { ...PANE, title: 'Session notes' },
+  })
+
+  expect(seen.toasts.some(text => /2 session notes are waiting/.test(text))).toBe(true)
+  expect(await ui.find({ key: 'note-delete-note-1' })).toBeUndefined()
+  expect(await ui.find({ key: 'note-delete-note-2' })).toBeDefined()
+  expect(await ui.find({ key: 'note-delete-note-3' })).toBeDefined()
+
+  await $.prompt.submit({ text: 'hello' })
+  expect(seen.contexts.at(-1)?.join('\n')).toMatch(/- Pick up at the Stripe webhook\n- Always use British spelling/)
+  expect(seen.contexts.at(-1)?.join('\n')).not.toMatch(/Other project only/)
+
+  await $.prompt.submit({ text: 'again' })
+  expect(seen.contexts.at(-1)).toEqual([])
+
+  await start($)
+  await $.prompt.submit({ text: 'after a reload' })
+  expect(seen.contexts.at(-1)).toEqual([])
+
+  await ui.press({ key: 'note-save' })
+  expect(await ui.find({ type: 'Text', text: /Type the note and press Enter/ })).toBeDefined()
+  await ui.input({ key: 'note-text', text: 'Tests are red on purpose' })
+  expect((await ui.find({ key: 'note-where' }))?.text).toBe('For: sessions in clubhouse-home')
+  await ui.press({ key: 'note-keep' })
+  await ui.press({ key: 'note-save' })
+  expect(await ui.find({ type: 'Text', text: /Goes to every session that starts in the folder clubhouse-home, until you delete it\. Sessions already running/ })).toBeDefined()
+
+  await ui.press({ key: 'note-now-note-2' })
+  expect(await ui.find({ type: 'Text', text: /Could not hand the note to Claude/ })).toBeDefined()
+  expect(await ui.find({ key: 'note-delete-note-2' })).toBeDefined()
+
+  await ui.press({ key: `note-delete-note-${NOW}` })
+  expect(await ui.find({ key: `note-delete-note-${NOW}` })).toBeUndefined()
+  await ui.unmount()
+})
+
+test('/ship works out the version, asks, then tags, pushes and publishes, and only from a clean main', async ($, on) => {
+  const seen = world(on, 50)
+  await start($)
+  const done = (stdout: string) => ({ stdout, exitCode: 0 })
+
+  expect(nextVersion('v0.15.0', '')).toBe('v0.15.1')
+  expect(nextVersion('v0.15.0', 'minor')).toBe('v0.16.0')
+  expect(nextVersion('v0.15.0', 'major')).toBe('v1.0.0')
+  expect(nextVersion('v0.15.0', '2.0.0')).toBe('v2.0.0')
+  expect(nextVersion(null, '')).toBe('v0.1.0')
+  expect(nextVersion('v0.15.0', 'soon')).toBeNull()
+  expect(subjectsOf('Add notes\nMerge feature/x: y\n\nFix a typo\n')).toEqual(['Add notes', 'Fix a typo'])
+
+  seen.replies = { 'git rev-parse': { stdout: '', exitCode: 128 } }
+  expect((await run($, 'ship', '')).text).toMatch(/not a git repository/)
+
+  seen.replies = { 'git rev-parse': done('feature/notes\n') }
+  expect((await run($, 'ship', '')).text).toMatch(/You are on the branch feature\/notes\. Releases go out from main/)
+
+  seen.replies = { 'git rev-parse': done('main\n'), 'git status': done(' M README.md\n') }
+  expect((await run($, 'ship', '')).text).toMatch(/not committed yet/)
+
+  seen.replies = {
+    'git rev-parse': done('main\n'),
+    'git status': done(''),
+    'git describe': done('v0.15.0\n'),
+    'git log': done('Add session notes\nMerge feature/notes: notes\n'),
+    'git tag': done(''),
+    'git push': done(''),
+    'gh release create': done('https://github.com/me/repo/releases/tag/v0.16.0\n'),
+  }
+  seen.answer = 'Cancel'
+  expect((await run($, 'ship', 'minor')).text).toBe('Nothing was shipped.')
+  expect(seen.launched.some(line => line.startsWith('git tag'))).toBe(false)
+
+  seen.answer = 'Ship it'
+  expect((await run($, 'clubhouse', 'ship minor')).text).toBe(
+    'Shipped v0.16.0: https://github.com/me/repo/releases/tag/v0.16.0',
+  )
+  expect(seen.launched).toContain('git log --pretty=%s -n 60 v0.15.0..HEAD')
+  expect(seen.launched).toContain('git tag v0.16.0')
+  expect(seen.launched).toContain('git push origin main v0.16.0')
+  expect(seen.launched.at(-1)).toMatch(/^gh release create v0\.16\.0 --title v0\.16\.0 --notes /)
+
+  expect((await run($, 'ship', 'soon')).text).toMatch(/"soon" is not a version/)
 })

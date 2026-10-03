@@ -15,6 +15,7 @@ import {
 import {
   WINDOW_LABEL,
   cacheNote,
+  contextNote,
   formatSpan,
   percentLeft,
   receiptNote,
@@ -27,6 +28,7 @@ import { summaryOf, summaryRequest } from '../lib/summary'
 import { TIDY_MIN_CHARS, tidyRequest } from '../lib/tidy'
 
 const contextPercent = atom({ plugin: 'clubhouse', key: 'contextPercent' } as const, null)
+const contextSize = atom({ plugin: 'clubhouse', key: 'contextSize' } as const, null)
 const lastReplyAt = atom({ plugin: 'clubhouse', key: 'lastReplyAt' } as const, null)
 const limits = atom({ plugin: 'clubhouse', key: 'limits' } as const, [])
 const now = atom({ plugin: 'clubhouse', key: 'now' } as const, 0)
@@ -38,6 +40,7 @@ const lastAnswer = atom({ plugin: 'clubhouse', key: 'lastAnswer' } as const, '')
 const summary = atom({ plugin: 'clubhouse', key: 'summary' } as const, IDLE_SUMMARY)
 
 const BAR_HEIGHT = 32
+const HOME_ICON = 40
 const WIDE_METER = 210
 const SLIM_METER = 150
 const TEXT_CELLS = 16
@@ -143,6 +146,7 @@ export function band(on: On): void {
     const at = await read($, now)
     const list = await read($, limits)
     const context = await read($, contextPercent)
+    const size = await read($, contextSize)
     const made = await read($, receipt)
     const last = await read($, lastReplyAt)
     const limit = list.find(one => one.kind === chosen.window)
@@ -166,8 +170,8 @@ export function band(on: On): void {
 
     const home = () => (
       <Box gap={1} alignItems="center" flexShrink={0}>
-        {picture(homeIconSvg({ size: BAR_HEIGHT, accent: look.accent }), 'Claude Clubhouse', BAR_HEIGHT, BAR_HEIGHT)}
-        <Button key="home" label={canDraw ? 'Clubhouse' : '⌂ Clubhouse'} onPress={openHome} />
+        {picture(homeIconSvg({ size: HOME_ICON, accent: look.accent }), 'Claude Clubhouse', HOME_ICON, HOME_ICON)}
+        <Button key="home" label={canDraw ? '▸' : '⌂ Clubhouse'} onPress={openHome} />
       </Box>
     )
 
@@ -191,7 +195,7 @@ export function band(on: On): void {
       const untilReset = resetIn(limit, at)
       const details = [
         untilReset !== null && untilReset > 0 ? `resets ${formatSpan(untilReset)}` : null,
-        cacheNote(last, at),
+        chosen.bar.cache?.isShown === true ? null : cacheNote(last, at),
       ]
         .filter(one => one !== null)
         .join(' · ')
@@ -242,10 +246,18 @@ export function band(on: On): void {
         return <Button key="tidy" label="Tidy" onPress={() => void tidy($)} />
       }
 
+      if (id === 'cache') {
+        return (
+          <Text {...ink} dimColor wrap="truncate">
+            {cacheNote(last, at)}
+          </Text>
+        )
+      }
+
       if (id === 'context') {
         return (
           <Text {...ink} dimColor wrap="truncate">
-            {context === null ? 'context: no reading yet' : `context ${context}% full`}
+            {contextNote(size, context)}
           </Text>
         )
       }

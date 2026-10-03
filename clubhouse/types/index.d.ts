@@ -8,7 +8,9 @@ export type Palette = { accent: string; clawd: string; background: string | null
 
 export type HomeTab = 'home' | 'more'
 
-export type BarItemId = 'home' | 'meter' | 'summary' | 'tidy' | 'context' | 'receipt'
+export type ContextSize = { tokens: number; window: number }
+
+export type BarItemId = 'home' | 'meter' | 'summary' | 'tidy' | 'cache' | 'context' | 'receipt'
 
 export type BarZone = 'left' | 'center' | 'right'
 
@@ -19,6 +21,7 @@ export type BarLayout = {
   meter: BarSpot
   summary: BarSpot
   tidy: BarSpot
+  cache: BarSpot
   context: BarSpot
   receipt: BarSpot
 }
@@ -88,6 +91,10 @@ export type RecipeTrial = { name: string; text: string }
 
 export type RecipesView = { note: string | null; editing: string | null; trial: RecipeTrial | null }
 
+export type SessionNote = { id: string; text: string; folder: string | null; keep: 'once' | 'always'; at: number }
+
+export type NotesView = { note: string | null; where: 'folder' | 'anywhere'; keep: 'once' | 'always' }
+
 export type WatchTrigger = 'fails' | 'stalls' | 'changes' | 'always'
 
 export type SavedWatch = {
@@ -149,6 +156,7 @@ declare module 'claude-code' {
       limits: Limit[]
       prefs: Shaped<Prefs>
       contextPercent: number | null
+      contextSize: ContextSize | null
       lastReplyAt: number | null
       now: number
       receipt: Receipt | null
@@ -174,6 +182,12 @@ declare module 'claude-code' {
       watchView: WatchView
       savedWatches: SavedWatch[]
       capLiftedUntil: number | null
+      notes: SessionNote[]
+      receivedNotes: SessionNote[]
+      pendingNotes: SessionNote[]
+      notesView: NotesView
+      sessionFolder: string
+      hasBooted: boolean
     }
   }
 }

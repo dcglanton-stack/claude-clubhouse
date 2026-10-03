@@ -12,9 +12,12 @@ import {
   WORKING_SUMMARY,
 } from '../lib/defaults'
 import { LOW_PERCENT, WINDOW_LABEL, formatSpan, percentLeft, resetIn, usedOf } from '../lib/format'
+import { contextOf } from '../lib/notes'
 import { summaryOf, summaryRequest } from '../lib/summary'
 
 const contextPercent = atom({ plugin: 'clubhouse', key: 'contextPercent' } as const, null)
+const contextSize = atom({ plugin: 'clubhouse', key: 'contextSize' } as const, null)
+const pendingNotes = atom({ plugin: 'clubhouse', key: 'pendingNotes' } as const, [])
 const lastReplyAt = atom({ plugin: 'clubhouse', key: 'lastReplyAt' } as const, null)
 const limits = atom({ plugin: 'clubhouse', key: 'limits' } as const, [])
 const now = atom({ plugin: 'clubhouse', key: 'now' } as const, 0)
@@ -62,8 +65,15 @@ export function usage(on: On): void {
 
   on('prompt.submit', async ($, e, next) => {
     turnBase = usedOf(await read($, limits), 'five_hour')
+    const waiting = await read($, pendingNotes)
 
-    return next(e)
+    if (waiting.length === 0) {
+      return next(e)
+    }
+
+    await update($, pendingNotes, () => [])
+
+    return next({ ...e, context: [...(e.context ?? []), contextOf(waiting)] })
   })
 
   on('turn.complete', async ($, e, next) => {
@@ -125,6 +135,12 @@ export function usage(on: On): void {
     if (e.context.percent !== undefined) {
       const percent = e.context.percent
       await update($, contextPercent, () => percent)
+    }
+
+    const { tokens, window } = e.context
+
+    if (tokens !== undefined && window !== undefined) {
+      await update($, contextSize, () => ({ tokens, window }))
     }
 
     return next(e)

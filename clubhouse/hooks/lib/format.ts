@@ -47,6 +47,19 @@ export function textBar(left: number, cells: number): { filled: string; empty: s
   return { filled: '█'.repeat(filled), empty: '░'.repeat(cells - filled) }
 }
 
+export function formatSize(count: number): string {
+  if (count >= 1_000_000) return `${Number((count / 1_000_000).toFixed(1))}M`
+  if (count >= 1000) return `${Math.round(count / 1000)}k`
+
+  return String(Math.round(count))
+}
+
+export function contextNote(size: { tokens: number; window: number } | null, percent: number | null): string {
+  if (size !== null && size.window > 0) return `context ${formatSize(size.tokens)}/${formatSize(size.window)} full`
+
+  return percent === null ? 'context: no reading yet' : `context ${percent}% full`
+}
+
 export function cacheNote(lastReplyAt: number | null, at: number): string {
   if (lastReplyAt === null) return 'cache —'
   const remaining = lastReplyAt + CACHE_MINUTES * 60_000 - at

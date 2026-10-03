@@ -31,8 +31,10 @@ const TABS: readonly (readonly [HomeTab, string])[] = [
 ]
 
 const PLANNED: readonly (readonly [string, string])[] = [
-  ['Session notes', 'A note you leave for the next session.'],
-  ['Release helper', 'A /ship command for tag plus GitHub Release.'],
+  ['Ticker', 'A stock or coin on the toolbar: symbol, price and the day\'s change.'],
+  ['Live sports', 'One game\'s score and clock on the toolbar, picked from a room of games.'],
+  ['Draw it', 'A blank pad to sketch what you want instead of describing it.'],
+  ['Prompt check', 'Flags a prompt that may be misread and suggests clearer wording.'],
 ]
 
 async function keep($: EngineInterface, change: (held: Prefs) => Prefs): Promise<void> {
@@ -170,8 +172,9 @@ export function home(on: On): void {
     const more = () => (
       <Box flexDirection="column" gap={1}>
         {card('How to get here', [
-          note('Click Clubhouse on the bar, or type /clubhouse. Esc closes this screen.'),
+          note('Click the arrow beside the house on the toolbar, or type /clubhouse. Esc closes this screen.'),
           note('/clubhouse off hides everything the Clubhouse adds; /clubhouse on brings it back.'),
+          note('/ship releases what is on main: it works out the next version, drafts the notes, asks you, then tags, pushes and publishes on GitHub. /ship minor or /ship v1.2.0 picks the number.'),
           note(`A room opens directly with /clubhouse and its word: ${ROOMS.map(room => room.word).join(', ')}.`),
         ])}
         {card('Changing the Clubhouse', [
