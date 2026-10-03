@@ -77,6 +77,10 @@ A Claude Code function-hooks plugin (a "mod"). The plugin is the `clubhouse/` fo
 - The exact repaint of the app itself is the user's own Developer Mode route under Advanced in Colors (`lib/windowTint.ts`); keep that snippet to one style rule.
 - No unnecessary comments.
 
+## How it gets installed
+
+Two ways, never both at once. A working copy loaded through `CLAUDE_CODE_PLUGIN_DIRS` (how the owner and anyone changing it runs it), or `/plugin install clubhouse@claude-clubhouse` from the marketplace file `.claude-plugin/marketplace.json` at the repo root, which is also what a project's `.claude/settings.json` (`extraKnownMarketplaces` plus `enabledPlugins`) uses, cloud sessions included. An installed copy has no `CLAUDE_CODE_PLUGIN_DIRS`, so `copyFolder` falls back to the marketplace's `installLocation` in `plugins/known_marketplaces.json` to find `helper/build.sh`. The two ways use different store files, so settings do not carry over. Tested 2026-10-03 on a Mac with a separate `CLAUDE_CONFIG_DIR`; not yet seen in a cloud session.
+
 ## Building the helper
 
 Nothing builds the helper on its own. The Colors room has a Build the helper button (`buildHelper` in `colors.tsx`, messages in `lib/build.ts`): it finds the user's copy from `CLAUDE_CODE_PLUGIN_DIRS`, checks for the compiler with `xcrun --find swiftc`, runs `helper/build.sh` (up to four minutes), stops a running helper so the new one starts, and reports the result under the button. `/clubhouse build` runs the same steps from the one `command.run` hook (`build` in `commands.tsx`) and answers with the result; it exists so the build can be run and checked without a click.

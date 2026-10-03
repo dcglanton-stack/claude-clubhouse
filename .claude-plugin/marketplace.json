@@ -1,0 +1,16 @@
+{
+  "name": "claude-clubhouse",
+  "owner": {
+    "name": "Davis Glanton"
+  },
+  "plugins": [
+    {
+      "name": "clubhouse",
+      "source": "./clubhouse",
+      "description": "Claude Clubhouse: a toolbar above the prompt, rooms for agents, commands, tools and colors, and whole-window themes on macOS"
+    }
+  ],
+  "metadata": {
+    "description": "Claude Clubhouse, a mod for Claude Code: toolbar, rooms and whole-window colors"
+  }
+}

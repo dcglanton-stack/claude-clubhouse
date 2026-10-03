@@ -13,28 +13,57 @@ MIT licensed (see `LICENSE`). Not made by or affiliated with Anthropic. Clawd is
 
 ## Install
 
-1. Get your own copy. If you plan to change it and keep your changes on GitHub, press **Fork** on the repository page first and clone your fork; otherwise clone this one.
+### The quick way (every session on your computer)
+
+In any Claude Code session, type these two commands:
+
+```
+/plugin marketplace add dcglanton-stack/claude-clubhouse
+```
+
+```
+/plugin install clubhouse@claude-clubhouse
+```
+
+Then start a new session (in the desktop app, quit and reopen it so sessions that were already open pick it up). The toolbar is there above the prompt; click the house or type `/clubhouse`.
+
+For the whole-window color and the sketch pad (macOS only), type `/clubhouse build` or open Colors and press **Build the helper**. It takes under a minute, you do it once, and it needs Apple's command line tools (`xcode-select --install` if the button says they are missing).
+
+To update later: `/plugin marketplace update claude-clubhouse`. To remove: `/plugin uninstall clubhouse@claude-clubhouse`, and delete `~/.claude/clubhouse-helper`.
+
+### For one project, including cloud sessions
+
+Cloud sessions do not see your computer's settings; they read the project's own. Put this in `.claude/settings.json` in the project's repository and commit it:
+
+```json
+{
+  "extraKnownMarketplaces": {
+    "claude-clubhouse": {
+      "source": { "source": "github", "repo": "dcglanton-stack/claude-clubhouse" }
+    }
+  },
+  "enabledPlugins": { "clubhouse@claude-clubhouse": true }
+}
+```
+
+Every new session in that project then installs and loads the Clubhouse, on your computer and in the cloud. In a cloud session expect the commands and rooms at most: the whole-window color and the sketch pad are Mac programs and cannot run there, and how much of the toolbar the web and phone apps draw is up to those apps. This route has been tested on a Mac, not yet in a cloud session.
+
+### The way to change it yourself
+
+If you want to edit the Clubhouse ("in the clubhouse, add a button that..."), work from your own copy instead of an installed one:
 
 ```bash
 git clone https://github.com/dcglanton-stack/claude-clubhouse.git ~/claude-clubhouse
 ```
 
-2. Tell Claude Code to load it. In `~/.claude/settings.json`, add these two lines inside `"env"` (create `"env": { }` if it is not there), with the path to where you cloned it:
+Then in `~/.claude/settings.json`, add these two lines inside `"env"` (create `"env": { }` if it is not there), with the path to where you cloned it:
 
 ```json
 "CLAUDE_CODE_PLUGIN_DIRS": "/Users/you/claude-clubhouse/clubhouse",
 "CLAUDE_CODE_PLUGIN_DIR_WATCH": "1"
 ```
 
-3. Start a new session. The toolbar is there above the prompt; click the house or type `/clubhouse` for the home screen. Sessions that were already open pick it up after you quit and reopen the app.
-
-4. For the whole-window color and the sketch pad (macOS only), open Colors and press **Build the helper**. It builds two small programs in under a minute and you only do it once (again after an update, with **Rebuild the helper**). It needs Apple's command line tools; if they are missing the button says so, and `xcode-select --install` in Terminal gets them. You can also build by hand:
-
-```bash
-~/claude-clubhouse/helper/build.sh
-```
-
-To remove it, delete the two lines from `settings.json` and the folder `~/.claude/clubhouse-helper`.
+Use one way or the other, not both, or the Clubhouse loads twice. Settings made under one way do not carry over to the other.
 
 ## Your copy is yours
 
