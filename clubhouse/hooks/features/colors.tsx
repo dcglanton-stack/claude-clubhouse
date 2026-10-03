@@ -31,12 +31,14 @@ import {
 import { makeParts } from '../lib/parts'
 import { WINDOW_TINT_UNDO, windowTintSnippet } from '../lib/windowTint'
 import {
+  BUILD_AGAIN,
   BUILD_DONE,
   BUILD_NEEDS_TOOLS,
   BUILD_NO_FOLDER,
   BUILD_SCRIPT,
   BUILD_STARTED,
   BUILD_TIMEOUT_MS,
+  BUILD_WHY,
   FIND_COMPILER,
   STOP_HELPER,
   buildFailed,
@@ -507,9 +509,8 @@ export function colors(on: On): void {
           />
         </Box>
         {(view.helperNote ?? null) !== null && plain(view.helperNote ?? '')}
-        {chosen.isHelperReady &&
-          (view.helperNote ?? null) === null &&
-          note('Rebuild after you update the Clubhouse, so the helper matches the new version.')}
+        {note(BUILD_WHY)}
+        {chosen.isHelperReady && note(BUILD_AGAIN)}
         {swapsLightAndDark(chosen) &&
           note(
             `This is a ${chosen.appMode === 'dark' ? 'light' : 'dark'} color on a ${chosen.appMode} app, so the helper swaps light and dark across the session to keep text readable. Pictures in the conversation swap too. Switching the Claude app itself to ${chosen.appMode === 'dark' ? 'light' : 'dark'} mode avoids that, and the Clubhouse notices on its own.`,

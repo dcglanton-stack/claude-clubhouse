@@ -804,6 +804,7 @@ test('without the helper the background paints the rooms and every conversation 
   expect(await shown(reply)).toBe(native)
   expect(await ui.find({ type: 'Text', text: /is not built on this Mac yet/ })).toBeDefined()
   expect((await ui.find({ key: 'build-helper' }))?.text).toBe('Build the helper')
+  expect(await ui.find({ type: 'Text', text: /Why this button: a mod can only color what it draws itself/ })).toBeDefined()
 
   await ui.press({ key: 'look-slate' })
   for (const drawing of [mine, reply, toolRow]) {
