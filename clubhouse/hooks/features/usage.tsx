@@ -12,12 +12,24 @@ import {
   WORKING_SUMMARY,
 } from '../lib/defaults'
 import { LOW_PERCENT, WINDOW_LABEL, formatSpan, percentLeft, resetIn, usedOf } from '../lib/format'
+import {
+  GUARD_DROPPED,
+  GUARD_EDIT,
+  GUARD_SEND,
+  HANDOFF_PERCENT,
+  HANDOFF_PROMPT,
+  guardQuestion,
+  guardRequest,
+  isWorthGuarding,
+  verdictFrom,
+} from '../lib/guard'
 import { contextOf } from '../lib/notes'
 import { summaryOf, summaryRequest } from '../lib/summary'
 
 const contextPercent = atom({ plugin: 'clubhouse', key: 'contextPercent' } as const, null)
 const contextSize = atom({ plugin: 'clubhouse', key: 'contextSize' } as const, null)
 const pendingNotes = atom({ plugin: 'clubhouse', key: 'pendingNotes' } as const, [])
+const handoff = atom({ plugin: 'clubhouse', key: 'handoff' } as const, 'idle')
 const lastReplyAt = atom({ plugin: 'clubhouse', key: 'lastReplyAt' } as const, null)
 const limits = atom({ plugin: 'clubhouse', key: 'limits' } as const, [])
 const now = atom({ plugin: 'clubhouse', key: 'now' } as const, 0)
@@ -30,6 +42,8 @@ const lastAnswer = atom({ plugin: 'clubhouse', key: 'lastAnswer' } as const, '')
 const summary = atom({ plugin: 'clubhouse', key: 'summary' } as const, IDLE_SUMMARY)
 
 const warned = new Set<string>()
+
+let hasOfferedHandoff = false
 
 function warnWhenLow($: EngineInterface, list: readonly Limit[], at: number): void {
   for (const one of list) {
@@ -65,6 +79,25 @@ export function usage(on: On): void {
 
   on('prompt.submit', async ($, e, next) => {
     turnBase = usedOf(await read($, limits), 'five_hour')
+    const chosen = await read($, prefs)
+
+    if (chosen.isEnabled && chosen.warnsSafeguards === true && isWorthGuarding(e.text, e.origin?.kind ?? 'composer')) {
+      const reply = await $.model.complete(guardRequest(e.text)).catch(() => null)
+      const verdict = reply !== null && reply.isAnswered ? verdictFrom(reply.text) : null
+
+      if (verdict !== null && verdict.risk !== 'none') {
+        const answer = await $.ui
+          .ask(guardQuestion(verdict), { header: 'Safeguard warning', options: [GUARD_EDIT, GUARD_SEND] })
+          .catch(() => GUARD_SEND)
+
+        if (answer === GUARD_EDIT) {
+          await $.prompt.fill({ text: e.text }).catch(() => undefined)
+
+          return { drop: GUARD_DROPPED }
+        }
+      }
+    }
+
     const waiting = await read($, pendingNotes)
 
     if (waiting.length === 0) {
@@ -91,6 +124,11 @@ export function usage(on: On): void {
       }
       await update($, lastReplyAt, () => at)
       await update($, receipt, () => made)
+
+      if ((await read($, handoff)) === 'armed') {
+        await update($, handoff, () => 'sent')
+        void $.prompt.submit({ text: HANDOFF_PROMPT }).catch(() => undefined)
+      }
 
       if (e.answer.trim() !== '') {
         const answer = e.answer.slice(0, ANSWER_LIMIT)
@@ -135,6 +173,13 @@ export function usage(on: On): void {
     if (e.context.percent !== undefined) {
       const percent = e.context.percent
       await update($, contextPercent, () => percent)
+
+      if (percent >= HANDOFF_PERCENT && !hasOfferedHandoff && (await read($, handoff)) === 'idle' && (await read($, prefs)).isEnabled) {
+        hasOfferedHandoff = true
+        $.ui.toast(`This conversation is ${percent}% full. The toolbar has a button to write a handoff file for a fresh session.`, {
+          timeoutMs: 10_000,
+        })
+      }
     }
 
     const { tokens, window } = e.context

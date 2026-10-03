@@ -12,7 +12,7 @@ export type ColorPreset = { name: string; palette: Palette }
 
 export type ContextSize = { tokens: number; window: number }
 
-export type BarItemId = 'home' | 'meter' | 'summary' | 'tidy' | 'cache' | 'context' | 'receipt' | 'ticker' | 'sports'
+export type BarItemId = 'home' | 'meter' | 'summary' | 'tidy' | 'cache' | 'context' | 'receipt' | 'ticker' | 'sports' | 'draw'
 
 export type BarZone = 'left' | 'center' | 'right'
 
@@ -28,6 +28,7 @@ export type BarLayout = {
   receipt: BarSpot
   ticker: BarSpot
   sports: BarSpot
+  draw: BarSpot
 }
 
 export type Shortcut = { id: string; label: string; text: string; spot: BarSpot }
@@ -58,6 +59,7 @@ export type Prefs = {
   shortcuts: Shortcut[]
   autoSummary: boolean
   spendCap: number
+  warnsSafeguards: boolean
   appMode: 'dark' | 'light'
   reach: Reach
   isHelperReady: boolean
@@ -203,6 +205,7 @@ declare module 'claude-code' {
       logos: { [key: string]: string }
       sportsView: SportsView
       sportsCheckedAt: number
+      handoff: 'idle' | 'armed' | 'sent' | 'dismissed'
       commandStats: CommandStats
       commandsView: CommandsView
       hiddenCommands: string[]

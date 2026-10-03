@@ -24,6 +24,8 @@ import {
 } from '../lib/format'
 import { homeIconSvg } from '../lib/icon'
 import { makeParts } from '../lib/parts'
+import { HANDOFF_ARM, HANDOFF_PERCENT } from '../lib/guard'
+import { DRAW_BINARY, DRAW_DONE, DRAW_MISSING, DRAW_OPEN, DRAW_TIMEOUT_MS, sketchPrompt } from '../lib/draw'
 import { DEFAULT_SPORTS, gameLine, logoKey, scoreSvg } from '../lib/sports'
 import { summaryOf, summaryRequest } from '../lib/summary'
 import { DEFAULT_TICKER, DOWN_COLOR, UP_COLOR, changeText, priceText } from '../lib/ticker'
@@ -33,6 +35,7 @@ import { TIDY_MIN_CHARS, tidyRequest } from '../lib/tidy'
 const contextPercent = atom({ plugin: 'clubhouse', key: 'contextPercent' } as const, null)
 const contextSize = atom({ plugin: 'clubhouse', key: 'contextSize' } as const, null)
 const ticker = atom({ plugin: 'clubhouse', key: 'ticker' } as const, DEFAULT_TICKER)
+const handoff = atom({ plugin: 'clubhouse', key: 'handoff' } as const, 'idle')
 const sports = atom({ plugin: 'clubhouse', key: 'sports' } as const, DEFAULT_SPORTS)
 const liveGame = atom({ plugin: 'clubhouse', key: 'liveGame' } as const, null)
 const logos = atom({ plugin: 'clubhouse', key: 'logos' } as const, {})
@@ -121,6 +124,32 @@ async function tidy($: EngineInterface): Promise<void> {
   }
 }
 
+async function drawIt($: EngineInterface): Promise<void> {
+  const userFolder = await $.env.get('HOME')
+  const pad = `${userFolder ?? ''}/${DRAW_BINARY}`
+
+  if (userFolder === undefined || !(await $.fs.exists(pad).catch(() => false))) {
+    $.ui.toast(DRAW_MISSING, { timeoutMs: 8000 })
+
+    return
+  }
+
+  $.ui.toast(DRAW_OPEN)
+  const ran = await $.process.run([pad], { timeoutMs: DRAW_TIMEOUT_MS }).catch(() => null)
+  const path = ran !== null && ran.exitCode === 0 ? ran.stdout.trim() : ''
+
+  if (path === '') return
+  const draft = await $.prompt.read().then(
+    box => box.text,
+    () => '',
+  )
+  const isFilled = await $.prompt.fill({ text: sketchPrompt(draft, path) }).then(
+    filled => filled.isFilled,
+    () => false,
+  )
+  $.ui.toast(isFilled ? DRAW_DONE : `Your sketch is saved at ${path}. Tell Claude to look at it.`, { timeoutMs: 8000 })
+}
+
 async function offer($: EngineInterface, text: string): Promise<void> {
   try {
     const { isFilled } = await $.prompt.fill({ text })
@@ -157,6 +186,7 @@ export function band(on: On): void {
     const context = await read($, contextPercent)
     const size = await read($, contextSize)
     const plan = await read($, ticker)
+    const handoffState = await read($, handoff)
     const game: Game | null = await read($, liveGame)
     const marks: { [key: string]: string } = await read($, logos)
     const wanted = (await read($, sports)).gameId
@@ -260,6 +290,10 @@ export function band(on: On): void {
         return <Button key="tidy" label="Tidy" onPress={() => void tidy($)} />
       }
 
+      if (id === 'draw') {
+        return <Button key="draw" label="Draw it" onPress={() => void drawIt($)} />
+      }
+
       if (id === 'sports') {
 
         if (game === null || game.id !== wanted) {
@@ -356,6 +390,19 @@ export function band(on: On): void {
 
     return (
       <Box flexDirection="column" width={columns} {...frame}>
+        {handoffState === 'idle' && context !== null && context >= HANDOFF_PERCENT && (
+          <Box gap={1} alignItems="center" flexWrap="wrap">
+            <Text {...ink}>This conversation is {context}% full.</Text>
+            <Button key="handoff-arm" label={HANDOFF_ARM} variant="primary" onPress={() => void update($, handoff, () => 'armed')} />
+            <Button key="handoff-dismiss" label="Not now" onPress={() => void update($, handoff, () => 'dismissed')} />
+          </Box>
+        )}
+        {handoffState === 'armed' && (
+          <Box gap={1} alignItems="center" flexWrap="wrap">
+            <Text {...ink}>Claude writes HANDOFF.md as soon as your next prompt is finished.</Text>
+            <Button key="handoff-cancel" label="Cancel" onPress={() => void update($, handoff, () => 'dismissed')} />
+          </Box>
+        )}
         {rows.map(row => (
           <Box width={edge === null ? columns : columns - FRAME_CELLS} alignItems="center">
             <Box width={0} flexGrow={1} gap={2} alignItems="center">

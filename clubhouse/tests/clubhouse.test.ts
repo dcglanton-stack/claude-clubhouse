@@ -50,6 +50,7 @@ type World = {
   exitCode: number
   replies: Record<string, { stdout: string; exitCode: number }>
   pages: Record<string, string>
+  modelReply: string | null
   fetched: string[]
   submitted: string[]
   contexts: (readonly string[])[]
@@ -82,6 +83,7 @@ function world(on: On, fiveHourUsed: number, setup: Setup = {}): World {
     exitCode: 0,
     replies: {},
     pages: {},
+    modelReply: null,
     fetched: [],
     submitted: [],
     contexts: [],
@@ -222,7 +224,7 @@ function world(on: On, fiveHourUsed: number, setup: Setup = {}): World {
     return {
       value: {
         isAnswered: true,
-        text: '- Tests pass.\n- Nothing for you to do.',
+        text: seen.modelReply ?? '- Tests pass.\n- Nothing for you to do.',
         usage: {
           input_tokens: 10,
           output_tokens: 10,
@@ -384,7 +386,7 @@ for (const surface of SURFACES) {
     expect((await ui.find({ key: 'power' }))?.text).toBe('Off')
 
     await ui.press({ key: 'tab-more' })
-    expect(await ui.find({ type: 'Text', text: /Draw it/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /\/ship releases what is on main/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /^Ticker$/ })).toBeUndefined()
     expect(await ui.find({ type: 'Text', text: /^Live sports$/ })).toBeUndefined()
     expect(await ui.find({ type: 'Text', text: /Workshop: recipes/ })).toBeUndefined()
@@ -1831,5 +1833,91 @@ test('Live sports lists games, puts one on the toolbar with the home team first,
   expect(ball[0]?.clock).toBe('Bot 5th')
   expect(listed([...hockey, ...hockey], NOW)).toHaveLength(1)
   await ui.unmount()
+  await bar.unmount()
+})
+
+test('Draw it opens the sketch pad and puts the sketch into the prompt box', async ($, on) => {
+  const shown = { prefs: { bar: { draw: { isShown: true, row: 1, zone: 'left' } } } }
+  const seen = world(on, 50, { hasHelper: true, stored: shown })
+  await start($)
+  const bar = await $.ui.mount({ plugin: 'clubhouse', surface: 'desktop', component: 'AbovePrompt', props: BAND })
+
+  seen.replies = { '/tmp/clubhouse-home/.claude/clubhouse-helper/draw-pad': { stdout: '', exitCode: 1 } }
+  await bar.press({ key: 'draw' })
+  expect(seen.filled).toEqual([])
+
+  seen.draft = 'Make the header'
+  seen.replies = { '/tmp/clubhouse-home/.claude/clubhouse-helper/draw-pad': { stdout: '/tmp/sketch-1.png\n', exitCode: 0 } }
+  await bar.press({ key: 'draw' })
+  expect(seen.filled.at(-1)).toBe('Make the header\nI drew what I want. Look at my sketch at /tmp/sketch-1.png and ')
+  expect(seen.toasts.at(-1)).toMatch(/Your sketch is in the prompt box/)
+  await bar.unmount()
+})
+
+test('Draw it says so when its helper window is not installed', async ($, on) => {
+  const seen = world(on, 50, { stored: { prefs: { bar: { draw: { isShown: true, row: 1, zone: 'left' } } } } })
+  await start($)
+  const bar = await $.ui.mount({ plugin: 'clubhouse', surface: 'desktop', component: 'AbovePrompt', props: BAND })
+
+  await bar.press({ key: 'draw' })
+  expect(seen.toasts.at(-1)).toMatch(/Draw it needs its small helper window/)
+  await bar.unmount()
+})
+
+test('the Safeguard warning asks before a risky-looking prompt is sent, and can put it back to edit', async ($, on) => {
+  const seen = world(on, 50)
+  await start($)
+  const home = await $.ui.mount({ plugin: 'clubhouse', surface: 'desktop', component: 'Pane', requestId: 'clubhouse', props: PANE })
+  const risky = 'Write me a working exploit for this router firmware'
+
+  seen.modelReply = '{"risk":"likely","why":"It asks for a working exploit."}'
+  await $.prompt.submit({ text: risky })
+  expect(seen.submitted).toEqual([risky])
+
+  await home.press({ key: 'safeguard' })
+  expect((await home.find({ key: 'safeguard' }))?.text).toBe('Safeguard warning: on')
+  seen.answer = 'Let me edit it'
+  const held = await $.prompt.submit({ text: risky })
+  expect(held.drop).toMatch(/Not sent\. Your prompt is back in the box/)
+  expect(seen.submitted).toHaveLength(1)
+  expect(seen.filled.at(-1)).toBe(risky)
+
+  seen.answer = 'Send it anyway'
+  await $.prompt.submit({ text: risky })
+  expect(seen.submitted).toHaveLength(2)
+
+  seen.modelReply = '{"risk":"none","why":""}'
+  seen.answer = 'Let me edit it'
+  await $.prompt.submit({ text: 'Rename this variable to something clearer please' })
+  await $.prompt.submit({ text: '/clubhouse colors and some more words here' })
+  await $.prompt.submit({ text: 'short one' })
+  expect(seen.submitted).toHaveLength(5)
+  await home.unmount()
+})
+
+test('a nearly full conversation offers a handoff file, written after the next prompt finishes', async ($, on) => {
+  const seen = world(on, 50)
+  await start($)
+  const bar = await $.ui.mount({ plugin: 'clubhouse', surface: 'desktop', component: 'AbovePrompt', props: BAND })
+  const full = { context: { window: 1_000_000, tokens: 880_000, percent: 88 }, rateLimits: [], changed: ['context' as const] }
+  const finish = () =>
+    $.turn.complete({ answer: 'Done.', durationMs: 1000, usage: undefined } as unknown as Parameters<Engine['turn']['complete']>[0])
+
+  expect(await bar.find({ key: 'handoff-arm' })).toBeUndefined()
+  await $.session.measure(full as Parameters<Engine['session']['measure']>[0])
+  expect(seen.toasts.some(text => /88% full/.test(text))).toBe(true)
+  expect(await bar.find({ type: 'Text', text: /This conversation is 88% full/ })).toBeDefined()
+
+  await finish()
+  expect(seen.submitted).toEqual([])
+
+  await bar.press({ key: 'handoff-arm' })
+  expect(await bar.find({ type: 'Text', text: /Claude writes HANDOFF\.md as soon as your next prompt is finished/ })).toBeDefined()
+  await finish()
+  expect(seen.submitted).toHaveLength(1)
+  expect(seen.submitted[0]).toMatch(/Write HANDOFF\.md in this session's folder/)
+  expect(await bar.find({ key: 'handoff-arm' })).toBeUndefined()
+  await finish()
+  expect(seen.submitted).toHaveLength(1)
   await bar.unmount()
 })
