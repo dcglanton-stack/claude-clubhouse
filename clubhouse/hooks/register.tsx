@@ -1,8 +1,16 @@
-import { atom, update } from 'claude-code'
-import type { Register } from 'claude-code'
+import { atom, read, update } from 'claude-code'
+import type { EngineInterface, Register } from 'claude-code'
 
-import type { Blueprint, Limit } from '../types'
-import { HELPER_BINARY, HELPER_CONFIG, START_HELPER, coversApp, helperConfig } from './lib/appColor'
+import type { Blueprint, Limit, Prefs } from '../types'
+import {
+  HELPER_BINARY,
+  HELPER_CONFIG,
+  READ_APP_MODE,
+  START_HELPER,
+  appModeFrom,
+  coversApp,
+  helperConfig,
+} from './lib/appColor'
 import { agents } from './features/agents'
 import { band } from './features/band'
 import { bar } from './features/bar'
@@ -49,12 +57,34 @@ const toolRules = atom({ plugin: 'clubhouse', key: 'toolRules' } as const, {})
 
 const TICK_MS = 30_000
 
+async function appModeNow($: EngineInterface): Promise<Prefs['appMode'] | null> {
+  const ran = await $.process.run(['/bin/sh', '-c', READ_APP_MODE]).catch(() => null)
+
+  return ran === null ? null : appModeFrom(ran.stdout)
+}
+
+async function tick($: EngineInterface): Promise<void> {
+  const at = await $.clock.now()
+  await update($, now, () => at)
+  const mode = await appModeNow($)
+  const held = await read($, prefs)
+
+  if (mode === null || mode === held.appMode) return
+  const turned = { ...held, appMode: mode }
+  await update($, prefs, () => turned)
+  const userFolder = await $.env.get('HOME')
+
+  if (userFolder === undefined) return
+  await $.fs.write(`${userFolder}/${HELPER_CONFIG}`, helperConfig(turned)).catch(() => undefined)
+}
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const userFolder = await $.env.get('HOME')
     const isHelperReady =
       userFolder !== undefined && (await $.fs.exists(`${userFolder}/${HELPER_BINARY}`).catch(() => false))
-    const saved = { ...mergePrefs(await $.store.get(PREFS_KEY)), isHelperReady }
+    const merged = mergePrefs(await $.store.get(PREFS_KEY))
+    const saved = { ...merged, isHelperReady, appMode: (await appModeNow($)) ?? merged.appMode }
     await update($, prefs, () => saved)
 
     if (userFolder !== undefined) {
@@ -100,7 +130,7 @@ export const register: Register = on => {
 
     const startedAt = await $.clock.now()
     await update($, now, () => startedAt)
-    $.clock.every(TICK_MS, () => void $.clock.now().then(at => update($, now, () => at)))
+    $.clock.every(TICK_MS, () => void tick($).catch(() => undefined))
 
     await $.command.register({
       name: 'clubhouse',

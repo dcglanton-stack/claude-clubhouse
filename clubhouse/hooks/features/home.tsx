@@ -78,25 +78,17 @@ async function offer($: EngineInterface, name: string): Promise<void> {
 export function home(on: On): void {
   on('ui.render', { component: 'Pane', requestId: 'clubhouse' }, async ($, e) => {
     const elements = $.ui.resolve(e)
-    const canDraw = e.surface !== 'terminal'
     const { Box, Text } = elements
     const chosen = await read($, prefs)
     const shown = await read($, tab)
     const at = await read($, now)
     await read($, pulse)
-    const { ink, frame, note, title, card, meter, Button } = makeParts(elements, chosen, e.surface)
+    const { ink, frame, note, title, card, meter, look, picture, Button } = makeParts(elements, chosen, e.surface)
 
     const header = (
       <Box flexDirection="column" gap={1}>
         <Box gap={1} alignItems="center">
-          {canDraw && 'Svg' in elements && (
-            <elements.Svg
-              source={homeIconSvg({ size: LOGO_SIZE, accent: chosen.palette.accent })}
-              alt="Claude Clubhouse"
-              width={LOGO_SIZE}
-              height={LOGO_SIZE}
-            />
-          )}
+          {picture(homeIconSvg({ size: LOGO_SIZE, accent: look.accent }), 'Claude Clubhouse', LOGO_SIZE, LOGO_SIZE)}
           {title('Claude Clubhouse')}
           <Button
             key="power"

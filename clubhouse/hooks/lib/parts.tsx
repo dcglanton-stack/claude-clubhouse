@@ -1,10 +1,11 @@
 import type { ElementConstructor, Elements, RenderElement } from 'claude-code'
 
 import type { Limit, Prefs, WindowKind } from '../../types'
-import { edgeOf, paintOf } from './appColor'
-import { meterSvg, moodFor, moodName } from './clawd'
-import { inkOn, isLight, rampColor, surfaceFor } from './color'
+import { lookOf } from './appColor'
+import { meterSvg, moodFor, moodName, swatchSvg } from './clawd'
+import { isLight, rampColor, surfaceFor } from './color'
 import { WINDOW_NAME, formatSpan, percentLeft, resetIn, textBar } from './format'
+import { recolor } from './tone'
 import { serifSize, serifSvg } from './type'
 
 type Kit = Elements[keyof Elements]
@@ -20,7 +21,8 @@ export type MeterBlock = {
 const TEXT_CELLS = 28
 const TITLE_SIZE = 24
 const HEADING_SIZE = 17
-const HAIRLINE = '#87867f'
+const SWATCH_WIDTH = 30
+const SWATCH_HEIGHT = 16
 const ROW_BLEED = 1
 
 export function tintRow(kit: Kit, prefs: Prefs, drawing: RenderElement) {
@@ -41,11 +43,23 @@ export function tintRow(kit: Kit, prefs: Prefs, drawing: RenderElement) {
   )
 }
 
+export function frameRow(kit: Kit, edge: string, drawing: RenderElement) {
+  const { Box } = kit
+
+  return (
+    <Box flexDirection="column" alignItems="flex-end">
+      <Box borderStyle="round" borderColor={edge} paddingX={1}>
+        {drawing}
+      </Box>
+    </Box>
+  )
+}
+
 export function makeParts(kit: Kit, prefs: Prefs, surface: string) {
   const { Box, Text } = kit
   const { appMode } = prefs
-  const { accent, clawd } = prefs.palette
-  const background = paintOf(prefs)
+  const look = lookOf(prefs, surface)
+  const { background } = look
   const needsChip = background !== null && isLight(background) !== (appMode === 'light')
   const chipColor = surfaceFor(appMode === 'light')
   const chipped =
@@ -62,15 +76,25 @@ export function makeParts(kit: Kit, prefs: Prefs, surface: string) {
   const Input = 'Input' in kit ? chipped(kit.Input) : null
   const Select = 'Select' in kit ? chipped(kit.Select) : null
   const Markdown = 'Markdown' in kit ? chipped(kit.Markdown) : null
-  const canDraw = surface !== 'terminal'
-  const ink = background === null ? {} : { color: inkOn(background) }
-  const edge = edgeOf(prefs)
+  const canDraw = surface !== 'terminal' && 'Svg' in kit
+  const ink = background === null ? {} : { color: look.ink }
   const frame =
-    edge !== null
-      ? { borderStyle: 'round', borderColor: edge, paddingX: 1 }
+    look.edge !== null
+      ? { borderStyle: 'round', borderColor: look.edge, paddingX: 1 }
       : background === null
         ? {}
         : { backgroundColor: background, padding: 1 }
+  const picture = (source: string, alt: string, width: number, height: number) =>
+    canDraw && 'Svg' in kit ? (
+      <kit.Svg source={recolor(source, look.tone)} alt={alt} width={width} height={height} />
+    ) : null
+  const swatch = (color: string) =>
+    picture(
+      swatchSvg({ color, rim: look.ink, width: SWATCH_WIDTH, height: SWATCH_HEIGHT }),
+      `A swatch of ${color}`,
+      SWATCH_WIDTH,
+      SWATCH_HEIGHT,
+    ) ?? <Text backgroundColor={color}>{'    '}</Text>
 
   const note = (text: string) => (
     <Text {...ink} dimColor wrap="wrap">
@@ -83,22 +107,20 @@ export function makeParts(kit: Kit, prefs: Prefs, surface: string) {
     </Text>
   )
   const serif = (text: string, size: number) =>
-    canDraw && 'Svg' in kit ? (
-      <kit.Svg
-        source={serifSvg({ text, size, color: accent, isStrong: true })}
-        alt={text}
-        width={serifSize({ text, size }).width}
-        height={serifSize({ text, size }).height}
-      />
-    ) : (
-      <Text bold color={accent}>
+    picture(
+      serifSvg({ text, size, color: look.accent, isStrong: true }),
+      text,
+      serifSize({ text, size }).width,
+      serifSize({ text, size }).height,
+    ) ?? (
+      <Text bold color={look.accent}>
         {text}
       </Text>
     )
   const title = (text: string) => serif(text, TITLE_SIZE)
   const heading = (text: string) => serif(text, HEADING_SIZE)
   const card = (heading: string, body: unknown) => (
-    <Box flexDirection="column" borderStyle="round" borderColor={HAIRLINE} paddingX={1}>
+    <Box flexDirection="column" borderStyle="round" borderColor={look.hairline} paddingX={1}>
       {serif(heading, HEADING_SIZE)}
       {body}
     </Box>
@@ -121,14 +143,19 @@ export function makeParts(kit: Kit, prefs: Prefs, surface: string) {
         <Text {...ink}>
           {WINDOW_NAME[kind]}: {left}% left{reset}
         </Text>
-        {canDraw && 'Svg' in kit ? (
-          <kit.Svg
-            source={meterSvg({ left, barColor: rampColor(left), clawdColor: clawd, width, height })}
-            alt={`${left}% left; Clawd looks ${moodName(moodFor(left))}`}
-            width={width}
-            height={height}
-          />
-        ) : (
+        {picture(
+          meterSvg({
+            left,
+            barColor: rampColor(left),
+            clawdColor: look.clawd,
+            trackColor: look.track,
+            width,
+            height,
+          }),
+          `${left}% left; Clawd looks ${moodName(moodFor(left))}`,
+          width,
+          height,
+        ) ?? (
           <Box>
             {filled !== '' && <Text color={rampColor(left)}>{filled}</Text>}
             {empty !== '' && <Text dimColor>{empty}</Text>}
@@ -138,5 +165,21 @@ export function makeParts(kit: Kit, prefs: Prefs, surface: string) {
     )
   }
 
-  return { ink, frame, note, plain, title, heading, card, meter, Button, Input, Select, Markdown }
+  return {
+    look,
+    ink,
+    frame,
+    note,
+    plain,
+    title,
+    heading,
+    card,
+    meter,
+    picture,
+    swatch,
+    Button,
+    Input,
+    Select,
+    Markdown,
+  }
 }

@@ -2,8 +2,21 @@ export type SerifSpec = { text: string; size: number; color: string; isStrong: b
 
 export const SERIF_STACK = "'Anthropic Serif', ui-serif, Georgia, Cambria, 'Times New Roman', serif"
 
-const WIDTH_PER_CHAR = 0.56
+const WIDEST = 1.02
+const CAPITAL = 0.8
+const USUAL = 0.63
+const NARROW = 0.38
+const SPACE = 0.3
+const PADDING = 0.5
 const LINE_HEIGHT = 1.3
+
+function widthOf(letter: string): number {
+  if (letter === ' ') return SPACE
+  if ('mwMW'.includes(letter)) return WIDEST
+  if ("ijlftrIJ.,:;!'|()/".includes(letter)) return NARROW
+
+  return letter >= 'A' && letter <= 'Z' ? CAPITAL : USUAL
+}
 
 function escapeXml(text: string): string {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
@@ -11,7 +24,7 @@ function escapeXml(text: string): string {
 
 export function serifSize({ text, size }: Pick<SerifSpec, 'text' | 'size'>): { width: number; height: number } {
   return {
-    width: Math.ceil(text.length * size * WIDTH_PER_CHAR + size * 0.5),
+    width: Math.ceil(([...text].reduce((total, letter) => total + widthOf(letter), 0) + PADDING) * size),
     height: Math.ceil(size * LINE_HEIGHT),
   }
 }

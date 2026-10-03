@@ -19,7 +19,7 @@ import type {
   ToolsView,
 } from '../../types'
 
-export const DEFAULT_PALETTE: Palette = { accent: '#d97757', clawd: '#e8743b', background: null }
+export const DEFAULT_PALETTE: Palette = { accent: '#d97757', clawd: '#e8743b', background: null, text: null }
 
 export const MAX_BARS = 3
 export const MAX_SHORTCUTS = 8
@@ -150,7 +150,7 @@ export const STARTER_COMMANDS: readonly string[] = ['clubhouse', 'clear', 'compa
 export const PREFS_KEY = 'prefs'
 export const LIMITS_KEY = 'limits'
 
-export const DEFAULT_COLORS_VIEW: ColorsView = { slot: 'accent', note: null, isAdvancedOpen: false }
+export const DEFAULT_COLORS_VIEW: ColorsView = { slot: 'background', note: null, isAdvancedOpen: false }
 
 export const DEFAULT_COMMANDS_VIEW: CommandsView = { filter: '', note: null, open: [] }
 export const HIDDEN_KEY = 'hidden'
@@ -251,7 +251,7 @@ export function withBarCount(held: Prefs, barCount: number): Prefs {
 }
 
 export function resetLook(held: Prefs): Prefs {
-  return { ...held, palette: DEFAULT_PALETTE, reach: 'app', appMode: 'dark' }
+  return { ...held, palette: DEFAULT_PALETTE, reach: 'app' }
 }
 
 export function nextZone(zone: BarZone): BarZone {

@@ -2,9 +2,9 @@ export type WindowKind = 'five_hour' | 'seven_day'
 
 export type Limit = { kind: string; percentUsed: number; resetsAt: string | null }
 
-export type PaletteSlot = 'accent' | 'clawd' | 'background'
+export type PaletteSlot = 'accent' | 'clawd' | 'background' | 'text'
 
-export type Palette = { accent: string; clawd: string; background: string | null }
+export type Palette = { accent: string; clawd: string; background: string | null; text: string | null }
 
 export type HomeTab = 'home' | 'more'
 

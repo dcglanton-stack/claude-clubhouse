@@ -33,10 +33,10 @@ The Clubhouse loads in every session through `CLAUDE_CODE_PLUGIN_DIRS` in `~/.cl
 - **Design**: follows `DESIGN.md` (Anthropic's style): serif headings, hairline borders, warm neutrals and one clay accent. The Anthropic palette and three ready-made looks are in Colors.
 - **Tidy**: a bar button that fixes spelling and trims the draft in the prompt box with a small model; press it again to get your original back.
 - **Readable controls**: buttons and text boxes get a contrasting backing when your background would hide them.
-- **Session color**: the Background color you pick becomes the color of the whole session: conversation, bar, text box, footer and the Clubhouse rooms, flat and exact, with text, icons and borders left as they are. The app's sidebar keeps its own look. A small helper (`helper/WindowTint.swift`, built by `helper/build.sh`) swaps the app's plain background for your color on screen. One button keeps the color to the conversation or to the Clubhouse instead.
+- **Session color**: the Background color you pick becomes the color of the whole session: conversation, bar, text box, footer and the Clubhouse rooms, flat and exact. Text, icons and borders take your Text color (dark or light automatically, or any color you choose), dim text is pulled close to it, and Clawd, the usage bar and the headings keep their own colors. The app's sidebar keeps its own look. A small macOS helper does this from outside the app (`helper/WindowTint.swift`, built by `helper/build.sh`); it notices dark or light mode on its own and stops when the Clubhouse is off or Claude quits.
 - **Exact repaint (advanced)**: Colors can copy a one-line style rule for the app's own Developer Mode console, which repaints the app itself until it restarts.
 - **Second opinion**: ask Claude in this session, or a different model that sees only an excerpt, without the question or answer entering the conversation.
-- **Colors**: accent, Clawd and background colors for everything the Clubhouse draws, by preset, hex code, nudges or a described look. Can also write a Claude Code custom theme.
+- **Colors**: Background, Text, Accent and Clawd colors by preset, hex code, nudges or a described look, each with its own Reset. Can also write a Claude Code custom theme.
 - **Context gauge** and **turn receipt**: optional extras on the bar, off by default.
 
 ## Changing it
