@@ -1,5 +1,5 @@
 import type { Prefs } from '../../types'
-import { inkOn, luminance, standOut } from './color'
+import { inkOn, isLight, luminance, mix, standOut } from './color'
 import { HELPER_BOOST, clearOn, drawnFor, toneFor } from './tone'
 import type { Tone } from './tone'
 
@@ -22,6 +22,7 @@ const HAIRLINE = '#87867f'
 const EDGE_CONTRAST = 4.5
 const HAIRLINE_CONTRAST = 2.5
 const TRACK_CONTRAST = 1.25
+const SIDEBAR_SHADE = { light: 0.07, dark: 0.28 } as const
 const HEADING_CONTRAST = 3
 const MASCOT_CONTRAST = 1.5
 
@@ -117,5 +118,6 @@ export function helperConfig(prefs: Prefs): string {
     isLightApp: prefs.appMode === 'light',
     boost: HELPER_BOOST,
     coverSidebar: prefs.coversSidebar === true,
+    sidebar: mix(backdropOf(prefs), '#000000', isLight(backdropOf(prefs)) ? SIDEBAR_SHADE.light : SIDEBAR_SHADE.dark),
   })}\n`
 }

@@ -18,7 +18,7 @@ export type ColorPreset = { name: string; palette: Palette }
 
 export type ContextSize = { tokens: number; window: number }
 
-export type BarItemId = 'home' | 'meter' | 'summary' | 'tidy' | 'cache' | 'context' | 'receipt' | 'ticker' | 'sports' | 'draw'
+export type BarItemId = 'home' | 'meter' | 'summary' | 'tidy' | 'cache' | 'context' | 'receipt' | 'ticker' | 'sports' | 'draw' | 'weather'
 
 export type BarZone = 'left' | 'center' | 'right'
 
@@ -35,6 +35,7 @@ export type BarLayout = {
   ticker: BarSpot
   sports: BarSpot
   draw: BarSpot
+  weather: BarSpot
 }
 
 export type Shortcut = { id: string; label: string; text: string; spot: BarSpot }
@@ -135,6 +136,18 @@ export type SportsPlan = { league: string; gameId: string | null; gameLeague: st
 
 export type SportsView = { note: string | null; isLoading: boolean }
 
+export type WeatherKind = 'sun' | 'partly' | 'cloud' | 'rain' | 'storm' | 'snow'
+
+export type Place = { name: string; latitude: number; longitude: number }
+
+export type WeatherPlan = { place: Place | null; unit: 'f' | 'c' }
+
+export type ForecastDay = { date: string; kind: WeatherKind; high: number; low: number; chance: number | null }
+
+export type Forecast = { at: number; temp: number; kind: WeatherKind; isWet: boolean; chance: number | null; days: ForecastDay[] }
+
+export type WeatherView = { note: string | null; hits: Place[] }
+
 export type WatchTrigger = 'fails' | 'stalls' | 'changes' | 'always'
 
 export type SavedWatch = {
@@ -217,6 +230,9 @@ declare module 'claude-code' {
       sportsCheckedAt: number
       handoff: 'idle' | 'armed' | 'sent' | 'dismissed'
       sketchesToClear: { path: string; at: number }[]
+      weather: WeatherPlan
+      forecast: Forecast | null
+      weatherView: WeatherView
       commandStats: CommandStats
       commandsView: CommandsView
       hiddenCommands: string[]

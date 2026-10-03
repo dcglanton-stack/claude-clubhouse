@@ -41,6 +41,7 @@ export const DEFAULT_BAR: BarLayout = {
   ticker: { isShown: false, row: 1, zone: 'left' },
   sports: { isShown: false, row: 1, zone: 'left' },
   draw: { isShown: false, row: 1, zone: 'left' },
+  weather: { isShown: false, row: 1, zone: 'left' },
 }
 
 export const BAR_ITEMS: readonly (readonly [BarItemId, string, string])[] = [
@@ -52,6 +53,7 @@ export const BAR_ITEMS: readonly (readonly [BarItemId, string, string])[] = [
   ['context', 'Context gauge', 'How full this conversation is, in tokens.'],
   ['receipt', 'Turn receipt', 'Time, tokens and usage of the last turn.'],
   ['draw', 'Draw it button', 'Opens a sketch pad so you can draw what you want instead of describing it; the sketch goes into your prompt.'],
+  ['weather', 'Weather', 'The temperature where you are, a picture of the sky, and the chance of rain.'],
   ['sports', 'Live score', 'One game: both teams, the score and the clock. Pick the game in the Live sports room.'],
   ['ticker', 'Ticker', 'One stock or coin: symbol, price and the day\'s change. Pick it in the Ticker room.'],
 ]
@@ -112,6 +114,7 @@ export const NOTES_PANE = 'clubhouse-notes'
 export const TICKER_PANE = 'clubhouse-ticker'
 export const SPORTS_PANE = 'clubhouse-sports'
 export const FONTS_PANE = 'clubhouse-fonts'
+export const WEATHER_PANE = 'clubhouse-weather'
 export const OPINION_PANE = 'clubhouse-opinion'
 export const TOOL_RULES_KEY = 'toolRules'
 export const DEFAULT_TOOLS_VIEW: ToolsView = { filter: '', note: null, open: [] }
@@ -174,6 +177,12 @@ export const ROOMS: readonly Room[] = [
     title: 'Live sports',
     word: 'sports',
     about: 'Games on now and this week; put one score on the toolbar.',
+  },
+  {
+    id: WEATHER_PANE,
+    title: 'Weather',
+    word: 'weather',
+    about: 'The next 7 days where you are, and the weather on the toolbar.',
   },
   {
     id: COMMANDS_PANE,

@@ -407,7 +407,7 @@ for (const surface of SURFACES) {
       props: { ...PANE, title: 'Toolbar' },
     })
     const rowCount = async () =>
-      ((await bar.drawn()) as { children: unknown[] }).children.length
+      ((await bar.drawn()) as { children: { children: unknown[] }[] }).children[1]?.children.length
 
     expect((await ui.find({ key: 'bar-home-zone' }))?.text).toBe('Center')
     expect((await ui.find({ key: 'bar-context-show' }))?.text).toBe('Add to toolbar')
@@ -844,7 +844,7 @@ test('with the helper the whole app takes the color and the Clubhouse paints not
   expect(seen.launched).toEqual([])
 
   await ui.press({ key: 'look-slate' })
-  expect(config()).toEqual({ enabled: true, target: '#141413', ink: '#faf9f5', radius: 18, isLightApp: false, boost: 1.9, coverSidebar: false })
+  expect(config()).toEqual({ enabled: true, target: '#141413', ink: '#faf9f5', radius: 18, isLightApp: false, boost: 1.9, coverSidebar: false, sidebar: expect.any(String) })
   expect(seen.launched).toHaveLength(1)
   expect(seen.launched[0]).toMatch(/clubhouse-helper\/window-tint/)
   expect(await painted(ui)).toBe(false)
@@ -856,14 +856,14 @@ test('with the helper the whole app takes the color and the Clubhouse paints not
 
   seen.appTheme = LIGHT_APP
   await ui.press({ key: 'look-slate' })
-  expect(config()).toEqual({ enabled: true, target: '#141413', ink: '#faf9f5', radius: 18, isLightApp: true, boost: 1.9, coverSidebar: false })
+  expect(config()).toEqual({ enabled: true, target: '#141413', ink: '#faf9f5', radius: 18, isLightApp: true, boost: 1.9, coverSidebar: false, sidebar: expect.any(String) })
   expect(await ui.find({ type: 'Text', text: /This is a dark color on a light app/ })).toBeDefined()
   seen.appTheme = DARK_APP
   await ui.press({ key: 'look-slate' })
   expect(await ui.find({ type: 'Text', text: /swaps light and dark/ })).toBeUndefined()
 
   await ui.press({ key: 'look-ivory' })
-  expect(config()).toEqual({ enabled: true, target: '#faf9f5', ink: '#141413', radius: 18, isLightApp: false, boost: 1.9, coverSidebar: false })
+  expect(config()).toEqual({ enabled: true, target: '#faf9f5', ink: '#141413', radius: 18, isLightApp: false, boost: 1.9, coverSidebar: false, sidebar: expect.any(String) })
   expect(await ui.find({ type: 'Text', text: /This is a light color on a dark app/ })).toBeDefined()
   expect(await painted(ui)).toBe(false)
   await ui.press({ key: 'look-slate' })
@@ -1690,7 +1690,7 @@ test('toolbar rows have a capacity: a full row sends the next item to another ro
     props: { ...PANE, title: 'Toolbar' },
   })
   const bar = await $.ui.mount({ plugin: 'clubhouse', surface: 'desktop', component: 'AbovePrompt', props: BAND })
-  const rowCount = async () => ((await bar.drawn()) as { children: unknown[] }).children.length
+  const rowCount = async () => ((await bar.drawn()) as { children: { children: unknown[] }[] }).children[1]?.children.length
 
   expect(await ui.find({ type: 'Text', text: /Row 1: 11 of 14 used/ })).toBeDefined()
   await ui.press({ key: 'bar-context-show' })
@@ -2024,4 +2024,52 @@ test('the Sidebar switch tells the helper to color the session list too', async 
   expect((await ui.find({ key: 'sidebar' }))?.text).toBe('Sidebar: your color too')
   expect(config().coverSidebar).toBe(true)
   await ui.unmount()
+})
+
+test('Weather finds your place, shows the sky on the toolbar and lists the next days', async ($, on) => {
+  const seen = world(on, 50)
+  seen.pages = {
+    'ipwho.is': JSON.stringify({ success: true, city: 'Austin', region: 'Texas', latitude: 30.27, longitude: -97.74 }),
+    'geocoding-api': JSON.stringify({ results: [{ name: 'Waco', admin1: 'Texas', latitude: 31.5, longitude: -97.1 }] }),
+    'api.open-meteo.com': JSON.stringify({
+      current: { temperature_2m: 75.2, weather_code: 3, precipitation: 0 },
+      daily: {
+        time: ['2026-10-03', '2026-10-04'],
+        weather_code: [95, 71],
+        temperature_2m_max: [76.6, 60.1],
+        temperature_2m_min: [72.9, 41.2],
+        precipitation_probability_max: [23, 80],
+      },
+    }),
+  }
+  await start($)
+  const ui = await $.ui.mount({
+    plugin: 'clubhouse',
+    surface: 'desktop',
+    component: 'Pane',
+    requestId: 'clubhouse-weather',
+    props: { ...PANE, title: 'Weather' },
+  })
+  const bar = await $.ui.mount({ plugin: 'clubhouse', surface: 'desktop', component: 'AbovePrompt', props: BAND })
+
+  await ui.press({ key: 'weather-locate' })
+  expect(await ui.find({ type: 'Text', text: /^Austin, Texas$/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /75°F · Cloudy · 23% chance of rain today/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Sat · 77° \/ 73° · Thunderstorm · 23% rain/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Sun · 60° \/ 41° · Snow · 80% rain/ })).toBeDefined()
+
+  await ui.press({ key: 'weather-show' })
+  const texts = (await bar.findAll({ type: 'Text' })).map(one => one.text)
+  expect(texts).toEqual(expect.arrayContaining(['75°', '23% rain']))
+  expect(seen.fetched.some(url => url.includes('temperature_unit=fahrenheit'))).toBe(true)
+
+  await ui.press({ key: 'weather-unit' })
+  expect(seen.fetched.at(-1)).toMatch(/temperature_unit=celsius/)
+
+  await ui.input({ key: 'weather-search', text: 'Waco' })
+  await ui.press({ key: 'weather-place-Waco, Texas' })
+  expect(await ui.find({ type: 'Text', text: /^Waco, Texas$/ })).toBeDefined()
+  expect(seen.fetched.at(-1)).toMatch(/latitude=31\.5/)
+  await ui.unmount()
+  await bar.unmount()
 })
