@@ -26,6 +26,7 @@ type World = {
   appended: string[]
   ran: string[]
   answer: string
+  draft: string
 }
 
 function world(on: On, fiveHourUsed: number): World {
@@ -39,6 +40,7 @@ function world(on: On, fiveHourUsed: number): World {
     appended: [],
     ran: [],
     answer: 'Allow once',
+    draft: '',
   }
 
   mock.clock(on, { now: NOW })
@@ -84,6 +86,7 @@ function world(on: On, fiveHourUsed: number): World {
   on('ui.panes', () => ({
     value: seen.open.map(id => ({ id, title: id, isShown: true, isFocused: false, isPlaced: true })),
   }))
+  on('prompt.read', () => ({ value: { text: seen.draft, cursor: seen.draft.length } }))
   on('prompt.fill', (_$, e) => {
     seen.filled.push(e.text)
 
@@ -595,6 +598,95 @@ for (const surface of SURFACES) {
     await ui.unmount()
   })
 }
+
+test('buttons get a backing when the chosen background would hide them', async ($, on) => {
+  world(on, 50)
+  await start($)
+  const ui = await $.ui.mount({
+    plugin: 'clubhouse',
+    surface: 'desktop',
+    component: 'Pane',
+    requestId: 'clubhouse-colors',
+    props: { ...PANE, title: 'Colors' },
+  })
+  const drawn = async () => JSON.stringify(await ui.drawn())
+
+  expect(await drawn()).not.toMatch(/#30302e/)
+
+  await ui.press({ key: 'slot-background' })
+  await ui.press({ key: 'anthropic-Ivory Light' })
+  expect(await drawn()).toMatch(/"backgroundColor":"#30302e"/)
+
+  await ui.press({ key: 'app-mode' })
+  expect((await ui.find({ key: 'app-mode' }))?.text).toBe('My app is in light mode')
+  expect(await drawn()).not.toMatch(/#30302e/)
+
+  await ui.press({ key: 'look-slate' })
+  expect(await drawn()).toMatch(/"backgroundColor":"#faf9f5"/)
+  await ui.unmount()
+})
+
+test('conversation tint colors messages only when asked and readable', async ($, on) => {
+  world(on, 50)
+  await start($)
+  const ui = await $.ui.mount({
+    plugin: 'clubhouse',
+    surface: 'desktop',
+    component: 'Pane',
+    requestId: 'clubhouse-colors',
+    props: { ...PANE, title: 'Colors' },
+  })
+  const mine = await $.ui.mount({
+    plugin: 'clubhouse',
+    surface: 'desktop',
+    component: 'UserMessage',
+    props: { text: 'hello there', origin: { kind: 'composer' }, isExpanded: false },
+  } as Parameters<Engine['ui']['mount']>[0])
+  const reply = await $.ui.mount({
+    plugin: 'clubhouse',
+    surface: 'desktop',
+    component: 'AssistantMessage',
+    props: { text: 'A **bold** reply', isFirstOfReply: true },
+  } as Parameters<Engine['ui']['mount']>[0])
+  const shown = async (drawing: { drawn: () => Promise<unknown> }) => JSON.stringify(await drawing.drawn())
+
+  await ui.press({ key: 'look-slate' })
+  expect(await shown(reply)).toBe(JSON.stringify(BLANK))
+
+  await ui.press({ key: 'tint-chat' })
+  expect(await shown(reply)).toMatch(/"backgroundColor":"#141413"/)
+  expect(await shown(reply)).toMatch(/Markdown/)
+  expect(await shown(mine)).toMatch(/hello there/)
+  expect(await shown(mine)).toMatch(/backgroundColor/)
+
+  await ui.press({ key: 'look-ivory' })
+  expect(await shown(reply)).toBe(JSON.stringify(BLANK))
+  expect(await shown(mine)).toMatch(/"color":"#161616"/)
+  await ui.unmount()
+  await mine.unmount()
+  await reply.unmount()
+})
+
+test('Tidy rewrites the draft and a second press restores it', async ($, on) => {
+  const seen = world(on, 18)
+  await start($)
+  const bar = await $.ui.mount({ plugin: 'clubhouse', surface: 'desktop', component: 'AbovePrompt', props: BAND })
+  const original = 'so basically i want you to like run the tests and then fix whatever is broken ok'
+
+  seen.draft = 'short'
+  await bar.press({ key: 'tidy' })
+  expect(seen.filled).toEqual([])
+  expect(seen.toasts.at(-1)).toMatch(/longer draft/)
+
+  seen.draft = original
+  await bar.press({ key: 'tidy' })
+  expect(seen.filled).toEqual(['- Tests pass.\n- Nothing for you to do.'])
+
+  seen.draft = '- Tests pass.\n- Nothing for you to do.'
+  await bar.press({ key: 'tidy' })
+  expect(seen.filled.at(-1)).toBe(original)
+  await bar.unmount()
+})
 
 test('a measurement updates the band and warns once when a window runs low', async ($, on) => {
   const seen = world(on, 18)

@@ -21,7 +21,9 @@ import {
   textBar,
 } from '../lib/format'
 import { homeIconSvg } from '../lib/icon'
+import { makeParts } from '../lib/parts'
 import { summaryOf, summaryRequest } from '../lib/summary'
+import { TIDY_MIN_CHARS, tidyRequest } from '../lib/tidy'
 
 const contextPercent = atom({ plugin: 'clubhouse', key: 'contextPercent' } as const, null)
 const lastReplyAt = atom({ plugin: 'clubhouse', key: 'lastReplyAt' } as const, null)
@@ -54,6 +56,55 @@ async function summarize($: EngineInterface): Promise<void> {
   await update($, summary, () => summaryOf(reply, answer))
 }
 
+type Tidied = { before: string; after: string }
+
+let lastTidy: Tidied | null = null
+
+async function tidy($: EngineInterface): Promise<void> {
+  try {
+    const draft = (await $.prompt.read()).text
+
+    if (lastTidy !== null && draft === lastTidy.after) {
+      await $.prompt.fill({ text: lastTidy.before })
+      lastTidy = null
+      $.ui.toast('Your original draft is back.')
+
+      return
+    }
+
+    if (draft.trim().length < TIDY_MIN_CHARS) {
+      $.ui.toast('Type a longer draft first, then press Tidy.')
+
+      return
+    }
+
+    $.ui.toast('Tidying your draft…')
+    const reply = await $.model.complete(tidyRequest(draft))
+
+    if (!reply.isAnswered || reply.text.trim() === '') {
+      $.ui.toast('The tidy model did not answer. Your draft is unchanged.')
+
+      return
+    }
+
+    const after = reply.text.trim()
+    const { isFilled } = await $.prompt.fill({ text: after })
+
+    if (!isFilled) {
+      $.ui.toast('The prompt box changed while tidying. Your draft is unchanged.')
+
+      return
+    }
+
+    lastTidy = { before: draft, after }
+    $.ui.toast(`Tidied: ${draft.length} to ${after.length} characters. Press Tidy again to undo.`, {
+      timeoutMs: 7000,
+    })
+  } catch {
+    $.ui.toast('Could not tidy the draft. It is unchanged.')
+  }
+}
+
 async function offer($: EngineInterface, text: string): Promise<void> {
   try {
     const { isFilled } = await $.prompt.fill({ text })
@@ -83,7 +134,8 @@ export function band(on: On): void {
 
     const elements = $.ui.resolve(e)
     const canDraw = e.surface !== 'terminal'
-    const { Box, Button, Text } = elements
+    const { Box, Text } = elements
+    const { Button } = makeParts(elements, chosen, e.surface)
     const at = await read($, now)
     const list = await read($, limits)
     const context = await read($, contextPercent)
@@ -187,6 +239,10 @@ export function band(on: On): void {
 
       if (id === 'summary') {
         return <Button key="summarize" label="Summarize" onPress={() => void summarize($)} />
+      }
+
+      if (id === 'tidy') {
+        return <Button key="tidy" label="Tidy" onPress={() => void tidy($)} />
       }
 
       if (id === 'context') {

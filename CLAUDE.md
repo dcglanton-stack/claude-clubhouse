@@ -42,6 +42,8 @@ A Claude Code function-hooks plugin (a "mod"). The plugin is the `clubhouse/` fo
 - Every surface accepts `Svg`, and the terminal draws only its alt text. Decide with `e.surface !== 'terminal'` (`canDraw`), not with `'Svg' in elements` alone.
 - Tool rules are enforced by the one unmatched `tool.call` hook in `tools.tsx`; it fails closed (no answer means deny) and ignores `prefs.isEnabled` on purpose.
 - Button keys must be unique within a pane: give a second listing of the same items its own key prefix.
+- `Button`, `Input`, `Select` and `Markdown` come from `makeParts`, never straight from `elements`: the wrapped versions add a backing chip when the user's background is in the opposite light/dark family to `prefs.appMode`, which keeps the app-drawn controls readable.
+- The desktop app's own window colors cannot be changed by a mod. Checked 2026-10-03: the app has two built-in color sets, no custom color setting, and blocks the remote-debugging switch. Do not patch the app. What a mod can color: the bar, the rooms, and (opt-in `tintChat`) message rows.
 - No unnecessary comments.
 
 ## Release

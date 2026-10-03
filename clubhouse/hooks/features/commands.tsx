@@ -135,7 +135,7 @@ export function commands(on: On): void {
 
   on('ui.render', { component: 'Pane', requestId: 'clubhouse-commands' }, async ($, e) => {
     const elements = $.ui.resolve(e)
-    const { Box, Button } = elements
+    const { Box } = elements
     const chosen = await read($, prefs)
     const stats = await read($, commandStats)
     const view = await read($, commandsView)
@@ -148,7 +148,7 @@ export function commands(on: On): void {
         !hidden.includes(one.name) &&
         (one.name.toLowerCase().includes(wanted) || one.description.toLowerCase().includes(wanted)),
     )
-    const { card, frame, note, plain, title } = makeParts(elements, chosen.palette, e.surface)
+    const { card, frame, note, plain, title, Button, Input } = makeParts(elements, chosen, e.surface)
 
     const setFilter = (typed: string) =>
       void update($, commandsView, held => ({ ...held, filter: typed }))
@@ -200,8 +200,8 @@ export function commands(on: On): void {
           note('To remove a whole plugin and everything it adds, ask Claude to turn that plugin off.'),
         ])}
 
-        {'Input' in elements && (
-          <elements.Input
+        {Input !== null && (
+          <Input
             key="filter"
             label="Find"
             placeholder="part of a name or what it does"

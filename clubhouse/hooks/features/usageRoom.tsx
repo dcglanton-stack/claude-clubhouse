@@ -25,7 +25,7 @@ export function usageRoom(on: On): void {
     const context = await read($, contextPercent)
     const made = await read($, receipt)
     const last = await read($, lastReplyAt)
-    const { card, frame, meter, note, plain, title } = makeParts(elements, chosen.palette, e.surface)
+    const { card, frame, meter, note, plain, title } = makeParts(elements, chosen, e.surface)
 
     return (
       <Box flexDirection="column" gap={1} {...frame}>

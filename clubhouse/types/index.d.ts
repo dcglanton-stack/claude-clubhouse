@@ -8,7 +8,7 @@ export type Palette = { accent: string; clawd: string; background: string | null
 
 export type HomeTab = 'home' | 'more'
 
-export type BarItemId = 'home' | 'meter' | 'summary' | 'context' | 'receipt'
+export type BarItemId = 'home' | 'meter' | 'summary' | 'tidy' | 'context' | 'receipt'
 
 export type BarZone = 'left' | 'center' | 'right'
 
@@ -18,6 +18,7 @@ export type BarLayout = {
   home: BarSpot
   meter: BarSpot
   summary: BarSpot
+  tidy: BarSpot
   context: BarSpot
   receipt: BarSpot
 }
@@ -37,6 +38,8 @@ export type Prefs = {
   barCount: number
   shortcuts: Shortcut[]
   autoSummary: boolean
+  appMode: 'dark' | 'light'
+  tintChat: boolean
   palette: Palette
   previousTheme: string | null
 }

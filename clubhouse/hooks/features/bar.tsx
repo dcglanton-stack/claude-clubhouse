@@ -59,10 +59,10 @@ async function addShortcut($: EngineInterface): Promise<void> {
 export function bar(on: On): void {
   on('ui.render', { component: 'Pane', requestId: 'clubhouse-bar' }, async ($, e) => {
     const elements = $.ui.resolve(e)
-    const { Box, Button } = elements
+    const { Box } = elements
     const chosen = await read($, prefs)
     const said = await read($, barNote)
-    const { card, frame, note, plain, title } = makeParts(elements, chosen.palette, e.surface)
+    const { card, frame, note, plain, title, Button, Input } = makeParts(elements, chosen, e.surface)
     const hasBars = chosen.barCount > 1
 
     const moveItem = (id: BarItemId, change: (spot: BarSpot) => BarSpot) =>
@@ -150,10 +150,10 @@ export function bar(on: On): void {
           ]),
         )}
 
-        {'Input' in elements &&
+        {Input !== null &&
           card('Make your own button', [
             note('A button that types a prompt or command into the prompt box for you. Press Enter in each box, then Add.'),
-            <elements.Input
+            <Input
               key="shortcut-label"
               label="Label"
               placeholder="Run tests"
@@ -164,7 +164,7 @@ export function bar(on: On): void {
                 draft = { ...draft, label: typed }
               }}
             />,
-            <elements.Input
+            <Input
               key="shortcut-text"
               label="What it types"
               placeholder="run the tests and fix what fails"
