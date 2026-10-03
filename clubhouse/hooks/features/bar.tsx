@@ -163,7 +163,7 @@ export function bar(on: On): void {
           card(title, [
             note(`${about} Size ${ITEM_SIZE[id]}.`),
             <Box gap={1} flexWrap="wrap">
-              {controls(`bar-${id}`, chosen.bar[id], { kind: 'item', id })}
+              {controls(`bar-${id}`, chosen.bar[id] ?? DEFAULT_BAR[id], { kind: 'item', id })}
             </Box>,
           ]),
         )}

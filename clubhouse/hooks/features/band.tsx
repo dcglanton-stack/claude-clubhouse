@@ -170,7 +170,7 @@ export function band(on: On): void {
       ...chosen.shortcuts.map(one => one.spot),
     ]
     const rows = Array.from({ length: chosen.barCount }, (_, index) => index + 1).filter(row =>
-      spots.some(spot => spot.isShown && spot.row === row),
+      spots.some(spot => spot?.isShown === true && spot.row === row),
     )
 
     if (e.props.hasSurvey || !chosen.isEnabled || rows.length === 0) {
@@ -381,7 +381,7 @@ export function band(on: On): void {
     const zone = (row: number, where: BarZone) => [
       ...BAR_ITEMS.filter(
         ([id]) =>
-          chosen.bar[id].isShown && chosen.bar[id].row === row && chosen.bar[id].zone === where,
+          chosen.bar[id]?.isShown === true && chosen.bar[id].row === row && chosen.bar[id].zone === where,
       ).map(([id]) => piece(id)),
       ...chosen.shortcuts
         .filter(one => one.spot.isShown && one.spot.row === row && one.spot.zone === where)
