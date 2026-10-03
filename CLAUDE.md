@@ -43,7 +43,9 @@ A Claude Code function-hooks plugin (a "mod"). The plugin is the `clubhouse/` fo
 - Tool rules are enforced by the one unmatched `tool.call` hook in `tools.tsx`; it fails closed (no answer means deny) and ignores `prefs.isEnabled` on purpose.
 - Button keys must be unique within a pane: give a second listing of the same items its own key prefix.
 - `Button`, `Input`, `Select` and `Markdown` come from `makeParts`, never straight from `elements`: the wrapped versions add a backing chip when the user's background is in the opposite light/dark family to `prefs.appMode`, which keeps the app-drawn controls readable.
-- The desktop app's own window colors cannot be changed by a mod. Checked 2026-10-03: the app has two built-in color sets, no custom color setting, and blocks the remote-debugging switch. Do not patch the app. What a mod can color: the bar, the rooms, and (opt-in `tintChat`) message rows.
+- What a mod can color: the bar, the rooms, and (opt-in `tintChat`) every conversation row. Rows are tinted by wrapping `await next(e)` in `tintRow` (`lib/parts.tsx`), never by redrawing them, so the app's own row features survive. `gapFill` stretches the color with negative margins (`soft`) or absolute slabs (`full`); both are experimental on desktop.
+- What a mod cannot color: the composer, the footer controls, the pane tab strip, the title bar and the sidebar. They are app chrome, not render sites (on desktop only `SessionMode` and `PromptHint` are sites down there). Checked 2026-10-03: the app paints from two built-in sets of CSS variables (`--bg-000..500`, `--text-000..500`, `--border-100..400`) and rejects the remote-debugging switch. Do not patch the app or write its `developer_settings.json`.
+- The whole-window route is the user's own: the app's Developer Mode (Help, Troubleshooting) opens DevTools, and `lib/windowTint.ts` builds a one-line snippet that overrides those variables. Colors copies it; the user pastes it. Keep the snippet to one style rule: no network, no storage, no DOM changes beyond the style element (a test asserts this).
 - No unnecessary comments.
 
 ## Release

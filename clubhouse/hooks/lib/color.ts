@@ -3,6 +3,8 @@ export type Hsl = { hue: number; saturation: number; lightness: number }
 
 const DARK_INK = '#161616'
 const LIGHT_INK = '#f4f4f4'
+const DARK_SURFACE = '#30302e'
+const LIGHT_SURFACE = '#faf9f5'
 
 const RAMP: readonly (readonly [number, Rgb])[] = [
   [0, [214, 48, 49]],
@@ -64,6 +66,10 @@ export function luminance(hex: string): number {
 
 export function isLight(hex: string): boolean {
   return luminance(hex) > 0.4
+}
+
+export function surfaceFor(isLightMode: boolean): string {
+  return isLightMode ? LIGHT_SURFACE : DARK_SURFACE
 }
 
 export function inkOn(background: string): string {

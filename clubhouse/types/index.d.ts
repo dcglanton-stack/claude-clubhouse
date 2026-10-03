@@ -31,6 +31,16 @@ export type Summary = {
   sourceChars: number
 }
 
+export type OpinionModel = 'haiku' | 'sonnet' | 'opus'
+
+export type Opinion = {
+  status: 'idle' | 'working' | 'ready' | 'failed'
+  text: string
+  source: 'here' | 'outside' | null
+}
+
+export type GapFill = 'off' | 'soft' | 'full'
+
 export type Prefs = {
   isEnabled: boolean
   window: WindowKind
@@ -40,6 +50,8 @@ export type Prefs = {
   autoSummary: boolean
   appMode: 'dark' | 'light'
   tintChat: boolean
+  gapFill: GapFill
+  opinionModel: OpinionModel
   palette: Palette
   previousTheme: string | null
 }
@@ -104,6 +116,7 @@ declare module 'claude-code' {
       barNote: string | null
       toolRules: ToolRules
       toolsView: ToolsView
+      opinion: Opinion
     }
   }
 }

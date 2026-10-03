@@ -12,6 +12,7 @@ import {
   HOME_PANE,
   PREFS_KEY,
   ROOMS,
+  resetLook,
   topCommands,
 } from '../lib/defaults'
 import { makeParts } from '../lib/parts'
@@ -98,6 +99,12 @@ export function commands(on: On): void {
             ? 'Clubhouse is on.'
             : 'Clubhouse is off. Type /clubhouse on to bring it back.',
       }
+    }
+
+    if (wish === 'reset') {
+      await keep($, resetLook)
+
+      return { text: 'Clubhouse colors, conversation tint and gap fill are back to their defaults.' }
     }
 
     const room = ROOMS.find(one => one.word === wish || (wish === 'hq' && one.word === 'agents'))

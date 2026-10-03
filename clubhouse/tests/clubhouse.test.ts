@@ -27,6 +27,9 @@ type World = {
   ran: string[]
   answer: string
   draft: string
+  copied: string[]
+  forked: string[]
+  completed: string[]
 }
 
 function world(on: On, fiveHourUsed: number): World {
@@ -41,6 +44,9 @@ function world(on: On, fiveHourUsed: number): World {
     ran: [],
     answer: 'Allow once',
     draft: '',
+    copied: [],
+    forked: [],
+    completed: [],
   }
 
   mock.clock(on, { now: NOW })
@@ -86,6 +92,11 @@ function world(on: On, fiveHourUsed: number): World {
   on('ui.panes', () => ({
     value: seen.open.map(id => ({ id, title: id, isShown: true, isFocused: false, isPlaced: true })),
   }))
+  on('ui.copy', (_$, e) => {
+    seen.copied.push(e.text)
+
+    return { value: { isCopied: true } }
+  })
   on('prompt.read', () => ({ value: { text: seen.draft, cursor: seen.draft.length } }))
   on('prompt.fill', (_$, e) => {
     seen.filled.push(e.text)
@@ -125,19 +136,45 @@ function world(on: On, fiveHourUsed: number): World {
     return next(e)
   })
   on('model.classify', () => ({ value: 'quick lookup or formatting' }))
-  on('model.complete', () => ({
-    value: {
-      isAnswered: true,
-      text: '- Tests pass.\n- Nothing for you to do.',
-      usage: {
-        input_tokens: 10,
-        output_tokens: 10,
-        cache_read_input_tokens: 0,
-        cache_creation_input_tokens: 0,
+  on('model.complete', (_$, e) => {
+    seen.completed.push(`${e.model}|${e.prompt}`)
+
+    return {
+      value: {
+        isAnswered: true,
+        text: '- Tests pass.\n- Nothing for you to do.',
+        usage: {
+          input_tokens: 10,
+          output_tokens: 10,
+          cache_read_input_tokens: 0,
+          cache_creation_input_tokens: 0,
+        },
       },
-    },
-  }))
+    }
+  })
   on('turn.complete', (_$, e) => ({ text: e.answer }))
+  on('model.fork', (_$, e) => {
+    seen.forked.push(e.prompt)
+
+    return {
+      value: {
+        isAnswered: true,
+        text: 'You are fixing the usage tests.',
+        usage: {
+          input_tokens: 10,
+          output_tokens: 10,
+          cache_read_input_tokens: 0,
+          cache_creation_input_tokens: 0,
+        },
+      },
+    }
+  })
+  on('session.messages', () => ({
+    value: [
+      { role: 'user', text: 'fix the usage tests', toolUses: [] },
+      { role: 'assistant', text: 'I changed three files.', toolUses: [{}, {}] },
+    ],
+  }))
   on('tool.list', () => ({
     value: [
       { name: 'Bash', description: 'Run a shell command', mcp: false },
@@ -626,7 +663,7 @@ test('buttons get a backing when the chosen background would hide them', async (
   await ui.unmount()
 })
 
-test('conversation tint colors messages only when asked and readable', async ($, on) => {
+test('conversation tint wraps every row, fills gaps on request and resets', async ($, on) => {
   world(on, 50)
   await start($)
   const ui = await $.ui.mount({
@@ -636,35 +673,124 @@ test('conversation tint colors messages only when asked and readable', async ($,
     requestId: 'clubhouse-colors',
     props: { ...PANE, title: 'Colors' },
   })
-  const mine = await $.ui.mount({
-    plugin: 'clubhouse',
-    surface: 'desktop',
-    component: 'UserMessage',
-    props: { text: 'hello there', origin: { kind: 'composer' }, isExpanded: false },
-  } as Parameters<Engine['ui']['mount']>[0])
-  const reply = await $.ui.mount({
-    plugin: 'clubhouse',
-    surface: 'desktop',
-    component: 'AssistantMessage',
-    props: { text: 'A **bold** reply', isFirstOfReply: true },
-  } as Parameters<Engine['ui']['mount']>[0])
+  const row = (component: string, props: object) =>
+    $.ui.mount({ plugin: 'clubhouse', surface: 'desktop', component, props } as Parameters<
+      Engine['ui']['mount']
+    >[0])
+  const mine = await row('UserMessage', { text: 'hello there', origin: { kind: 'sdk' }, isExpanded: false })
+  const reply = await row('AssistantMessage', { text: 'A **bold** reply', isFirstOfReply: true })
+  const toolRow = await row('ToolUse', {})
   const shown = async (drawing: { drawn: () => Promise<unknown> }) => JSON.stringify(await drawing.drawn())
+  const native = JSON.stringify(BLANK)
 
   await ui.press({ key: 'look-slate' })
-  expect(await shown(reply)).toBe(JSON.stringify(BLANK))
+  expect(await shown(reply)).toBe(native)
 
   await ui.press({ key: 'tint-chat' })
-  expect(await shown(reply)).toMatch(/"backgroundColor":"#141413"/)
-  expect(await shown(reply)).toMatch(/Markdown/)
-  expect(await shown(mine)).toMatch(/hello there/)
-  expect(await shown(mine)).toMatch(/backgroundColor/)
+  for (const drawing of [mine, reply, toolRow]) {
+    expect(await shown(drawing)).toBe(
+      JSON.stringify({
+        type: 'Box',
+        props: { flexDirection: 'column', backgroundColor: '#141413', marginX: -1, paddingX: 1 },
+        children: [BLANK],
+      }),
+    )
+  }
 
+  await ui.press({ key: 'gap-fill' })
+  expect((await ui.find({ key: 'gap-fill' }))?.text).toBe('Fill the gaps: soft')
+  expect(await shown(reply)).toMatch(/"marginBottom":-3,"paddingBottom":3,"marginX":-6,"paddingX":6/)
+  expect(JSON.stringify(await ui.drawn())).toMatch(/"marginX":-2,"marginY":-1/)
+
+  await ui.press({ key: 'gap-fill' })
+  expect((await ui.find({ key: 'gap-fill' }))?.text).toBe('Fill the gaps: full')
+  expect(await shown(reply)).toMatch(/"position":"absolute","top":0,"bottom":-3,"left":-60,"right":-60,"backgroundColor":"#141413"/)
+
+  await ui.press({ key: 'gap-fill' })
   await ui.press({ key: 'look-ivory' })
-  expect(await shown(reply)).toBe(JSON.stringify(BLANK))
-  expect(await shown(mine)).toMatch(/"color":"#161616"/)
+  expect(await shown(reply)).toBe(
+    JSON.stringify({
+      type: 'Box',
+      props: { flexDirection: 'column', backgroundColor: '#faf9f5', marginX: -1, paddingX: 1 },
+      children: [
+        { type: 'Box', props: { flexDirection: 'column', backgroundColor: '#30302e' }, children: [BLANK] },
+      ],
+    }),
+  )
+
+  expect((await run($, 'clubhouse', 'reset')).text).toMatch(/back to their defaults/)
+  expect(await shown(reply)).toBe(native)
+  expect((await ui.find({ key: 'tint-chat' }))?.text).toBe('Conversation tint: off')
   await ui.unmount()
   await mine.unmount()
   await reply.unmount()
+  await toolRow.unmount()
+})
+
+test('the window tint is copied for the chosen background, with an undo', async ($, on) => {
+  const seen = world(on, 50)
+  await start($)
+  const ui = await $.ui.mount({
+    plugin: 'clubhouse',
+    surface: 'desktop',
+    component: 'Pane',
+    requestId: 'clubhouse-colors',
+    props: { ...PANE, title: 'Colors' },
+  })
+
+  await ui.press({ key: 'window-tint' })
+  expect(seen.copied).toEqual([])
+  expect(await ui.find({ type: 'Text', text: /Pick a background color first/ })).toBeDefined()
+
+  await ui.press({ key: 'look-slate' })
+  await ui.press({ key: 'window-tint' })
+  expect(seen.copied).toHaveLength(1)
+  expect(seen.copied[0]).toMatch(/clubhouse-window-tint/)
+  expect(seen.copied[0]).toMatch(/--bg-100: 60 2\.\d% 7\.\d% !important/)
+  expect(seen.copied[0]).toMatch(/--text-000: 48 33\.3% 97\.1% !important/)
+  expect(seen.copied[0]).not.toMatch(/fetch|XMLHttpRequest|cookie|localStorage/)
+
+  await ui.press({ key: 'look-ivory' })
+  await ui.press({ key: 'window-tint' })
+  expect(seen.copied[1]).toMatch(/--text-000: 60 2\.6% 7\.6% !important/)
+
+  await ui.press({ key: 'window-undo' })
+  expect(seen.copied[2]).toBe("document.getElementById('clubhouse-window-tint')?.remove()")
+  await ui.unmount()
+})
+
+test('Second opinion asks Claude here or an outside model without touching the session', async ($, on) => {
+  const seen = world(on, 50)
+  await start($)
+  const ui = await $.ui.mount({
+    plugin: 'clubhouse',
+    surface: 'desktop',
+    component: 'Pane',
+    requestId: 'clubhouse-opinion',
+    props: { ...PANE, title: 'Second opinion' },
+  })
+
+  expect(await ui.find({ type: 'Text', text: /Nothing asked yet/ })).toBeDefined()
+
+  await ui.press({ key: 'opinion-here' })
+  expect(seen.forked).toHaveLength(1)
+  expect(seen.forked[0]).toMatch(/Question: Is this session on the right track/)
+  expect(await ui.find({ text: /fixing the usage tests/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /From Claude in this session/ })).toBeDefined()
+
+  await ui.input({ key: 'opinion-question', text: 'Was changing three files necessary?' })
+  await ui.press({ key: 'opinion-model' })
+  expect((await ui.find({ key: 'opinion-outside' }))?.text).toBe('Ask Opus')
+
+  await ui.press({ key: 'opinion-outside' })
+  expect(seen.completed).toHaveLength(1)
+  expect(seen.completed[0]).toMatch(/^opus\|/)
+  expect(seen.completed[0]).toMatch(/User: fix the usage tests/)
+  expect(seen.completed[0]).toMatch(/Assistant: I changed three files\. \[used 2 tools\]/)
+  expect(seen.completed[0]).toMatch(/The user asks: Was changing three files necessary\?/)
+  expect(await ui.find({ type: 'Text', text: /From Opus, which saw only an excerpt/ })).toBeDefined()
+  expect(seen.appended).toEqual([])
+  await ui.unmount()
 })
 
 test('Tidy rewrites the draft and a second press restores it', async ($, on) => {

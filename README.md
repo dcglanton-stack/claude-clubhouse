@@ -11,11 +11,13 @@ A Claude Code mod: one plugin that adds a home button and a Clawd usage meter ab
 | `/clubhouse on` | Brings it back |
 | `/clubhouse agents` | Agent HQ: agents at work, plus your own saved agents |
 | `/clubhouse summary` | The last reply cut down to a few bullet points |
+| `/clubhouse opinion` | Second opinion: ask Claude here, or an outside model, about the session without adding to it |
 | `/clubhouse tools` | Tool rules: make Claude ask first, or block it, per tool; one-click money safeguard |
 | `/clubhouse commands` | Every slash command, led by your most used and most recent |
 | `/clubhouse bar` | Bar layout: add, remove and move bar items, add bars, make your own buttons |
 | `/clubhouse usage` | Both limits, context and the cache timer, full size |
 | `/clubhouse colors` | The color picker |
+| `/clubhouse reset` | Puts colors, conversation tint and gap fill back to their defaults |
 
 The Clubhouse loads in every session through `CLAUDE_CODE_PLUGIN_DIRS` in `~/.claude/settings.json`, which points at the `clubhouse/` folder here. To unload it completely, remove that entry.
 
@@ -30,7 +32,10 @@ The Clubhouse loads in every session through `CLAUDE_CODE_PLUGIN_DIRS` in `~/.cl
 - **Tool rules**: every tool Claude has, grouped by connector, each set to Allowed, Ask first or Blocked. Ask first shows what Claude is about to send and runs nothing unless you allow it. The money safeguard turns Ask first on for every tool that places, changes or cancels an order or moves money.
 - **Design**: follows `DESIGN.md` (Anthropic's style): serif headings, hairline borders, warm neutrals and one clay accent. The Anthropic palette and three ready-made looks are in Colors.
 - **Tidy**: a bar button that fixes spelling and trims the draft in the prompt box with a small model; press it again to get your original back.
-- **Readable controls**: buttons and text boxes get a contrasting backing when your background would hide them. An optional conversation tint paints your background behind messages.
+- **Readable controls**: buttons and text boxes get a contrasting backing when your background would hide them.
+- **Conversation tint**: paints your background behind every conversation row by wrapping the app's own drawing, so nothing is lost. Fill the gaps (experimental, soft or full) stretches the color between rows and inside the rooms.
+- **Whole-window tint**: the text box, footer, tab strip and sidebar belong to the Claude app. Colors copies a one-line style rule you paste into the app's own DevTools console (Help, Troubleshooting, Enable Developer Mode) to tint the entire window until it reloads.
+- **Second opinion**: ask Claude in this session, or a different model that sees only an excerpt, without the question or answer entering the conversation.
 - **Colors**: accent, Clawd and background colors for everything the Clubhouse draws, by preset, hex code, nudges or a described look. Can also write a Claude Code custom theme.
 - **Context gauge** and **turn receipt**: optional extras on the bar, off by default.
 
