@@ -133,7 +133,7 @@ export function nightWatch(on: On): void {
             <Input
               key="watch-name"
               label="Name (optional)"
-              placeholder="BOTfort check"
+              placeholder="Server check"
               value={draft.name}
               onInput={typed => {
                 draft = { ...draft, name: typed }

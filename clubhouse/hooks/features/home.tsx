@@ -8,6 +8,7 @@ import { cacheNote, receiptNote } from '../lib/format'
 import { homeIconSvg } from '../lib/icon'
 import { makeParts } from '../lib/parts'
 import { forStore } from '../lib/project'
+import { ownFolder, shortFolder } from '../lib/own'
 
 const commandStats = atom({ plugin: 'clubhouse', key: 'commandStats' } as const, {})
 const contextPercent = atom({ plugin: 'clubhouse', key: 'contextPercent' } as const, null)
@@ -80,6 +81,8 @@ export function home(on: On): void {
     const at = await read($, now)
     await read($, pulse)
     const { ink, frame, note, title, card, meter, look, picture, Button } = makeParts(elements, chosen, e.surface)
+    const folder = ownFolder(await $.env.get('CLAUDE_CODE_PLUGIN_DIRS'))
+    const copy = folder === null ? null : shortFolder(folder, await $.env.get('HOME'))
 
     const header = (
       <Box flexDirection="column" gap={1}>
@@ -193,7 +196,7 @@ export function home(on: On): void {
         ])}
         {card('Changing the Clubhouse', [
           note(
-            'Tell Claude in any session: "in the clubhouse, ..." and it edits the code in ~/claude-clubhouse. Saved changes show up on their own.',
+            `Tell Claude in any session: "in the clubhouse, ..." and it edits your own copy${copy === null ? '' : ` in ${copy}`}. The changes stay on this computer and show up on their own.`,
           ),
         ])}
         {PLANNED.length > 0 &&

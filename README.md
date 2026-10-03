@@ -1,6 +1,49 @@
 # Claude Clubhouse
 
-A Claude Code mod: one plugin that adds a home button and a Clawd usage meter above the prompt, plus rooms for agents, commands and colors, all reached from one screen.
+A mod for Claude Code in the Claude desktop app that turns the space around your prompt into a place of your own.
+
+- **A toolbar above the prompt** that you lay out yourself: a usage meter where Clawd rides a bar that drains as you use your limit, the context gauge and cache timer, Summarize and Tidy buttons, a stock or coin price, a live score with team logos, the weather, a sketch pad, and buttons you make yourself.
+- **Your colors, for real.** Pick a Background and the whole window becomes that color: the conversation, text box, toolbar and sidebar take shades of it the way a designed theme would, and things with their own color (window buttons, icons, logos) keep it. It works with the app in dark or light mode, and each project can have its own colors. This part needs macOS.
+- **Rooms**, one screen each, opened from the house on the toolbar or with `/clubhouse`: your subagents and saved agents, every slash command, rules for what Claude may do with each tool, terminal commands saved as tools Claude can call, a timer that checks on things while you are away, notes left for a later session, usage, fonts and more.
+- **It is yours to change.** Say "in the clubhouse, add a button that..." in any session and Claude edits your copy. Nothing you change leaves your computer.
+
+It is one plugin, written with Claude Code's function hooks. Tested with Claude Code 2.1.286 in the Claude desktop app on macOS; the rooms and toolbar also draw in the terminal, the whole-window color does not.
+
+Not made by or affiliated with Anthropic. Clawd is Anthropic's mascot, drawn here by a fan. Prices come from Yahoo's unofficial feed and scores from ESPN's; neither is guaranteed to keep working.
+
+## Install
+
+1. Get your own copy. If you plan to change it and keep your changes on GitHub, press **Fork** on the repository page first and clone your fork; otherwise clone this one.
+
+```bash
+git clone https://github.com/dcglanton-stack/claude-clubhouse.git ~/claude-clubhouse
+```
+
+2. Tell Claude Code to load it. In `~/.claude/settings.json`, add these two lines inside `"env"` (create `"env": { }` if it is not there), with the path to where you cloned it:
+
+```json
+"CLAUDE_CODE_PLUGIN_DIRS": "/Users/you/claude-clubhouse/clubhouse",
+"CLAUDE_CODE_PLUGIN_DIR_WATCH": "1"
+```
+
+3. For the whole-window color and the sketch pad (macOS only), build the two small helper programs. This needs Apple's command line tools (`xcode-select --install`).
+
+```bash
+~/claude-clubhouse/helper/build.sh
+```
+
+4. Start a new session and type `/clubhouse`. Sessions that were already open pick it up after you quit and reopen the app.
+
+To remove it, delete the two lines from `settings.json` and the folder `~/.claude/clubhouse-helper`.
+
+## Your copy is yours
+
+Cloning gives you a complete copy on your own computer. Changing it, by hand or by telling Claude "in the clubhouse, ...", changes that copy and nothing else: nobody but the owner can write to this repository, so your changes cannot reach it or anyone else's copy.
+
+- **Keep your changes to yourself**: do nothing more. They live in your folder.
+- **Keep them on GitHub**: fork the repository and push to your fork.
+- **Get later updates**: `git pull` in your folder. If you changed the same lines, git asks you to settle the difference; Claude can do that for you.
+- **Offer a change back**: open a pull request from your fork. It only becomes part of this repository if the owner accepts it.
 
 ## Using it
 
@@ -27,7 +70,7 @@ A Claude Code mod: one plugin that adds a home button and a Clawd usage meter ab
 | `/clubhouse colors` | The color picker |
 | `/clubhouse color reset` | Puts the colors back to their defaults |
 
-The Clubhouse loads in every session through `CLAUDE_CODE_PLUGIN_DIRS` in `~/.claude/settings.json`, which points at the `clubhouse/` folder here. To unload it completely, remove that entry.
+The Clubhouse loads in every session through `CLAUDE_CODE_PLUGIN_DIRS` in `~/.claude/settings.json`, which points at the `clubhouse/` folder of your copy.
 
 ## What is in it
 
@@ -65,7 +108,7 @@ The Clubhouse loads in every session through `CLAUDE_CODE_PLUGIN_DIRS` in `~/.cl
 
 ## Changing it
 
-Tell Claude in any session: "in the clubhouse, ..." and it edits this repo. `CLAUDE.md` holds the rules it needs.
+Tell Claude in any session: "in the clubhouse, ..." and it edits your copy: the Clubhouse tells Claude where the folder is and to keep the change on your computer. `CLAUDE.md` holds the rules Claude needs, and these two commands check the result:
 
 ```bash
 claude plugin validate clubhouse
