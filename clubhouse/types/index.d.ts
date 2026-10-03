@@ -8,7 +8,9 @@ export type Palette = { accent: string; clawd: string; background: string | null
 
 export type HomeTab = 'home' | 'more'
 
-export type BarItemId = 'home' | 'meter' | 'summary' | 'tidy' | 'context' | 'receipt'
+export type ContextSize = { tokens: number; window: number }
+
+export type BarItemId = 'home' | 'meter' | 'summary' | 'tidy' | 'cache' | 'context' | 'receipt'
 
 export type BarZone = 'left' | 'center' | 'right'
 
@@ -19,6 +21,7 @@ export type BarLayout = {
   meter: BarSpot
   summary: BarSpot
   tidy: BarSpot
+  cache: BarSpot
   context: BarSpot
   receipt: BarSpot
 }
@@ -149,6 +152,7 @@ declare module 'claude-code' {
       limits: Limit[]
       prefs: Shaped<Prefs>
       contextPercent: number | null
+      contextSize: ContextSize | null
       lastReplyAt: number | null
       now: number
       receipt: Receipt | null

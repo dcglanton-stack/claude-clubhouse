@@ -300,7 +300,7 @@ for (const surface of SURFACES) {
 
     expect(await ui.find({ type: 'Text', text: /82%/ })).toBeDefined()
     expect((await ui.find({ key: 'window' }))?.text).toBe('5h')
-    expect((await ui.find({ key: 'home' }))?.text).toMatch(/Clubhouse/)
+    expect((await ui.find({ key: 'home' }))?.text).toMatch(surface === 'terminal' ? /Clubhouse/ : /▸/)
 
     if (surface === 'desktop') {
       expect(await ui.findAll({ type: 'Svg' })).toHaveLength(2)
@@ -349,7 +349,7 @@ for (const surface of SURFACES) {
     expect(await ui.find({ key: 'close-agents' })).toBeUndefined()
 
     await ui.press({ key: 'room-agents' })
-    await ui.press({ key: 'room-bar' })
+    await ui.press({ key: 'room-toolbar' })
     expect(seen.open).toEqual(['clubhouse-agents', 'clubhouse-bar'])
 
     await ui.press({ key: 'close-agents' })
@@ -377,24 +377,24 @@ for (const surface of SURFACES) {
       surface,
       component: 'Pane',
       requestId: 'clubhouse-bar',
-      props: { ...PANE, title: 'Bar layout' },
+      props: { ...PANE, title: 'Toolbar' },
     })
     const rowCount = async () =>
       ((await bar.drawn()) as { children: unknown[] }).children.length
 
     expect((await ui.find({ key: 'bar-home-zone' }))?.text).toBe('Center')
-    expect((await ui.find({ key: 'bar-context-show' }))?.text).toBe('Add to bar')
+    expect((await ui.find({ key: 'bar-context-show' }))?.text).toBe('Add to toolbar')
     expect(await ui.find({ key: 'bar-meter-row' })).toBeUndefined()
     expect(await rowCount()).toBe(1)
 
     await ui.press({ key: 'bar-context-show' })
-    expect((await ui.find({ key: 'bar-context-show' }))?.text).toBe('On the bar')
-    expect(await bar.find({ type: 'Text', text: /context 12% full/ })).toBeDefined()
+    expect((await ui.find({ key: 'bar-context-show' }))?.text).toBe('On the toolbar')
+    expect(await bar.find({ type: 'Text', text: /context 24k\/200k full/ })).toBeDefined()
 
     await ui.press({ key: 'bar-add' })
     expect(await ui.find({ type: 'Text', text: /You have 2 bars/ })).toBeDefined()
     await ui.press({ key: 'bar-meter-row' })
-    expect((await ui.find({ key: 'bar-meter-row' }))?.text).toBe('Bar 2')
+    expect((await ui.find({ key: 'bar-meter-row' }))?.text).toBe('Row 2')
     expect(await rowCount()).toBe(2)
 
     await ui.press({ key: 'bar-remove' })
@@ -423,7 +423,7 @@ for (const surface of SURFACES) {
       surface,
       component: 'Pane',
       requestId: 'clubhouse-bar',
-      props: { ...PANE, title: 'Bar layout' },
+      props: { ...PANE, title: 'Toolbar' },
     })
 
     await ui.press({ key: 'shortcut-add' })
@@ -1533,4 +1533,28 @@ test('the spend cap makes Claude ask before starting a helper agent when the lim
   await ui.press({ key: 'spend-cap-restore' })
   expect((await spawn()).deny).toMatch(/spend cap/)
   await ui.unmount()
+})
+
+test('the toolbar can show the cache timer, and /clubhouse bar still opens the Toolbar room', async ($, on) => {
+  const seen = world(on, 50)
+  await start($)
+  const ui = await $.ui.mount({
+    plugin: 'clubhouse',
+    surface: 'desktop',
+    component: 'Pane',
+    requestId: 'clubhouse-bar',
+    props: { ...PANE, title: 'Toolbar' },
+  })
+  const bar = await $.ui.mount({ plugin: 'clubhouse', surface: 'desktop', component: 'AbovePrompt', props: BAND })
+
+  expect(await bar.find({ type: 'Text', text: /cache —$/ })).toBeDefined()
+  await ui.press({ key: 'bar-cache-show' })
+  expect(await bar.find({ type: 'Text', text: /^cache —$/ })).toBeDefined()
+  expect(await bar.find({ type: 'Text', text: /resets 2h 0m$/ })).toBeDefined()
+
+  expect((await run($, 'clubhouse', 'bar')).text).toBe('Toolbar opened.')
+  expect((await run($, 'clubhouse', 'toolbar')).text).toBe('Toolbar opened.')
+  expect(seen.open).toContain('clubhouse-bar')
+  await ui.unmount()
+  await bar.unmount()
 })

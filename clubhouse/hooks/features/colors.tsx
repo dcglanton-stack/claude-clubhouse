@@ -388,8 +388,8 @@ export function colors(on: On): void {
             : !chosen.isHelperReady
               ? 'The helper that colors the whole session is not installed on this Mac, so the Background color stops at the conversation. Ask Claude to build it.'
               : chosen.palette.background === null
-                ? 'Pick a Background color below and it becomes the color of the whole session: the conversation, the bar, the text box and the Clubhouse rooms. The sidebar keeps the app\'s own look.'
-                : 'Your Background color is the color of the whole session: the conversation, the bar, the text box and the Clubhouse rooms. Text, icons and borders take your Text color. The sidebar keeps the app\'s own look.',
+                ? 'Pick a Background color below and it becomes the color of the whole session: the conversation, the toolbar, the text box and the Clubhouse rooms. The sidebar keeps the app\'s own look.'
+                : 'Your Background color is the color of the whole session: the conversation, the toolbar, the text box and the Clubhouse rooms. Text, icons and borders take your Text color. The sidebar keeps the app\'s own look.',
         )}
         {swapsLightAndDark(chosen) &&
           note(

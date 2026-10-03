@@ -157,7 +157,8 @@ export function commands(on: On): void {
       return { text: 'Clubhouse colors are back to their defaults.' }
     }
 
-    const room = ROOMS.find(one => one.word === wish || (wish === 'hq' && one.word === 'agents'))
+    const alias = wish === 'hq' ? 'agents' : wish === 'bar' ? 'toolbar' : wish
+    const room = ROOMS.find(one => one.word === alias)
 
     if (room !== undefined) {
       await visit($, room.id, room.title)

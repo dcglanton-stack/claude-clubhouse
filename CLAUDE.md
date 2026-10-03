@@ -32,7 +32,8 @@ A Claude Code function-hooks plugin (a "mod"). The plugin is the `clubhouse/` fo
 - A pane that shows engine lists (`$.ui.panes()`, `$.agent.list()`) reads the `pulse` atom, and whatever changes those lists bumps it, so the pane redraws.
 - Text the Clubhouse colors itself takes `look.ink` (the `ink` from `makeParts`): the user's Text color, or dark or light by `inkOn(background)` when that is automatic. `inkOn` is the one rule for the flip (`DARK_INK_FROM` in `lib/color.ts`); the helper's own fallback only serves hand-written configs.
 - Everything the Clubhouse shows respects `prefs.isEnabled`.
-- Keep the bar quiet: new bar items default to hidden.
+- The strip above the prompt is called the Toolbar in everything the user reads (room title, buttons, notes, `/clubhouse toolbar`); the code still says `bar` (`band.tsx`, `bar.tsx`, `BarItemId`). Keep it quiet: new toolbar items default to hidden.
+- An `Svg` cannot be pressed and a `Button`'s face is a string, so the Clubhouse icon on the toolbar is a picture with a one-glyph button beside it; an icon that is itself the button is not possible.
 - Form fields live in module variables (`draft` in `agents.tsx`), not state, so typing does not redraw the pane.
 - Sections in a pane are bordered cards. `makeParts(elements, prefs, surface)` in `hooks/lib/parts.tsx` gives `card`, `note`, `plain`, `meter`, `ink`, `frame`, `picture`, `swatch` and `look`; use it in every new room.
 - Panes are narrow and a cell is not a fixed pixel width on desktop: never use fixed-width columns. Put a button on one line and its description, wrapped, on the next, with `gap={1}` between entries.

@@ -16,7 +16,7 @@ A Claude Code mod: one plugin that adds a home button and a Clawd usage meter ab
 | `/clubhouse recipes` | Recipes: turn a terminal command into a tool Claude can call |
 | `/clubhouse watch` | Night watch: check on things on a timer while you are away |
 | `/clubhouse commands` | Every slash command, led by your most used and most recent |
-| `/clubhouse bar` | Bar layout: add, remove and move bar items, add bars, make your own buttons |
+| `/clubhouse toolbar` | Bar layout: add, remove and move bar items, add bars, make your own buttons |
 | `/clubhouse usage` | Both limits, context and the cache timer, full size |
 | `/clubhouse colors` | The color picker |
 | `/clubhouse color reset` | Puts the colors back to their defaults |

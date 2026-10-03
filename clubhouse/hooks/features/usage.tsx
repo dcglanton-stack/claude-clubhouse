@@ -15,6 +15,7 @@ import { LOW_PERCENT, WINDOW_LABEL, formatSpan, percentLeft, resetIn, usedOf } f
 import { summaryOf, summaryRequest } from '../lib/summary'
 
 const contextPercent = atom({ plugin: 'clubhouse', key: 'contextPercent' } as const, null)
+const contextSize = atom({ plugin: 'clubhouse', key: 'contextSize' } as const, null)
 const lastReplyAt = atom({ plugin: 'clubhouse', key: 'lastReplyAt' } as const, null)
 const limits = atom({ plugin: 'clubhouse', key: 'limits' } as const, [])
 const now = atom({ plugin: 'clubhouse', key: 'now' } as const, 0)
@@ -125,6 +126,12 @@ export function usage(on: On): void {
     if (e.context.percent !== undefined) {
       const percent = e.context.percent
       await update($, contextPercent, () => percent)
+    }
+
+    const { tokens, window } = e.context
+
+    if (tokens !== undefined && window !== undefined) {
+      await update($, contextSize, () => ({ tokens, window }))
     }
 
     return next(e)

@@ -170,7 +170,7 @@ export function home(on: On): void {
     const more = () => (
       <Box flexDirection="column" gap={1}>
         {card('How to get here', [
-          note('Click Clubhouse on the bar, or type /clubhouse. Esc closes this screen.'),
+          note('Click the arrow beside the house on the toolbar, or type /clubhouse. Esc closes this screen.'),
           note('/clubhouse off hides everything the Clubhouse adds; /clubhouse on brings it back.'),
           note(`A room opens directly with /clubhouse and its word: ${ROOMS.map(room => room.word).join(', ')}.`),
         ])}

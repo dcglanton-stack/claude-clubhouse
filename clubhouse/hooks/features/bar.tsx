@@ -45,7 +45,7 @@ async function addShortcut($: EngineInterface): Promise<void> {
   }
 
   if (shortcuts.length >= MAX_SHORTCUTS) {
-    await update($, barNote, () => `The bar holds up to ${MAX_SHORTCUTS} of your own buttons. Remove one first.`)
+    await update($, barNote, () => `The toolbar holds up to ${MAX_SHORTCUTS} of your own buttons. Remove one first.`)
 
     return
   }
@@ -56,7 +56,7 @@ async function addShortcut($: EngineInterface): Promise<void> {
     shortcuts: [...held.shortcuts, { id, label, text, spot: SHORTCUT_SPOT }],
   }))
   draft = BLANK_SHORTCUT
-  await update($, barNote, () => `"${label}" is on the bar.`)
+  await update($, barNote, () => `"${label}" is on the toolbar.`)
 }
 
 export function bar(on: On): void {
@@ -78,14 +78,14 @@ export function bar(on: On): void {
     const controls = (prefix: string, spot: BarSpot, move: (change: (held: BarSpot) => BarSpot) => void) => [
       <Button
         key={`${prefix}-show`}
-        label={spot.isShown ? 'On the bar' : 'Add to bar'}
+        label={spot.isShown ? 'On the toolbar' : 'Add to toolbar'}
         variant={spot.isShown ? 'primary' : 'secondary'}
         onPress={() => move(held => ({ ...held, isShown: !held.isShown }))}
       />,
       hasBars && (
         <Button
           key={`${prefix}-row`}
-          label={`Bar ${spot.row}`}
+          label={`Row ${spot.row}`}
           onPress={() => move(held => ({ ...held, row: (held.row % chosen.barCount) + 1 }))}
         />
       ),
@@ -98,9 +98,9 @@ export function bar(on: On): void {
 
     return (
       <Box flexDirection="column" gap={1} {...frame}>
-        {title('Bar layout')}
+        {title('Toolbar')}
         {note(
-          'Choose what sits above the prompt. Each item has buttons to add or remove it, pick its bar, and place it left, center or right. /clubhouse bar opens this.',
+          'The toolbar is the strip above the box you type in. Each item has buttons to add or remove it, pick its row, and place it left, center or right. /clubhouse toolbar opens this.',
         )}
 
         {card('Bars', [
@@ -109,7 +109,7 @@ export function bar(on: On): void {
             {chosen.barCount < MAX_BARS && (
               <Button
                 key="bar-add"
-                label="Add a bar"
+                label="Add a row"
                 variant="primary"
                 onPress={() => void keep($, held => withBarCount(held, held.barCount + 1))}
               />
@@ -122,7 +122,7 @@ export function bar(on: On): void {
               />
             )}
           </Box>,
-          note('A bar only shows once something is placed on it.'),
+          note('A row only shows once something is placed on it.'),
         ])}
 
         {BAR_ITEMS.map(([id, title, about]) =>
@@ -179,7 +179,7 @@ export function bar(on: On): void {
               }}
             />,
             <Box>
-              <Button key="shortcut-add" label="Add to bar" variant="primary" onPress={() => void addShortcut($)} />
+              <Button key="shortcut-add" label="Add to toolbar" variant="primary" onPress={() => void addShortcut($)} />
             </Box>,
           ])}
 
@@ -188,11 +188,11 @@ export function bar(on: On): void {
         <Box>
           <Button
             key="bar-reset"
-            label="Reset the bar"
+            label="Reset the toolbar"
             onPress={() => void keep($, held => ({ ...held, bar: DEFAULT_BAR, barCount: 1, shortcuts: [] }))}
           />
         </Box>
-        {note('New bar features built later show up here as items you can add.')}
+        {note('New toolbar features built later show up here as items you can add.')}
       </Box>
     )
   })

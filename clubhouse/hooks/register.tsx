@@ -59,6 +59,7 @@ import {
 } from './lib/watch'
 
 const contextPercent = atom({ plugin: 'clubhouse', key: 'contextPercent' } as const, null)
+const contextSize = atom({ plugin: 'clubhouse', key: 'contextSize' } as const, null)
 const limits = atom({ plugin: 'clubhouse', key: 'limits' } as const, [])
 const now = atom({ plugin: 'clubhouse', key: 'now' } as const, 0)
 const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS, {
@@ -186,6 +187,8 @@ export const register: Register = on => {
     const known = live.length > 0 ? live : isLimitList(savedLimits) ? savedLimits : []
     await update($, limits, () => known)
     await update($, contextPercent, () => measured.context.percent ?? null)
+    const { tokens, window } = measured.context
+    await update($, contextSize, () => (tokens === undefined || window === undefined ? null : { tokens, window }))
 
     const startedAt = await $.clock.now()
     await update($, now, () => startedAt)
@@ -194,8 +197,8 @@ export const register: Register = on => {
 
     await $.command.register({
       name: 'clubhouse',
-      description: 'Open Claude Clubhouse. Add a room to open it: agents, summary, opinion, tools, recipes, watch, commands, bar, usage, colors; or on, off, color reset',
-      argumentHint: '[on|off|agents|summary|opinion|tools|recipes|watch|commands|bar|usage|colors|color reset]',
+      description: 'Open Claude Clubhouse. Add a room to open it: agents, summary, opinion, tools, recipes, watch, commands, toolbar, usage, colors; or on, off, color reset',
+      argumentHint: '[on|off|agents|summary|opinion|tools|recipes|watch|commands|toolbar|usage|colors|color reset]',
       immediate: true,
     })
 
