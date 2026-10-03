@@ -91,6 +91,10 @@ export type RecipeTrial = { name: string; text: string }
 
 export type RecipesView = { note: string | null; editing: string | null; trial: RecipeTrial | null }
 
+export type SessionNote = { id: string; text: string; folder: string | null; keep: 'once' | 'always'; at: number }
+
+export type NotesView = { note: string | null; where: 'folder' | 'anywhere'; keep: 'once' | 'always' }
+
 export type WatchTrigger = 'fails' | 'stalls' | 'changes' | 'always'
 
 export type SavedWatch = {
@@ -178,6 +182,12 @@ declare module 'claude-code' {
       watchView: WatchView
       savedWatches: SavedWatch[]
       capLiftedUntil: number | null
+      notes: SessionNote[]
+      receivedNotes: SessionNote[]
+      pendingNotes: SessionNote[]
+      notesView: NotesView
+      sessionFolder: string
+      hasBooted: boolean
     }
   }
 }

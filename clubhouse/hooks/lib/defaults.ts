@@ -94,6 +94,7 @@ export const SUMMARY_PANE = 'clubhouse-summary'
 export const TOOLS_PANE = 'clubhouse-tools'
 export const RECIPES_PANE = 'clubhouse-recipes'
 export const WATCH_PANE = 'clubhouse-watch'
+export const NOTES_PANE = 'clubhouse-notes'
 export const OPINION_PANE = 'clubhouse-opinion'
 export const TOOL_RULES_KEY = 'toolRules'
 export const DEFAULT_TOOLS_VIEW: ToolsView = { filter: '', note: null, open: [] }
@@ -138,6 +139,12 @@ export const ROOMS: readonly Room[] = [
     title: 'Night watch',
     word: 'watch',
     about: 'Check on things while you are away, and wake Claude when needed.',
+  },
+  {
+    id: NOTES_PANE,
+    title: 'Session notes',
+    word: 'notes',
+    about: 'Leave a note for a later session to read.',
   },
   {
     id: COMMANDS_PANE,

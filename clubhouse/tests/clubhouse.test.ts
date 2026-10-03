@@ -4,6 +4,7 @@ import type { Engine, MockClock } from 'claude-code/testing'
 
 import { appModeFrom } from '../hooks/lib/appColor'
 import { pixelFor, shownFrom, toDisplay, toneFor } from '../hooks/lib/tone'
+import { nextVersion, subjectsOf } from '../hooks/lib/ship'
 import { serifSize } from '../hooks/lib/type'
 import { DEFAULT_WATCH_VIEW, stepOf, watchFrom } from '../hooks/lib/watch'
 
@@ -44,7 +45,9 @@ type World = {
   verdict: 'allow' | 'ask' | 'deny'
   output: string
   exitCode: number
+  replies: Record<string, { stdout: string; exitCode: number }>
   submitted: string[]
+  contexts: (readonly string[])[]
   clock: MockClock
 }
 
@@ -72,12 +75,15 @@ function world(on: On, fiveHourUsed: number, setup: Setup = {}): World {
     verdict: 'allow',
     output: '',
     exitCode: 0,
+    replies: {},
     submitted: [],
+    contexts: [],
     clock: mock.clock(on, { now: NOW }),
   }
 
   on('prompt.submit', (_$, e) => {
     seen.submitted.push(e.text)
+    seen.contexts.push(e.context ?? [])
 
     return { text: e.text }
   })
@@ -92,12 +98,14 @@ function world(on: On, fiveHourUsed: number, setup: Setup = {}): World {
     const line = e.argv.join(' ')
     const isModeCheck = line.includes('userThemeMode')
 
+    const reply = Object.entries(seen.replies).find(([start]) => line.startsWith(start))?.[1]
+
     if (!isModeCheck) seen.launched.push(line)
 
     return {
       value: {
-        exitCode: isModeCheck ? 0 : seen.exitCode,
-        stdout: isModeCheck ? seen.appTheme : seen.output,
+        exitCode: isModeCheck ? 0 : (reply?.exitCode ?? seen.exitCode),
+        stdout: isModeCheck ? seen.appTheme : (reply?.stdout ?? seen.output),
         stderr: '',
         isStdoutTruncated: false,
         isStderrTruncated: false,
@@ -363,7 +371,7 @@ for (const surface of SURFACES) {
     expect((await ui.find({ key: 'power' }))?.text).toBe('Off')
 
     await ui.press({ key: 'tab-more' })
-    expect(await ui.find({ type: 'Text', text: /Session notes/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /Draw it/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /Workshop: recipes/ })).toBeUndefined()
     await ui.unmount()
   })
@@ -1557,4 +1565,104 @@ test('the toolbar can show the cache timer, and /clubhouse bar still opens the T
   expect(seen.open).toContain('clubhouse-bar')
   await ui.unmount()
   await bar.unmount()
+})
+
+test('a session note goes to the next new session that fits, once, and never to a reload', async ($, on) => {
+  const seen = world(on, 50, {
+    stored: {
+      notes: [
+        { id: 'note-1', text: 'Pick up at the Stripe webhook', folder: '/tmp/clubhouse-home', keep: 'once', at: 1 },
+        { id: 'note-2', text: 'Other project only', folder: '/somewhere/else', keep: 'once', at: 2 },
+        { id: 'note-3', text: 'Always use British spelling', folder: null, keep: 'always', at: 3 },
+        { id: 'note-4', text: '', folder: null, keep: 'once', at: 4 },
+      ],
+    },
+  })
+  await start($)
+  const ui = await $.ui.mount({
+    plugin: 'clubhouse',
+    surface: 'desktop',
+    component: 'Pane',
+    requestId: 'clubhouse-notes',
+    props: { ...PANE, title: 'Session notes' },
+  })
+
+  expect(seen.toasts.some(text => /2 session notes are waiting/.test(text))).toBe(true)
+  expect(await ui.find({ key: 'note-delete-note-1' })).toBeUndefined()
+  expect(await ui.find({ key: 'note-delete-note-2' })).toBeDefined()
+  expect(await ui.find({ key: 'note-delete-note-3' })).toBeDefined()
+
+  await $.prompt.submit({ text: 'hello' })
+  expect(seen.contexts.at(-1)?.join('\n')).toMatch(/- Pick up at the Stripe webhook\n- Always use British spelling/)
+  expect(seen.contexts.at(-1)?.join('\n')).not.toMatch(/Other project only/)
+
+  await $.prompt.submit({ text: 'again' })
+  expect(seen.contexts.at(-1)).toEqual([])
+
+  await start($)
+  await $.prompt.submit({ text: 'after a reload' })
+  expect(seen.contexts.at(-1)).toEqual([])
+
+  await ui.press({ key: 'note-save' })
+  expect(await ui.find({ type: 'Text', text: /Type the note and press Enter/ })).toBeDefined()
+  await ui.input({ key: 'note-text', text: 'Tests are red on purpose' })
+  expect((await ui.find({ key: 'note-where' }))?.text).toBe('For: sessions in clubhouse-home')
+  await ui.press({ key: 'note-keep' })
+  await ui.press({ key: 'note-save' })
+  expect(await ui.find({ type: 'Text', text: /Goes to every session that starts in the folder clubhouse-home, until you delete it\. Sessions already running/ })).toBeDefined()
+
+  await ui.press({ key: 'note-now-note-2' })
+  expect(await ui.find({ type: 'Text', text: /Could not hand the note to Claude/ })).toBeDefined()
+  expect(await ui.find({ key: 'note-delete-note-2' })).toBeDefined()
+
+  await ui.press({ key: `note-delete-note-${NOW}` })
+  expect(await ui.find({ key: `note-delete-note-${NOW}` })).toBeUndefined()
+  await ui.unmount()
+})
+
+test('/ship works out the version, asks, then tags, pushes and publishes, and only from a clean main', async ($, on) => {
+  const seen = world(on, 50)
+  await start($)
+  const done = (stdout: string) => ({ stdout, exitCode: 0 })
+
+  expect(nextVersion('v0.15.0', '')).toBe('v0.15.1')
+  expect(nextVersion('v0.15.0', 'minor')).toBe('v0.16.0')
+  expect(nextVersion('v0.15.0', 'major')).toBe('v1.0.0')
+  expect(nextVersion('v0.15.0', '2.0.0')).toBe('v2.0.0')
+  expect(nextVersion(null, '')).toBe('v0.1.0')
+  expect(nextVersion('v0.15.0', 'soon')).toBeNull()
+  expect(subjectsOf('Add notes\nMerge feature/x: y\n\nFix a typo\n')).toEqual(['Add notes', 'Fix a typo'])
+
+  seen.replies = { 'git rev-parse': { stdout: '', exitCode: 128 } }
+  expect((await run($, 'ship', '')).text).toMatch(/not a git repository/)
+
+  seen.replies = { 'git rev-parse': done('feature/notes\n') }
+  expect((await run($, 'ship', '')).text).toMatch(/You are on the branch feature\/notes\. Releases go out from main/)
+
+  seen.replies = { 'git rev-parse': done('main\n'), 'git status': done(' M README.md\n') }
+  expect((await run($, 'ship', '')).text).toMatch(/not committed yet/)
+
+  seen.replies = {
+    'git rev-parse': done('main\n'),
+    'git status': done(''),
+    'git describe': done('v0.15.0\n'),
+    'git log': done('Add session notes\nMerge feature/notes: notes\n'),
+    'git tag': done(''),
+    'git push': done(''),
+    'gh release create': done('https://github.com/me/repo/releases/tag/v0.16.0\n'),
+  }
+  seen.answer = 'Cancel'
+  expect((await run($, 'ship', 'minor')).text).toBe('Nothing was shipped.')
+  expect(seen.launched.some(line => line.startsWith('git tag'))).toBe(false)
+
+  seen.answer = 'Ship it'
+  expect((await run($, 'clubhouse', 'ship minor')).text).toBe(
+    'Shipped v0.16.0: https://github.com/me/repo/releases/tag/v0.16.0',
+  )
+  expect(seen.launched).toContain('git log --pretty=%s -n 60 v0.15.0..HEAD')
+  expect(seen.launched).toContain('git tag v0.16.0')
+  expect(seen.launched).toContain('git push origin main v0.16.0')
+  expect(seen.launched.at(-1)).toMatch(/^gh release create v0\.16\.0 --title v0\.16\.0 --notes /)
+
+  expect((await run($, 'ship', 'soon')).text).toMatch(/"soon" is not a version/)
 })

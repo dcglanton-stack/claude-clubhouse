@@ -20,6 +20,16 @@ import {
   topCommands,
 } from '../lib/defaults'
 import { makeParts } from '../lib/parts'
+import {
+  MAIN_BRANCHES,
+  SHIP_CANCEL,
+  SHIP_IT,
+  nextVersion,
+  notesRequest,
+  plainNotes,
+  shipQuestion,
+  subjectsOf,
+} from '../lib/ship'
 
 const commandStats = atom({ plugin: 'clubhouse', key: 'commandStats' } as const, {})
 const commandsView = atom({ plugin: 'clubhouse', key: 'commandsView' } as const, DEFAULT_COMMANDS_VIEW)
@@ -130,15 +140,74 @@ async function savePreset($: EngineInterface): Promise<void> {
   presetName = ''
 }
 
+async function git($: EngineInterface, args: readonly string[]): Promise<{ isDone: boolean; out: string }> {
+  const ran = await $.process.run(['git', ...args]).catch(() => null)
+
+  return { isDone: ran !== null && ran.exitCode === 0, out: (ran?.stdout ?? '').trim() }
+}
+
+async function ship($: EngineInterface, wish: string): Promise<string> {
+  const branch = await git($, ['rev-parse', '--abbrev-ref', 'HEAD'])
+
+  if (!branch.isDone) return 'This session\'s folder is not a git repository, so there is nothing to ship.'
+
+  if (!MAIN_BRANCHES.includes(branch.out)) {
+    return `You are on the branch ${branch.out}. Releases go out from main: ask Claude to merge it, then run /ship again.`
+  }
+
+  if ((await git($, ['status', '--porcelain'])).out !== '') {
+    return 'There are changes that are not committed yet. Commit them first, then run /ship again.'
+  }
+
+  const last = await git($, ['describe', '--tags', '--abbrev=0'])
+  const version = nextVersion(last.isDone ? last.out : null, wish)
+
+  if (version === null) return `"${wish}" is not a version. Use /ship, /ship minor, /ship major, or a number like /ship v1.2.0.`
+  const log = await git($, ['log', '--pretty=%s', '-n', '60', last.isDone ? `${last.out}..HEAD` : 'HEAD'])
+  const subjects = subjectsOf(log.out)
+
+  if (subjects.length === 0) return `Nothing has changed since ${last.isDone ? last.out : 'the start'}, so there is nothing to ship.`
+  const reply = await $.model.complete(notesRequest(subjects)).catch(() => null)
+  const notes = reply !== null && reply.isAnswered && reply.text.trim() !== '' ? reply.text.trim() : plainNotes(subjects)
+  const answer = await $.ui
+    .ask(shipQuestion(version, branch.out, notes), { header: 'Ship', options: [SHIP_IT, SHIP_CANCEL] })
+    .catch(() => SHIP_CANCEL)
+
+  if (answer !== SHIP_IT) return 'Nothing was shipped.'
+  if (!(await git($, ['tag', version])).isDone) return `Could not make the tag ${version}. It may already exist.`
+
+  if (!(await git($, ['push', 'origin', branch.out, version])).isDone) {
+    await git($, ['tag', '-d', version])
+
+    return `Could not push to GitHub, so ${version} was not shipped and the tag was removed again.`
+  }
+
+  const made = await $.process
+    .run(['gh', 'release', 'create', version, '--title', version, '--notes', notes])
+    .catch(() => null)
+
+  return made !== null && made.exitCode === 0
+    ? `Shipped ${version}: ${made.stdout.trim()}`
+    : `${version} is tagged and pushed, but the GitHub release could not be created. Run: gh release create ${version}`
+}
+
 export function commands(on: On): void {
   on('command.run', async ($, e, next) => {
     await count($, e.command)
+
+    if (e.command === 'ship') {
+      return { text: await ship($, e.args) }
+    }
 
     if (e.command !== 'clubhouse') {
       return next(e)
     }
 
     const wish = e.args.trim().toLowerCase()
+
+    if (wish === 'ship' || wish.startsWith('ship ')) {
+      return { text: await ship($, wish.slice('ship'.length)) }
+    }
 
     if (wish === 'on' || wish === 'off') {
       await keep($, held => ({ ...held, isEnabled: wish === 'on' }))

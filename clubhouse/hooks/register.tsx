@@ -18,6 +18,7 @@ import { colors } from './features/colors'
 import { commands } from './features/commands'
 import { home } from './features/home'
 import { nightWatch } from './features/watch'
+import { notesRoom } from './features/notes'
 import { opinionRoom } from './features/opinion'
 import { recipesRoom } from './features/recipes'
 import { summaryRoom } from './features/summary'
@@ -45,6 +46,7 @@ import {
   mergePrefs,
 } from './lib/defaults'
 import { percentLeft } from './lib/format'
+import { NOTES_KEY, asNotes, claim } from './lib/notes'
 import { RECIPES_KEY, asRecipes, toolSpecOf } from './lib/recipes'
 import {
   SAVED_WATCHES_KEY,
@@ -75,6 +77,11 @@ const lastReplyAt = atom({ plugin: 'clubhouse', key: 'lastReplyAt' } as const, n
 const watches = atom({ plugin: 'clubhouse', key: 'watches' } as const, [])
 const watchLog = atom({ plugin: 'clubhouse', key: 'watchLog' } as const, [])
 const savedWatches = atom({ plugin: 'clubhouse', key: 'savedWatches' } as const, [])
+const notes = atom({ plugin: 'clubhouse', key: 'notes' } as const, [])
+const receivedNotes = atom({ plugin: 'clubhouse', key: 'receivedNotes' } as const, [])
+const pendingNotes = atom({ plugin: 'clubhouse', key: 'pendingNotes' } as const, [])
+const sessionFolder = atom({ plugin: 'clubhouse', key: 'sessionFolder' } as const, '')
+const hasBooted = atom({ plugin: 'clubhouse', key: 'hasBooted' } as const, false)
 
 const TICK_MS = 30_000
 
@@ -164,6 +171,23 @@ export const register: Register = on => {
       await $.tool.register(toolSpecOf(one)).catch(() => undefined)
     }
 
+    await update($, sessionFolder, () => e.cwd)
+    const keptNotes = asNotes(await $.store.get(NOTES_KEY))
+    const isNewSession = !(await read($, hasBooted))
+    const { taken, left } = isNewSession ? claim(keptNotes, e.cwd) : { taken: [], left: keptNotes }
+    await update($, hasBooted, () => true)
+    await update($, notes, () => left)
+
+    if (taken.length > 0) {
+      await $.store.set(NOTES_KEY, left)
+      await update($, pendingNotes, () => taken)
+      await update($, receivedNotes, () => taken)
+      $.ui.toast(
+        `${taken.length === 1 ? 'A session note is' : `${taken.length} session notes are`} waiting: Claude reads ${taken.length === 1 ? 'it' : 'them'} with your first message.`,
+        { timeoutMs: 8000 },
+      )
+    }
+
     const keptWatches = asSavedWatches(await $.store.get(SAVED_WATCHES_KEY))
     await update($, savedWatches, () => keptWatches)
 
@@ -197,10 +221,18 @@ export const register: Register = on => {
 
     await $.command.register({
       name: 'clubhouse',
-      description: 'Open Claude Clubhouse. Add a room to open it: agents, summary, opinion, tools, recipes, watch, commands, toolbar, usage, colors; or on, off, color reset',
-      argumentHint: '[on|off|agents|summary|opinion|tools|recipes|watch|commands|toolbar|usage|colors|color reset]',
+      description: 'Open Claude Clubhouse. Add a room to open it: agents, summary, opinion, tools, recipes, watch, notes, commands, toolbar, usage, colors; or on, off, color reset',
+      argumentHint: '[on|off|agents|summary|opinion|tools|recipes|watch|notes|commands|toolbar|usage|colors|color reset]',
       immediate: true,
     })
+    await $.command
+      .register({
+        name: 'ship',
+        description: 'Release what is on main: tag the next version, push, and publish a GitHub release with notes. Asks before it does anything.',
+        argumentHint: '[patch|minor|major|v1.2.3]',
+        immediate: true,
+      })
+      .catch(() => undefined)
 
     return next(e)
   })
@@ -214,6 +246,7 @@ export const register: Register = on => {
   tools(on)
   recipesRoom(on)
   nightWatch(on)
+  notesRoom(on)
   usageRoom(on)
   commands(on)
   agents(on)
