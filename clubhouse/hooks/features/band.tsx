@@ -423,12 +423,8 @@ export function band(on: On): void {
         .map(shortcut),
     ]
 
-    const native = await next(e)
-
     return (
-      <Box flexDirection="column" width={columns}>
-        {native}
-        <Box flexDirection="column" gap={rows.length > 1 ? 1 : 0} width={columns} {...frame}>
+      <Box flexDirection="column" gap={rows.length > 1 ? 1 : 0} width={columns} {...frame}>
         {handoffState === 'idle' && context !== null && context >= HANDOFF_PERCENT && (
           <Box gap={1} alignItems="center" flexWrap="wrap">
             {words(`This conversation is ${context}% full.`)}
@@ -455,7 +451,6 @@ export function band(on: On): void {
             </Box>
           </Box>
         ))}
-        </Box>
       </Box>
     )
   })

@@ -407,7 +407,7 @@ for (const surface of SURFACES) {
       props: { ...PANE, title: 'Toolbar' },
     })
     const rowCount = async () =>
-      ((await bar.drawn()) as { children: { children: unknown[] }[] }).children[1]?.children.length
+      ((await bar.drawn()) as { children: unknown[] }).children.length
 
     expect((await ui.find({ key: 'bar-home-zone' }))?.text).toBe('Center')
     expect((await ui.find({ key: 'bar-context-show' }))?.text).toBe('Add to toolbar')
@@ -1690,7 +1690,7 @@ test('toolbar rows have a capacity: a full row sends the next item to another ro
     props: { ...PANE, title: 'Toolbar' },
   })
   const bar = await $.ui.mount({ plugin: 'clubhouse', surface: 'desktop', component: 'AbovePrompt', props: BAND })
-  const rowCount = async () => ((await bar.drawn()) as { children: { children: unknown[] }[] }).children[1]?.children.length
+  const rowCount = async () => ((await bar.drawn()) as { children: unknown[] }).children.length
 
   expect(await ui.find({ type: 'Text', text: /Row 1: 11 of 14 used/ })).toBeDefined()
   await ui.press({ key: 'bar-context-show' })
