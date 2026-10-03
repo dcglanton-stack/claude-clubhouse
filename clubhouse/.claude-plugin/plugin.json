@@ -30,7 +30,9 @@
     "design-suite",
     "whiteboard",
     "release-tags",
-    "skill-hider"
+    "skill-hider",
+    "session-color",
+    "session-design"
   ],
   "types": "./types/index.d.ts"
 }
