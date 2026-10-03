@@ -1255,7 +1255,7 @@ test('under the helper pictures are redrawn for the screen and your own prompts 
   expect(await shown(bar)).toMatch(/display-p3/)
   expect(await shown(ui)).toMatch(/display-p3/)
   expect(await shown(mine)).toMatch(
-    /^\{"type":"Box","props":\{"flexDirection":"column","alignItems":"flex-end"\},"children":\[\{"type":"Box","props":\{"borderStyle":"round","borderColor":"#[0-9a-f]{6}","paddingX":1\}/,
+    /^\{"type":"Box","props":\{"flexDirection":"column","alignItems":"flex-end"\},"children":\[\{"type":"Box","props":\{"borderStyle":"round","borderColor":"#[0-9a-f]{6}"\}/,
   )
   expect(await shown(notice)).toBe(native)
   expect(await shown(reply)).toBe(native)
@@ -1868,6 +1868,18 @@ test('Draw it opens the sketch pad and puts the sketch into the prompt box', asy
   await bar.press({ key: 'draw' })
   expect(seen.filled.at(-1)).toBe('Make the header\nI drew what I want. Look at my sketch at /tmp/sketch-1.png and ')
   expect(seen.toasts.at(-1)).toMatch(/Your sketch is in the prompt box/)
+  await bar.unmount()
+})
+
+test('the Is this AGI? button sends that question', async ($, on) => {
+  const shown = { prefs: { bar: { agi: { isShown: true, row: 1, zone: 'left' } } } }
+  const seen = world(on, 50, { stored: shown })
+  await start($)
+  const bar = await $.ui.mount({ plugin: 'clubhouse', surface: 'desktop', component: 'AbovePrompt', props: BAND })
+
+  expect(seen.submitted).toEqual([])
+  await bar.press({ key: 'agi' })
+  expect(seen.submitted).toEqual(['Is this AGI?'])
   await bar.unmount()
 })
 

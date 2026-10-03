@@ -42,6 +42,7 @@ export const DEFAULT_BAR: BarLayout = {
   sports: { isShown: false, row: 1, zone: 'left' },
   draw: { isShown: false, row: 1, zone: 'left' },
   weather: { isShown: false, row: 1, zone: 'left' },
+  agi: { isShown: false, row: 1, zone: 'left' },
 }
 
 export const BAR_ITEMS: readonly (readonly [BarItemId, string, string])[] = [
@@ -56,6 +57,7 @@ export const BAR_ITEMS: readonly (readonly [BarItemId, string, string])[] = [
   ['weather', 'Weather', 'The temperature where you are, a picture of the sky, and the chance of rain.'],
   ['sports', 'Live score', 'One game: both teams, the score and the clock. Pick the game in the Live sports room.'],
   ['ticker', 'Ticker', 'One stock or coin: symbol, price and the day\'s change. Pick it in the Ticker room.'],
+  ['agi', 'Is this AGI? button', 'Just for fun: sends Claude the question "Is this AGI?".'],
 ]
 
 export const PREFS_SHAPE = 'prefs-4'
