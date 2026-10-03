@@ -1,4 +1,5 @@
 import { contrast, fromHsl, luminance, mix, normalizeHex, toHex, toHsl, toRgb } from './color'
+import type { Pixels } from './png'
 
 export type Triple = readonly [number, number, number]
 export type Stage = readonly number[]
@@ -38,6 +39,7 @@ const CLOSE_ENOUGH = 0.5 / LEVELS
 const SOLVE_STEPS = 6
 const NUDGE = 1 / LEVELS
 const BRIGHTNESS_WEIGHT = 3
+const MOST_STRETCH = 2.5
 const LIGHT_SURFACE_LIMIT = 226 / LEVELS
 const KEY_FADE = 10 / LEVELS
 const LUMA: Triple = [0.2126, 0.7152, 0.0722]
@@ -386,13 +388,41 @@ function closer(tone: Tone, start: Triple, goal: Triple): readonly [Triple, numb
   return best
 }
 
+function vivid(goal: Triple): Triple {
+  const spread = Math.max(...CHANNEL_PAIRS.map(pair => dot(pair, goal)))
+  const stretch = (OWN_COLOR.full + NUDGE) / Math.max(spread, SHORTEST_AXIS)
+  const level = dot(LUMA, goal)
+
+  return stretch <= 1 || stretch > MOST_STRETCH
+    ? goal
+    : each(channel => bound(level + (goal[channel] - level) * stretch))
+}
+
 export function pixelFor(tone: Tone, wanted: string): Triple {
   const goal = toDisplay(wanted)
   const moved = recolored(tone, goal)
   const level = dot(LUMA, moved)
-  const starts: readonly Triple[] = [goal, moved, [level, level, level]]
+  const starts: readonly Triple[] = [goal, moved, [level, level, level], vivid(goal)]
 
   return starts.map(start => closer(tone, start, goal)).reduce((best, one) => (one[1] < best[1] ? one : best))[0]
+}
+
+export function redrawn(tone: Tone, { width, height, rgba }: Pixels): Pixels {
+  const known = new Map<number, Triple>()
+  const drawn = [...rgba]
+
+  for (let at = 0; at < rgba.length; at += 4) {
+    if (rgba[at + 3] === 0) continue
+    const key = (rgba[at]! << 16) | (rgba[at + 1]! << 8) | rgba[at + 2]!
+    const found = known.get(key) ?? toRgb(drawnFor(tone, toHex([rgba[at]!, rgba[at + 1]!, rgba[at + 2]!])))
+
+    known.set(key, found)
+    drawn[at] = found[0]
+    drawn[at + 1] = found[1]
+    drawn[at + 2] = found[2]
+  }
+
+  return { width, height, rgba: drawn }
 }
 
 export function drawnFor(tone: Tone, wanted: string): string {

@@ -18,7 +18,7 @@ export type ColorPreset = { name: string; palette: Palette }
 
 export type ContextSize = { tokens: number; window: number }
 
-export type BarItemId = 'home' | 'meter' | 'summary' | 'tidy' | 'cache' | 'context' | 'receipt' | 'ticker' | 'sports' | 'draw' | 'weather' | 'agi'
+export type BarItemId = 'home' | 'meter' | 'summary' | 'tidy' | 'cache' | 'context' | 'receipt' | 'ticker' | 'sports' | 'draw' | 'weather' | 'agi' | 'gaslight' | 'prune'
 
 export type BarZone = 'left' | 'center' | 'right'
 
@@ -37,6 +37,8 @@ export type BarLayout = {
   draw: BarSpot
   weather: BarSpot
   agi: BarSpot
+  gaslight: BarSpot
+  prune: BarSpot
 }
 
 export type Shortcut = { id: string; label: string; text: string; spot: BarSpot }

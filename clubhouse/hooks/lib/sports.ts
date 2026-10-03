@@ -1,9 +1,10 @@
 import type { Game, SportsPlan, Team } from '../../types'
+import type { Tone } from './tone'
 
 export type League = { id: string; path: string; label: string; clock: 'quarter' | 'period' | 'inning' | 'minute'; isWeekly: boolean }
 
 export const SPORTS_KEY = 'sports'
-export const SPORTS_POLL_MS = 30_000
+export const SPORTS_POLL_MS = 10_000
 export const LOGO_FOLDER = '.claude/clubhouse-helper/logos'
 export const LOGO_SIZE = 64
 export const LEAGUES: readonly League[] = [
@@ -50,6 +51,18 @@ export function logoUrl(logo: string): string {
   const path = logo.replace(/^https?:\/\/a\.espncdn\.com/, '')
 
   return `https://a.espncdn.com/combiner/i?img=${path}&h=${LOGO_SIZE}&w=${LOGO_SIZE}`
+}
+
+export function logoSlot(key: string, tone: Tone | null): string {
+  return `${key}@${tone === null ? 'plain' : `${tone.targetHex}${tone.inkHex}${tone.isLightApp ? 'light' : 'dark'}`}`
+}
+
+export function logoFor(held: { [slot: string]: string }, key: string, tone: Tone | null): string | null {
+  return held[logoSlot(key, tone)] ?? Object.entries(held).find(([slot]) => slot.startsWith(`${key}@`))?.[1] ?? null
+}
+
+export function withLogo(held: { [slot: string]: string }, key: string, slot: string, picture: string): { [slot: string]: string } {
+  return { ...Object.fromEntries(Object.entries(held).filter(([one]) => !one.startsWith(`${key}@`))), [slot]: picture }
 }
 
 export function logoKey(league: string, team: Team): string {

@@ -4,11 +4,13 @@ import type { Engine, MockClock } from 'claude-code/testing'
 
 import { appModeFrom } from '../hooks/lib/appColor'
 import { mergePrefs, sameSettings } from '../hooks/lib/defaults'
-import { pixelFor, shownFrom, toDisplay, toneFor } from '../hooks/lib/tone'
+import { pixelFor, redrawn, shownFrom, toDisplay, toneFor } from '../hooks/lib/tone'
 import { nextVersion, subjectsOf } from '../hooks/lib/ship'
 import { arranged, rowLoad } from '../hooks/lib/toolbar'
 import { serifSize } from '../hooks/lib/type'
-import { LEAGUES, gamesFrom, listed } from '../hooks/lib/sports'
+import { pixelsFrom, pngOf, toBase64 } from '../hooks/lib/png'
+import { LEAGUES, gamesFrom, listed, logoFor, logoSlot, withLogo } from '../hooks/lib/sports'
+import { asQuotes, isFresh, isStale } from '../hooks/lib/ticker'
 import { DEFAULT_WATCH_VIEW, stepOf, watchFrom } from '../hooks/lib/watch'
 
 const NOW = Date.UTC(2026, 9, 3, 9)
@@ -851,7 +853,7 @@ test('with the helper the whole app takes the color and the Clubhouse paints not
   expect(await painted(reply)).toBe(false)
   expect(await painted(bar)).toBe(false)
 
-  expect(JSON.stringify(await ui.drawn())).toMatch(/^\{"type":"Box","props":\{"flexDirection":"column","borderStyle":"round","borderColor":"#[0-9a-f]{6}"\},"children":\[\{"type":"Box","props":\{"flexDirection":"column","gap":1,"borderStyle":"round","borderColor":"#[0-9a-f]{6}","paddingX":1\}/)
+  expect(JSON.stringify(await ui.drawn())).toMatch(/^\{"type":"Box","props":\{"flexDirection":"column","gap":1,"borderStyle":"bold","borderColor":"#[0-9a-f]{6}","paddingX":1\}/)
   expect(JSON.stringify(await bar.drawn())).toMatch(/"borderStyle":"round"/)
 
   seen.appTheme = LIGHT_APP
@@ -1138,6 +1140,47 @@ test('colors the Clubhouse draws land where they are wanted under the helper', (
   const lightApp = toneFor({ target: '#faf9f5', ink: '#141413', isLightApp: true })
   expect(isNear(shownFrom(lightApp, pixelFor(lightApp, '#d97757')), toDisplay('#d97757'), 3)).toBe(true)
   expect(isNear(shownFrom(lightApp, grey(240)), toDisplay('#faf9f5'), 0.5)).toBe(true)
+})
+
+test('a team logo is redrawn so its own colors show under the helper', () => {
+  const blue = toneFor({ target: '#2563eb', ink: '#faf9f5', isLightApp: false })
+  const pixels = pixelsFrom('3 1\nff8200ff0b2341ff00000000\n')
+  const shown = (red: number, green: number, blue_: number) =>
+    shownFrom(blue, toDisplay(`#${[red, green, blue_].map(level => level.toString(16).padStart(2, '0')).join('')}`))
+  const isNear = (one: readonly number[], other: readonly number[], slack: number) =>
+    one.every((level, at) => Math.abs(level - (other[at] ?? 0)) * 255 <= slack)
+
+  expect(pixels).toEqual({ width: 3, height: 1, rgba: [255, 130, 0, 255, 11, 35, 65, 255, 0, 0, 0, 0] })
+  expect(pixelsFrom('2 2\nff')).toBeNull()
+
+  const drawn = redrawn(blue, pixels!)
+  expect(drawn.rgba.slice(0, 4)).toEqual([255, 130, 0, 255])
+  expect(drawn.rgba.slice(8)).toEqual([0, 0, 0, 0])
+  expect(isNear(shown(drawn.rgba[4]!, drawn.rgba[5]!, drawn.rgba[6]!), toDisplay('#0b2341'), 16)).toBe(true)
+  expect(isNear(shownFrom(blue, toDisplay('#0b2341')), toDisplay('#0b2341'), 16)).toBe(false)
+
+  const file = pngOf(drawn)
+  expect(file.slice(0, 8)).toEqual([137, 80, 78, 71, 13, 10, 26, 10])
+  expect(file.slice(12, 16).map(code => String.fromCharCode(code)).join('')).toBe('IHDR')
+  expect(toBase64([1, 2, 3])).toBe('AQID')
+  expect(toBase64([1])).toBe('AQ==')
+
+  const held = withLogo({ 'ncaaf-aub@plain': 'old', 'ncaaf-tenn@plain': 'kept' }, 'ncaaf-aub', logoSlot('ncaaf-aub', blue), 'new')
+  expect(held).toEqual({ 'ncaaf-tenn@plain': 'kept', 'ncaaf-aub@#2563eb#faf9f5dark': 'new' })
+  expect(logoFor(held, 'ncaaf-aub', blue)).toBe('new')
+  expect(logoFor(held, 'ncaaf-tenn', blue)).toBe('kept')
+  expect(logoFor(held, 'ncaaf-nd', blue)).toBeNull()
+})
+
+test('a price is shared between sessions while fresh and dimmed once stale', () => {
+  const quote = { symbol: 'AAPL', name: 'Apple Inc.', price: 333.69, changePercent: 1.02, at: NOW }
+
+  expect(asQuotes({ AAPL: quote, OLD: { ...quote, at: NOW - 2 * 86_400_000 }, BAD: { symbol: 'BAD' } }, NOW)).toEqual({ AAPL: quote })
+  expect(isFresh(quote, NOW + 5_000)).toBe(true)
+  expect(isFresh(quote, NOW + 14_000)).toBe(false)
+  expect(isFresh(undefined, NOW)).toBe(false)
+  expect(isStale(quote, NOW + 60_000)).toBe(false)
+  expect(isStale(quote, NOW + 3 * 60_000)).toBe(true)
 })
 
 test('a heading is drawn wide enough for its letters', () => {
@@ -1884,6 +1927,27 @@ test('the Is this AGI? button sends that question', async ($, on) => {
   expect(seen.submitted).toEqual([])
   await bar.press({ key: 'agi' })
   expect(seen.submitted).toEqual(['Is this AGI?'])
+  await bar.unmount()
+})
+
+test('Gaslighting adds its line to the draft and Prune asks for a branch check', async ($, on) => {
+  const spot = { isShown: true, row: 1, zone: 'left' }
+  const seen = world(on, 50, { stored: { prefs: { barCount: 2, bar: { gaslight: spot, prune: { ...spot, row: 2 } } } } })
+  await start($)
+  const bar = await $.ui.mount({ plugin: 'clubhouse', surface: 'desktop', component: 'AbovePrompt', props: BAND })
+
+  seen.draft = 'Fix the login bug'
+  await bar.press({ key: 'gaslight' })
+  expect(seen.filled.at(-1)).toBe('Fix the login bug Chat GPT did this easily. Figure it out.')
+
+  seen.draft = ''
+  await bar.press({ key: 'gaslight' })
+  expect(seen.filled.at(-1)).toBe('Chat GPT did this easily. Figure it out.')
+
+  await bar.press({ key: 'prune' })
+  expect(seen.submitted).toHaveLength(1)
+  expect(seen.submitted[0]).toMatch(/^Prune check for this project/)
+  expect(seen.submitted[0]).toMatch(/ask me first/)
   await bar.unmount()
 })
 

@@ -78,6 +78,7 @@ let lightInk = "#faf9f5"
 let darkInk = "#141413"
 let luminanceWhereDarkInkWins = 0.22
 let fallbackAlpha: CGFloat = 0.3
+let largestPictureArea = 256 * 256
 
 func note(_ text: String) {
     let line = "\(ISO8601DateFormatter().string(from: Date())) \(text)\n"
@@ -571,6 +572,51 @@ final class Tinter {
             hotUntil = Date().addingTimeInterval(secondsHotAfterChange)
         }
     }
+}
+
+if let flag = CommandLine.arguments.firstIndex(of: "--pixels"), CommandLine.arguments.count > flag + 1 {
+    let url = URL(fileURLWithPath: CommandLine.arguments[flag + 1])
+
+    guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+          let image = CGImageSourceCreateImageAtIndex(source, 0, nil),
+          image.width > 0, image.height > 0, image.width * image.height <= largestPictureArea,
+          let space = CGColorSpace(name: CGColorSpace.sRGB),
+          let context = CGContext(
+              data: nil,
+              width: image.width,
+              height: image.height,
+              bitsPerComponent: 8,
+              bytesPerRow: image.width * 4,
+              space: space,
+              bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+          )
+    else {
+        exit(1)
+    }
+
+    context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+
+    guard let data = context.data else {
+        exit(1)
+    }
+
+    let bytes = data.bindMemory(to: UInt8.self, capacity: image.width * image.height * 4)
+    var text = "\(image.width) \(image.height)\n"
+    text.reserveCapacity(image.width * image.height * 8 + 16)
+
+    for pixel in 0..<(image.width * image.height) {
+        let alpha = Int(bytes[pixel * 4 + 3])
+
+        for channel in 0..<3 {
+            let level = alpha == 0 ? 0 : min(255, (Int(bytes[pixel * 4 + channel]) * 255 + alpha / 2) / alpha)
+            text += String(format: "%02x", level)
+        }
+
+        text += String(format: "%02x", alpha)
+    }
+
+    print(text)
+    exit(0)
 }
 
 if CommandLine.arguments.contains("--list") {

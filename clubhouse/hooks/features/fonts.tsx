@@ -87,88 +87,86 @@ export function fontsRoom(on: On): void {
     const kept = await read($, fontPresets)
     const view = await read($, fontsView)
     const current = chosen.font ?? DEFAULT_FONT
-    const { frame, rim, note, plain, title, card, heading, Button, Input } = makeParts(elements, chosen, e.surface)
+    const { frame, note, plain, title, card, heading, Button, Input } = makeParts(elements, chosen, e.surface)
 
     return (
-      <Box flexDirection="column" {...rim}>
-        <Box flexDirection="column" gap={1} {...frame}>
-          {title('Fonts')}
-          {note(
-            'Pick the font of the Clubhouse headings, like the word Fonts above, and of the text on the toolbar. Buttons, the live score and all other text are drawn by the Claude app in its own font, which the Clubhouse cannot change. /clubhouse fonts opens this.',
-          )}
-          {card('Heading font', [
-            plain(`Now: ${current.name}`),
-            <Box gap={1} flexWrap="wrap">
-              {FONTS.map(font => (
-                <Button
-                  key={`font-${font.name}`}
-                  label={font.name}
-                  variant={font.name === current.name ? 'primary' : 'secondary'}
-                  onPress={() => void setFont($, font, `Headings are now in ${font.name}.`)}
-                />
-              ))}
-            </Box>,
-            note('These are fonts already on your Mac. Anthropic Serif is the default.'),
+      <Box flexDirection="column" gap={1} {...frame}>
+        {title('Fonts')}
+        {note(
+          'Pick the font of the Clubhouse headings, like the word Fonts above, and of the text on the toolbar. Buttons, the live score and all other text are drawn by the Claude app in its own font, which the Clubhouse cannot change. /clubhouse fonts opens this.',
+        )}
+        {card('Heading font', [
+          plain(`Now: ${current.name}`),
+          <Box gap={1} flexWrap="wrap">
+            {FONTS.map(font => (
+              <Button
+                key={`font-${font.name}`}
+                label={font.name}
+                variant={font.name === current.name ? 'primary' : 'secondary'}
+                onPress={() => void setFont($, font, `Headings are now in ${font.name}.`)}
+              />
+            ))}
+          </Box>,
+          note('These are fonts already on your Mac. Anthropic Serif is the default.'),
+        ])}
+        {heading('The quick brown fox')}
+        {Input !== null &&
+          card('Describe a font', [
+            note('Say what you want the headings to feel like, or name a font. A small model picks the closest font on your Mac. Costs a few tokens.'),
+            <Input
+              key="font-wish"
+              label="Font"
+              placeholder="friendly and rounded"
+              submitLabel="Find it"
+              onSubmit={wish => void describe($, wish)}
+            />,
           ])}
-          {heading('The quick brown fox')}
-          {Input !== null &&
-            card('Describe a font', [
-              note('Say what you want the headings to feel like, or name a font. A small model picks the closest font on your Mac. Costs a few tokens.'),
-              <Input
-                key="font-wish"
-                label="Font"
-                placeholder="friendly and rounded"
-                submitLabel="Find it"
-                onSubmit={wish => void describe($, wish)}
-              />,
-            ])}
-          {Input !== null &&
-            card('From a design file', [
-              note('Give the path to a design guide, like the DESIGN.md you used before. The heading font it names is matched to the closest font on your Mac and saved as a preset.'),
-              <Input
-                key="font-file"
-                label="File"
-                placeholder="~/Downloads/DESIGN.md"
-                submitLabel="Use it"
-                onSubmit={typed => void fromDesignFile($, typed)}
-              />,
-            ])}
-          {card('Your font presets', [
-            Input !== null && (
-              <Input
-                key="font-preset-name"
-                label="Name"
-                placeholder="Game day"
-                submitLabel="Save current font"
-                onSubmit={name =>
-                  void (name.trim() === ''
-                    ? say($, 'Type a name for the preset, then press Save current font.')
-                    : savePreset($, name, current).then(() => say($, `Saved ${current.name} as "${name.trim()}".`)))
+        {Input !== null &&
+          card('From a design file', [
+            note('Give the path to a design guide, like the DESIGN.md you used before. The heading font it names is matched to the closest font on your Mac and saved as a preset.'),
+            <Input
+              key="font-file"
+              label="File"
+              placeholder="~/Downloads/DESIGN.md"
+              submitLabel="Use it"
+              onSubmit={typed => void fromDesignFile($, typed)}
+            />,
+          ])}
+        {card('Your font presets', [
+          Input !== null && (
+            <Input
+              key="font-preset-name"
+              label="Name"
+              placeholder="Game day"
+              submitLabel="Save current font"
+              onSubmit={name =>
+                void (name.trim() === ''
+                  ? say($, 'Type a name for the preset, then press Save current font.')
+                  : savePreset($, name, current).then(() => say($, `Saved ${current.name} as "${name.trim()}".`)))
+              }
+            />
+          ),
+          ...kept.map(one => (
+            <Box gap={1} flexWrap="wrap">
+              <Button
+                key={`font-preset-${one.name}`}
+                label={`${one.name} (${one.font.name})`}
+                variant="primary"
+                onPress={() => void setFont($, one.font, `Headings are now in ${one.font.name}.`)}
+              />
+              <Button
+                key={`font-preset-delete-${one.name}`}
+                label="Delete"
+                onPress={() =>
+                  void update($, fontPresets, held => held.filter(other => other.name !== one.name))
+                    .then(async () => $.store.set(FONT_PRESETS_KEY, await read($, fontPresets)))
+                    .then(() => say($, `Deleted the preset "${one.name}".`))
                 }
               />
-            ),
-            ...kept.map(one => (
-              <Box gap={1} flexWrap="wrap">
-                <Button
-                  key={`font-preset-${one.name}`}
-                  label={`${one.name} (${one.font.name})`}
-                  variant="primary"
-                  onPress={() => void setFont($, one.font, `Headings are now in ${one.font.name}.`)}
-                />
-                <Button
-                  key={`font-preset-delete-${one.name}`}
-                  label="Delete"
-                  onPress={() =>
-                    void update($, fontPresets, held => held.filter(other => other.name !== one.name))
-                      .then(async () => $.store.set(FONT_PRESETS_KEY, await read($, fontPresets)))
-                      .then(() => say($, `Deleted the preset "${one.name}".`))
-                  }
-                />
-              </Box>
-            )),
-          ])}
-          {view.note !== null && plain(view.note)}
-        </Box>
+            </Box>
+          )),
+        ])}
+        {view.note !== null && plain(view.note)}
       </Box>
     )
   })

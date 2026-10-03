@@ -92,7 +92,7 @@ export function tickerRoom(on: On): void {
     const plan = await read($, ticker)
     const prices: { [symbol: string]: Quote } = await read($, quotes)
     const view = await read($, tickerView)
-    const { frame, rim, note, plain, title, card, Button, Input } = makeParts(elements, chosen, e.surface)
+    const { frame, note, plain, title, card, Button, Input } = makeParts(elements, chosen, e.surface)
     const line = (symbol: string) => {
       const quote = prices[symbol]
 
@@ -117,55 +117,53 @@ export function tickerRoom(on: On): void {
     )
 
     return (
-      <Box flexDirection="column" {...rim}>
-        <Box flexDirection="column" gap={1} {...frame}>
-          {title('Ticker')}
-          {note(
-            'One stock or coin on the toolbar: its symbol, price and change for the day. Search below, add one to the toolbar, and keep favorites here. /clubhouse ticker opens this.',
-          )}
-          {card('On the toolbar', [
-            plain(plan.symbol === null ? 'Nothing chosen yet.' : line(plan.symbol)),
-            <Box gap={1} flexWrap="wrap">
-              <Button
-                key="ticker-color"
-                label={plan.isColored ? 'Change shown in green or red' : 'Change shown in plain text'}
-                onPress={() => void keep($, held => ({ ...held, isColored: !held.isColored }))}
-              />
-              <Button key="ticker-refresh" label="Refresh prices" onPress={() => void refresh($, watched(plan))} />
-            </Box>,
-            note('Plain text keeps the change in your text color, so it never clashes with your colors.'),
+      <Box flexDirection="column" gap={1} {...frame}>
+        {title('Ticker')}
+        {note(
+          'One stock or coin on the toolbar: its symbol, price and change for the day. Search below, add one to the toolbar, and keep favorites here. /clubhouse ticker opens this.',
+        )}
+        {card('On the toolbar', [
+          plain(plan.symbol === null ? 'Nothing chosen yet.' : line(plan.symbol)),
+          <Box gap={1} flexWrap="wrap">
+            <Button
+              key="ticker-color"
+              label={plan.isColored ? 'Change shown in green or red' : 'Change shown in plain text'}
+              onPress={() => void keep($, held => ({ ...held, isColored: !held.isColored }))}
+            />
+            <Button key="ticker-refresh" label="Refresh prices" onPress={() => void refresh($, watched(plan))} />
+          </Box>,
+          note('Plain text keeps the change in your text color, so it never clashes with your colors.'),
+        ])}
+        {Input !== null &&
+          card('Find a symbol', [
+            <Input
+              key="ticker-search"
+              label="Search"
+              placeholder="AAPL, bitcoin, S&P 500"
+              submitLabel="Find"
+              onSubmit={asked => void search($, asked)}
+            />,
+            ...view.hits.map(hit => (
+              <Box flexDirection="column">
+                {plain(`${hit.symbol} · ${hit.name} · ${hit.kind}`)}
+                {actions(hit.symbol, 'hit')}
+              </Box>
+            )),
           ])}
-          {Input !== null &&
-            card('Find a symbol', [
-              <Input
-                key="ticker-search"
-                label="Search"
-                placeholder="AAPL, bitcoin, S&P 500"
-                submitLabel="Find"
-                onSubmit={asked => void search($, asked)}
-              />,
-              ...view.hits.map(hit => (
-                <Box flexDirection="column">
-                  {plain(`${hit.symbol} · ${hit.name} · ${hit.kind}`)}
-                  {actions(hit.symbol, 'hit')}
-                </Box>
-              )),
-            ])}
-          {view.note !== null && plain(view.note)}
-          {plan.favorites.length > 0 &&
-            card(
-              'Favorites',
-              plan.favorites.map(symbol => (
-                <Box flexDirection="column">
-                  {plain(line(symbol))}
-                  {actions(symbol, 'fav')}
-                </Box>
-              )),
-            )}
-          {note(
-            'Prices come from Yahoo\'s free feed, refresh about once a minute while the ticker is on the toolbar, and can run a few minutes behind. It shows prices only; it does not trade.',
+        {view.note !== null && plain(view.note)}
+        {plan.favorites.length > 0 &&
+          card(
+            'Favorites',
+            plan.favorites.map(symbol => (
+              <Box flexDirection="column">
+                {plain(line(symbol))}
+                {actions(symbol, 'fav')}
+              </Box>
+            )),
           )}
-        </Box>
+        {note(
+          'Prices come from Yahoo\'s free feed, refresh about once a minute while the ticker is on the toolbar, and can run a few minutes behind. It shows prices only; it does not trade.',
+        )}
       </Box>
     )
   })
