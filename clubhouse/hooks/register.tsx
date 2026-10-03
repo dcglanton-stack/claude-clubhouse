@@ -10,6 +10,7 @@ import {
   appModeFrom,
   coversApp,
   helperConfig,
+  lookOf,
 } from './lib/appColor'
 import { agents } from './features/agents'
 import { band } from './features/band'
@@ -66,9 +67,14 @@ import {
   isWorthChecking,
   leagueOf,
   logoKey,
+  logoSlot,
   logoUrl,
   scoreboardUrl,
+  withLogo,
 } from './lib/sports'
+import { pixelsFrom, pngOf, toBase64 } from './lib/png'
+import { redrawn } from './lib/tone'
+import type { Tone } from './lib/tone'
 import {
   DEFAULT_TICKER,
   FEED_HEADERS,
@@ -133,6 +139,7 @@ const sessionFolder = atom({ plugin: 'clubhouse', key: 'sessionFolder' } as cons
 const hasBooted = atom({ plugin: 'clubhouse', key: 'hasBooted' } as const, false)
 
 const TICK_MS = 30_000
+const PIXELS_TIMEOUT_MS = 5_000
 
 async function appModeNow($: EngineInterface): Promise<Prefs['appMode'] | null> {
   const ran = await $.process.run(['/bin/sh', '-c', READ_APP_MODE]).catch(() => null)
@@ -166,16 +173,25 @@ async function tick($: EngineInterface): Promise<void> {
   await $.fs.write(`${userFolder}/${HELPER_CONFIG}`, helperConfig(turned)).catch(() => undefined)
 }
 
+async function redrawnLogo($: EngineInterface, helper: string, path: string, tone: Tone): Promise<string | null> {
+  const ran = await $.process.run([helper, '--pixels', path], { timeoutMs: PIXELS_TIMEOUT_MS }).catch(() => null)
+  const pixels = ran !== null && ran.exitCode === 0 ? pixelsFrom(ran.stdout) : null
+
+  return pixels === null ? null : toBase64(pngOf(redrawn(tone, pixels)))
+}
+
 async function loadLogos($: EngineInterface, game: Game): Promise<void> {
   const userFolder = await $.env.get('HOME')
   const held: { [key: string]: string } = await read($, logos)
 
   if (userFolder === undefined) return
+  const { tone } = lookOf(await read($, prefs), 'desktop')
 
   for (const team of [game.home, game.away]) {
     const key = logoKey(game.league, team)
+    const slot = logoSlot(key, tone)
 
-    if (team.logo === null || held[key] !== undefined) continue
+    if (team.logo === null || held[slot] !== undefined) continue
     const path = `${userFolder}/${LOGO_FOLDER}/${key}.png`
 
     if (!(await $.fs.exists(path).catch(() => false))) {
@@ -184,10 +200,11 @@ async function loadLogos($: EngineInterface, game: Game): Promise<void> {
         .catch(() => undefined)
     }
 
-    const file = await $.fs.read(path, { as: 'bytes' }).catch(() => null)
+    const drawn = tone === null ? null : await redrawnLogo($, `${userFolder}/${HELPER_BINARY}`, path, tone)
+    const picture = drawn ?? (await $.fs.read(path, { as: 'bytes' }).catch(() => null))?.base64 ?? ''
 
-    if (file !== null && file.base64.length > 0) {
-      await update($, logos, known => ({ ...known, [key]: file.base64 }))
+    if (picture.length > 0) {
+      await update($, logos, known => withLogo(known, key, slot, picture))
     }
   }
 }
