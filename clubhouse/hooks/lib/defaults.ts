@@ -125,7 +125,8 @@ export const LIMITS_KEY = 'limits'
 
 export const DEFAULT_COLORS_VIEW: ColorsView = { slot: 'accent', note: null }
 
-export const DEFAULT_COMMANDS_VIEW: CommandsView = { filter: '', note: null }
+export const DEFAULT_COMMANDS_VIEW: CommandsView = { filter: '', note: null, open: [] }
+export const HIDDEN_KEY = 'hidden'
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -269,4 +270,8 @@ export function topCommands(stats: CommandStats, size: number): string[] {
   const picked = [...mostUsed, ...byRecency.filter(name => !mostUsed.includes(name))].slice(0, size)
 
   return [...picked, ...STARTER_COMMANDS.filter(name => !picked.includes(name))].slice(0, size)
+}
+
+export function asNames(saved: unknown): string[] {
+  return Array.isArray(saved) ? saved.filter(one => typeof one === 'string') : []
 }

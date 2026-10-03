@@ -2,24 +2,29 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, On } from 'claude-code'
 
 import type { Prefs } from '../../types'
-import { inkOn } from '../lib/color'
+import { groupCommands, withoutHiddenSkills } from '../lib/commands'
+import type { ListedCommand } from '../lib/commands'
 import {
   COMMANDS_KEY,
   DEFAULT_COMMANDS_VIEW,
   DEFAULT_PREFS,
+  HIDDEN_KEY,
   HOME_PANE,
   PREFS_KEY,
   ROOMS,
   topCommands,
 } from '../lib/defaults'
+import { makeParts } from '../lib/parts'
 
 const commandStats = atom({ plugin: 'clubhouse', key: 'commandStats' } as const, {})
 const commandsView = atom({ plugin: 'clubhouse', key: 'commandsView' } as const, DEFAULT_COMMANDS_VIEW)
+const hiddenCommands = atom({ plugin: 'clubhouse', key: 'hiddenCommands' } as const, [])
 const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS)
 const pulse = atom({ plugin: 'clubhouse', key: 'pulse' } as const, 0)
 
 const TOP_SIZE = 5
-const LIST_SIZE = 60
+const MATCH_SIZE = 40
+const ABOUT_CHARS = 140
 
 async function keep($: EngineInterface, change: (held: Prefs) => Prefs): Promise<void> {
   await update($, prefs, change)
@@ -62,6 +67,18 @@ async function visit($: EngineInterface, id: string, title: string): Promise<voi
   await update($, pulse, beat => beat + 1)
 }
 
+async function setHidden(
+  $: EngineInterface,
+  change: (hidden: string[]) => string[],
+  note: string,
+): Promise<void> {
+  await update($, hiddenCommands, change)
+  await $.store.set(HIDDEN_KEY, await read($, hiddenCommands))
+  await update($, commandsView, view => ({ ...view, note }))
+  $.ui.invalidate('command.describe')
+  $.ui.invalidate('prompt.attachment')
+}
+
 export function commands(on: On): void {
   on('command.run', async ($, e, next) => {
     await count($, e.command)
@@ -96,56 +113,88 @@ export function commands(on: On): void {
     return { text: 'Clubhouse opened.' }
   })
 
+  on('command.describe', async ($, e, next) => {
+    const hidden = await read($, hiddenCommands)
+
+    return hidden.includes(e.command) ? next({ ...e, isHidden: true }) : next(e)
+  })
+
+  on('prompt.attachment', { type: 'skill_listing' }, async ($, e, next) => {
+    const hidden = await read($, hiddenCommands)
+
+    return next({ ...e, text: withoutHiddenSkills(e.text, hidden) })
+  })
+
+  on('tool.call', { tool: 'Skill' }, async ($, e, next) => {
+    const hidden = await read($, hiddenCommands)
+
+    return hidden.includes(e.skill)
+      ? { deny: `The user hid the skill "${e.skill}" in Claude Clubhouse. Do the task without it.` }
+      : next(e)
+  })
+
   on('ui.render', { component: 'Pane', requestId: 'clubhouse-commands' }, async ($, e) => {
     const elements = $.ui.resolve(e)
     const { Box, Button, Text } = elements
     const chosen = await read($, prefs)
     const stats = await read($, commandStats)
     const view = await read($, commandsView)
-    const all = await $.command.list()
+    const hidden = await read($, hiddenCommands)
+    const all: ListedCommand[] = await $.command.list()
+    const groups = groupCommands(all, hidden)
     const wanted = view.filter.trim().toLowerCase().replace(/^\//, '')
     const matching = all.filter(
       one =>
-        wanted === '' ||
-        one.name.toLowerCase().includes(wanted) ||
-        one.description.toLowerCase().includes(wanted),
+        !hidden.includes(one.name) &&
+        (one.name.toLowerCase().includes(wanted) || one.description.toLowerCase().includes(wanted)),
     )
-    const { accent, background } = chosen.palette
-    const ink = background === null ? {} : { color: inkOn(background) }
-    const frame = background === null ? {} : { backgroundColor: background, padding: 1 }
+    const { ink, frame, note, plain, card } = makeParts(elements, chosen.palette)
 
-    const heading = (title: string) => (
-      <Text bold color={accent}>
-        {title}
-      </Text>
-    )
-    const note = (text: string) => (
-      <Text {...ink} dimColor wrap="wrap">
-        {text}
-      </Text>
-    )
     const setFilter = (typed: string) =>
       void update($, commandsView, held => ({ ...held, filter: typed }))
+    const toggleGroup = (id: string) =>
+      void update($, commandsView, held => ({
+        ...held,
+        open: held.open.includes(id) ? held.open.filter(one => one !== id) : [...held.open, id],
+      }))
+    const hide = (names: readonly string[], label: string) =>
+      void setHidden(
+        $,
+        held => [...new Set([...held, ...names])],
+        `${label} hidden. Claude no longer sees or uses ${names.length === 1 ? 'it' : 'them'}; undo under Hidden.`,
+      )
+    const unhide = (name: string) =>
+      void setHidden($, held => held.filter(one => one !== name), `/${name} is back.`)
+
+    const entry = (one: ListedCommand, canHide: boolean) => (
+      <Box flexDirection="column">
+        <Box gap={1}>
+          <Button key={`run-${one.name}`} label={`/${one.name}`} onPress={() => void offer($, one.name)} />
+          {canHide && (
+            <Button key={`hide-${one.name}`} label="Hide" onPress={() => hide([one.name], `/${one.name}`)} />
+          )}
+        </Box>
+        {one.description !== '' && note(one.description.slice(0, ABOUT_CHARS))}
+      </Box>
+    )
 
     return (
       <Box flexDirection="column" gap={1} {...frame}>
+        <Text {...ink} bold>
+          Commands
+        </Text>
         {note(
-          'Everything you can type after a slash. Click one to put it in the prompt box, then press Enter. /clubhouse commands opens this.',
+          'Everything you can type after a slash, sorted into groups. Click a group to open it and a command to put it in the prompt box. /clubhouse commands opens this.',
         )}
 
-        {heading('Most used and most recent')}
-        <Box gap={1} flexWrap="wrap">
-          {topCommands(stats, TOP_SIZE).map(name => (
-            <Button key={`top-${name}`} label={`/${name}`} onPress={() => void offer($, name)} />
-          ))}
-        </Box>
-        {view.note !== null && (
-          <Text {...ink} wrap="wrap">
-            {view.note}
-          </Text>
-        )}
+        {card('Most used and most recent', [
+          <Box gap={1} flexWrap="wrap">
+            {topCommands(stats, TOP_SIZE).map(name => (
+              <Button key={`top-${name}`} label={`/${name}`} onPress={() => void offer($, name)} />
+            ))}
+          </Box>,
+        ])}
 
-        {heading(wanted === '' ? `All commands (${all.length})` : `Matching "${wanted}" (${matching.length})`)}
         {'Input' in elements && (
           <elements.Input
             key="filter"
@@ -156,24 +205,75 @@ export function commands(on: On): void {
             onSubmit={setFilter}
           />
         )}
-        {matching.slice(0, LIST_SIZE).map(one => (
-          <Box flexDirection="column">
+        {view.note !== null && plain(view.note)}
+
+        {wanted !== '' &&
+          card(
+            `Matching "${wanted}" (${matching.length})`,
+            <Box flexDirection="column" gap={1}>
+              {matching.slice(0, MATCH_SIZE).map(one => entry(one, one.source !== 'builtin'))}
+              {matching.length > MATCH_SIZE && note(`${matching.length - MATCH_SIZE} more. Type more to narrow it.`)}
+            </Box>,
+          )}
+
+        {wanted === '' &&
+          groups.map(group => {
+            const isOpen = view.open.includes(group.id)
+
+            return (
+              <Box flexDirection="column" gap={1}>
+                <Box gap={1}>
+                  <Button
+                    key={`group-${group.id}`}
+                    label={`${isOpen ? '▾' : '▸'} ${group.title} (${group.commands.length})`}
+                    variant={isOpen ? 'primary' : 'secondary'}
+                    onPress={() => toggleGroup(group.id)}
+                  />
+                  {isOpen && group.canHide && (
+                    <Button
+                      key={`hideall-${group.id}`}
+                      label="Hide all"
+                      onPress={() =>
+                        hide(
+                          group.commands.map(one => one.name),
+                          `All ${group.commands.length} in ${group.title}`,
+                        )
+                      }
+                    />
+                  )}
+                </Box>
+                {isOpen &&
+                  card(
+                    group.title,
+                    <Box flexDirection="column" gap={1}>
+                      {group.commands.map(one => entry(one, group.canHide))}
+                    </Box>,
+                  )}
+              </Box>
+            )
+          })}
+
+        {wanted === '' && hidden.length > 0 && (
+          <Box flexDirection="column" gap={1}>
             <Box>
               <Button
-                key={`run-${one.name}`}
-                label={`/${one.name}`}
-                onPress={() => void offer($, one.name)}
+                key="group-hidden"
+                label={`${view.open.includes('hidden') ? '▾' : '▸'} Hidden (${hidden.length})`}
+                variant={view.open.includes('hidden') ? 'primary' : 'secondary'}
+                onPress={() => toggleGroup('hidden')}
               />
             </Box>
-            {one.description !== '' && (
-              <Text {...ink} dimColor wrap="truncate">
-                {one.description}
-              </Text>
-            )}
+            {view.open.includes('hidden') &&
+              card('Hidden', [
+                note('Hidden in every session: gone from the slash menu, and Claude is not told about them and cannot use them.'),
+                <Box gap={1} flexWrap="wrap">
+                  {hidden.map(name => (
+                    <Button key={`unhide-${name}`} label={`Show /${name}`} onPress={() => unhide(name)} />
+                  ))}
+                </Box>,
+              ])}
           </Box>
-        ))}
-        {matching.length > LIST_SIZE &&
-          note(`${matching.length - LIST_SIZE} more. Type in Find to narrow the list.`)}
+        )}
       </Box>
     )
   })

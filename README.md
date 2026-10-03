@@ -25,7 +25,7 @@ The Clubhouse loads in every session through `CLAUDE_CODE_PLUGIN_DIRS` in `~/.cl
 - **Summary**: a Summarize button on the bar shortens the last reply with a small model; Auto does it for every long reply.
 - **Usage meter**: Clawd rides a bar that drains as the 5-hour or weekly limit is used. Green and happy when full, red and wiped out near empty. Shows time to reset and a one-hour cache countdown from the last reply.
 - **Agent HQ**: each subagent drawn as Clawd in a suit and sunglasses, with Stand down and Dismiss. Create your own agents from a form, save them, pick their model (or let Auto pick the cheapest that fits), and send one out with a task; Claude is told what was dispatched.
-- **Commands**: the full slash-command list with a filter; clicking one puts it in the prompt box.
+- **Commands**: every slash command in collapsible groups (your own, built in, one per plugin) with a filter; clicking one puts it in the prompt box. Hide a skill, or a whole group, and it leaves the slash menu, Claude is no longer told about it, and Claude cannot use it. Hidden items can be shown again.
 - **Colors**: accent, Clawd and background colors for everything the Clubhouse draws, by preset, hex code, nudges or a described look. Can also write a Claude Code custom theme.
 - **Context gauge** and **turn receipt**: optional extras on the bar, off by default.
 

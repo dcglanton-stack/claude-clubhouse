@@ -86,11 +86,14 @@ function world(on: On, fiveHourUsed: number): World {
   })
   on('command.list', () => ({
     value: [
-      { name: 'clubhouse', description: 'Open Claude Clubhouse', source: 'plugin' },
+      { name: 'clubhouse', description: 'Open Claude Clubhouse', source: 'plugin', plugin: 'clubhouse' },
       { name: 'compact', description: 'Shrink the conversation', source: 'builtin' },
-      { name: 'deploy', description: 'Ship the current project', source: 'skill' },
+      { name: 'deploy', description: 'Ship the current project', source: 'user' },
+      { name: 'vercel:deploy', description: 'Deploy to Vercel', source: 'plugin', plugin: 'vercel' },
+      { name: 'vercel:env', description: 'Manage environment variables', source: 'plugin', plugin: 'vercel' },
     ],
   }))
+  on('prompt.attachment', (_$, e) => ({ text: e.text }))
   on('agent.list', () => ({
     value: [
       { id: 'a1', description: 'Scout the test suite', type: 'Explore', status: 'running' },
@@ -415,7 +418,7 @@ for (const surface of SURFACES) {
     await ui.unmount()
   })
 
-  test(`Commands lists, filters and fills the prompt on ${surface}`, async ($, on) => {
+  test(`Commands groups, filters, fills the prompt and hides skills on ${surface}`, async ($, on) => {
     const seen = world(on, 50)
     await start($)
     const ui = await $.ui.mount({
@@ -425,8 +428,49 @@ for (const surface of SURFACES) {
       requestId: 'clubhouse-commands',
       props: { ...PANE, title: 'Commands' },
     })
+    const listing = [
+      'Skills you can use:',
+      '- deploy: Ship the current project',
+      '- vercel:env: Manage environment variables',
+      '  across every environment',
+      '- vercel:deploy: Deploy to Vercel',
+    ].join('\n')
+    const told = async () =>
+      (
+        await $.prompt.attachment({
+          type: 'skill_listing',
+          text: listing,
+          origin: { kind: 'engine' },
+        })
+      ).text
 
-    expect(await ui.find({ type: 'Text', text: /All commands \(3\)/ })).toBeDefined()
+    expect((await ui.find({ key: 'group-vercel' }))?.text).toBe('▸ Vercel (2)')
+    expect((await ui.find({ key: 'group-yours' }))?.text).toBe('▸ Your own (1)')
+    expect((await ui.find({ key: 'group-built-in' }))?.text).toBe('▸ Built in (1)')
+    expect(await ui.find({ key: 'run-vercel:env' })).toBeUndefined()
+    expect(await told()).toBe(listing)
+
+    await ui.press({ key: 'group-vercel' })
+    expect(await ui.find({ key: 'run-vercel:env' })).toBeDefined()
+
+    await ui.press({ key: 'hide-vercel:env' })
+    expect((await ui.find({ key: 'group-vercel' }))?.text).toBe('▾ Vercel (1)')
+    expect((await ui.find({ key: 'group-hidden' }))?.text).toBe('▸ Hidden (1)')
+    expect(await told()).toBe(
+      ['Skills you can use:', '- deploy: Ship the current project', '- vercel:deploy: Deploy to Vercel'].join('\n'),
+    )
+
+    const blocked = await $.tool.call({ tool: 'Skill', skill: 'vercel:env' } as Parameters<Engine['tool']['call']>[0])
+    expect(JSON.stringify(blocked)).toMatch(/hid the skill/)
+
+    await ui.press({ key: 'group-hidden' })
+    await ui.press({ key: 'unhide-vercel:env' })
+    expect((await ui.find({ key: 'group-vercel' }))?.text).toBe('▾ Vercel (2)')
+    expect(await told()).toBe(listing)
+
+    await ui.press({ key: 'group-built-in' })
+    expect(await ui.find({ key: 'hide-compact' })).toBeUndefined()
+
     await ui.input({ key: 'filter', text: 'ship' })
     expect(await ui.find({ key: 'run-deploy' })).toBeDefined()
     expect(await ui.find({ key: 'run-compact' })).toBeUndefined()
