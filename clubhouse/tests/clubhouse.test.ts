@@ -39,6 +39,9 @@ type World = {
   written: { path: string; text: string }[]
   launched: string[]
   appTheme: string
+  tools: { name: string; description: string }[]
+  verdict: 'allow' | 'ask' | 'deny'
+  output: string
 }
 
 type Setup = { hasHelper?: boolean; stored?: Record<string, unknown> }
@@ -61,6 +64,9 @@ function world(on: On, fiveHourUsed: number, setup: Setup = {}): World {
     written: [],
     launched: [],
     appTheme: '',
+    tools: [],
+    verdict: 'allow',
+    output: '',
   }
 
   mock.clock(on, { now: NOW })
@@ -80,7 +86,7 @@ function world(on: On, fiveHourUsed: number, setup: Setup = {}): World {
     return {
       value: {
         exitCode: 0,
-        stdout: isModeCheck ? seen.appTheme : '',
+        stdout: isModeCheck ? seen.appTheme : seen.output,
         stderr: '',
         isStdoutTruncated: false,
         isStderrTruncated: false,
@@ -108,6 +114,12 @@ function world(on: On, fiveHourUsed: number, setup: Setup = {}): World {
   }))
   on('ui.render', () => BLANK)
   on('command.register', (_$, e) => ({ value: { command: e.name } }))
+  on('tool.register', (_$, e) => {
+    seen.tools.push({ name: e.name, description: e.description })
+
+    return { value: { tool: `mcp__clubhouse__${e.name}` } }
+  })
+  on('tool.check', () => ({ decision: seen.verdict }))
   on('session.start', () => ({ cwd: '/tmp/clubhouse-home' }))
   on('session.measure', (_$, e) => ({ changed: e.changed }))
   on('ui.toast', (_$, e) => {
@@ -340,7 +352,8 @@ for (const surface of SURFACES) {
     expect((await ui.find({ key: 'power' }))?.text).toBe('Off')
 
     await ui.press({ key: 'tab-more' })
-    expect(await ui.find({ type: 'Text', text: /Workshop: recipes/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /Night watch/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /Workshop: recipes/ })).toBeUndefined()
     await ui.unmount()
   })
 
@@ -1205,4 +1218,73 @@ test('under the helper pictures are redrawn for the screen and your own prompts 
   await mine.unmount()
   await notice.unmount()
   await reply.unmount()
+})
+
+for (const surface of SURFACES) {
+  test(`a recipe becomes a tool Claude can call, with blanks passed as arguments, on ${surface}`, async ($, on) => {
+    const seen = world(on, 50)
+    await start($)
+    const ui = await $.ui.mount({
+      plugin: 'clubhouse',
+      surface,
+      component: 'Pane',
+      requestId: 'clubhouse-recipes',
+      props: { ...PANE, title: 'Recipes' },
+    })
+    const call = (tool: string, args: object) =>
+      $.tool.call({ tool, ...args } as Parameters<Engine['tool']['call']>[0])
+
+    await ui.press({ key: 'recipe-save' })
+    expect(await ui.find({ type: 'Text', text: /Give the recipe a name/ })).toBeDefined()
+
+    await ui.input({ key: 'recipe-name', text: 'Find Word' })
+    await ui.input({ key: 'recipe-about', text: 'Finds a word in a file' })
+    await ui.input({ key: 'recipe-command', text: "grep -n {word} '{file}' | head -5; echo ${HOME}" })
+    await ui.press({ key: 'recipe-save' })
+    expect(seen.tools.at(-1)?.name).toBe('find_word')
+    expect(seen.tools.at(-1)?.description).toMatch(/Finds a word in a file/)
+    expect(await ui.find({ type: 'Text', text: /Claude fills in: word, file\./ })).toBeDefined()
+    expect(await ui.find({ key: 'recipe-try-find_word' })).toBeUndefined()
+
+    seen.output = '3:hello there\n'
+    const ran = await call('mcp__clubhouse__find_word', { word: 'hello; rm -rf ~', file: 'my notes.txt' })
+    expect(seen.launched.at(-1)).toBe(
+      '/bin/sh -c grep -n "${1}" \'\'"${2}"\'\' | head -5; echo ${HOME} find_word hello; rm -rf ~ my notes.txt',
+    )
+    expect(ran.result).toMatch(/find_word finished with exit code 0\.\n3:hello there/)
+
+    seen.verdict = 'ask'
+    seen.answer = 'Deny'
+    const before = seen.launched.length
+    expect((await call('mcp__clubhouse__find_word', { word: 'x', file: 'y' })).deny).toMatch(/declined the recipe/)
+    expect(seen.launched).toHaveLength(before)
+    seen.verdict = 'allow'
+
+    await ui.input({ key: 'recipe-name', text: 'list' })
+    await ui.input({ key: 'recipe-command', text: 'ls' })
+    await ui.press({ key: 'recipe-save' })
+    seen.output = 'README.md\n'
+    await ui.press({ key: 'recipe-try-list' })
+    expect(await ui.find({ type: 'Text', text: /README\.md/ })).toBeDefined()
+
+    await ui.press({ key: 'recipe-delete-list' })
+    expect(await ui.find({ key: 'recipe-try-list' })).toBeUndefined()
+    expect((await call('mcp__clubhouse__list', {})).deny).toMatch(/was deleted/)
+    await ui.unmount()
+  })
+}
+
+test('saved recipes are tools again in the next session, and Tool rules still apply to them', async ($, on) => {
+  const seen = world(on, 50, {
+    stored: {
+      recipes: [{ name: 'run_tests', about: 'Runs the tests', command: 'npm test' }, { name: '', command: 'bad' }],
+      toolRules: { mcp__clubhouse__run_tests: 'block' },
+    },
+  })
+  await start($)
+
+  expect(seen.tools.map(one => one.name)).toEqual(['run_tests'])
+  const blocked = await $.tool.call({ tool: 'mcp__clubhouse__run_tests' } as Parameters<Engine['tool']['call']>[0])
+  expect(blocked.deny).toMatch(/blocked the tool/)
+  expect(seen.launched).toEqual([])
 })

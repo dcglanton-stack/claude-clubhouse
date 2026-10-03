@@ -18,6 +18,7 @@ import { colors } from './features/colors'
 import { commands } from './features/commands'
 import { home } from './features/home'
 import { opinionRoom } from './features/opinion'
+import { recipesRoom } from './features/recipes'
 import { summaryRoom } from './features/summary'
 import { tint } from './features/tint'
 import { tools } from './features/tools'
@@ -42,6 +43,7 @@ import {
   isLimitList,
   mergePrefs,
 } from './lib/defaults'
+import { RECIPES_KEY, asRecipes, toolSpecOf } from './lib/recipes'
 
 const contextPercent = atom({ plugin: 'clubhouse', key: 'contextPercent' } as const, null)
 const limits = atom({ plugin: 'clubhouse', key: 'limits' } as const, [])
@@ -54,6 +56,7 @@ const agentBank = atom({ plugin: 'clubhouse', key: 'agentBank' } as const, [])
 const hiddenCommands = atom({ plugin: 'clubhouse', key: 'hiddenCommands' } as const, [])
 const hiddenPlan = atom({ plugin: 'clubhouse', key: 'hiddenPlan' } as const, DEFAULT_HIDDEN_PLAN)
 const toolRules = atom({ plugin: 'clubhouse', key: 'toolRules' } as const, {})
+const recipes = atom({ plugin: 'clubhouse', key: 'recipes' } as const, [])
 
 const TICK_MS = 30_000
 
@@ -107,6 +110,13 @@ export const register: Register = on => {
     const savedRules = asToolRules(await $.store.get(TOOL_RULES_KEY))
     await update($, toolRules, () => savedRules)
 
+    const savedRecipes = asRecipes(await $.store.get(RECIPES_KEY))
+    await update($, recipes, () => savedRecipes)
+
+    for (const one of savedRecipes) {
+      await $.tool.register(toolSpecOf(one)).catch(() => undefined)
+    }
+
     const savedAgents: Blueprint[] = asBlueprints(await $.store.get(AGENTS_KEY))
     await update($, agentBank, () => savedAgents)
 
@@ -134,8 +144,8 @@ export const register: Register = on => {
 
     await $.command.register({
       name: 'clubhouse',
-      description: 'Open Claude Clubhouse. Add a room to open it: agents, summary, opinion, tools, commands, bar, usage, colors; or on, off, color reset',
-      argumentHint: '[on|off|agents|summary|opinion|tools|commands|bar|usage|colors|color reset]',
+      description: 'Open Claude Clubhouse. Add a room to open it: agents, summary, opinion, tools, recipes, commands, bar, usage, colors; or on, off, color reset',
+      argumentHint: '[on|off|agents|summary|opinion|tools|recipes|commands|bar|usage|colors|color reset]',
       immediate: true,
     })
 
@@ -149,6 +159,7 @@ export const register: Register = on => {
   summaryRoom(on)
   opinionRoom(on)
   tools(on)
+  recipesRoom(on)
   usageRoom(on)
   commands(on)
   agents(on)

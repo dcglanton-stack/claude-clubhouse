@@ -1,9 +1,20 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, On } from 'claude-code'
 
-import type { ToolRule, ToolRules } from '../../types'
+import type { Recipe, ToolRule, ToolRules } from '../../types'
 import { DEFAULT_PREFS, DEFAULT_TOOLS_VIEW, PREFS_SHAPE, TOOL_RULES_KEY } from '../lib/defaults'
 import { makeParts } from '../lib/parts'
+import {
+  RECIPE_TIMEOUT_MS,
+  RECIPE_TOOL_PREFIX,
+  RETIRED_RECIPE,
+  argvOf,
+  askOf,
+  inputOf,
+  recipeOf,
+  resultText,
+  toolNameOf,
+} from '../lib/recipes'
 import {
   RULE_LABEL,
   argSummary,
@@ -19,6 +30,7 @@ const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS
   shape: PREFS_SHAPE,
 })
 const toolRules = atom({ plugin: 'clubhouse', key: 'toolRules' } as const, {})
+const recipes = atom({ plugin: 'clubhouse', key: 'recipes' } as const, [])
 const toolsView = atom({ plugin: 'clubhouse', key: 'toolsView' } as const, DEFAULT_TOOLS_VIEW)
 
 const ALLOW_ONCE = 'Allow once'
@@ -36,12 +48,55 @@ async function setRules(
   await update($, toolsView, view => ({ ...view, note }))
 }
 
+async function isAllowedOnce($: EngineInterface, question: string): Promise<boolean> {
+  const answer = await $.ui
+    .ask(question, { header: 'Ask first', options: [ALLOW_ONCE, DENY] })
+    .catch(() => DENY)
+
+  return answer === ALLOW_ONCE
+}
+
+async function runRecipe(
+  $: EngineInterface,
+  recipe: Recipe,
+  input: Record<string, unknown>,
+  isCleared: boolean,
+): Promise<{ result: string } | { deny: string }> {
+  const verdict = isCleared
+    ? { decision: 'allow' as const }
+    : await $.tool
+        .check({ tool: toolNameOf(recipe.name), input })
+        .catch(() => ({ decision: 'ask' as const }))
+
+  if (verdict.decision === 'deny') {
+    return { deny: `The recipe "${recipe.name}" is not allowed here. Do not retry it; tell the user.` }
+  }
+
+  if (
+    verdict.decision === 'ask' &&
+    !(await isAllowedOnce($, askOf(recipe, input)))
+  ) {
+    return { deny: `The user declined the recipe "${recipe.name}". Do not retry it without asking them.` }
+  }
+
+  const ran = await $.process.run(argvOf(recipe, input), { timeoutMs: RECIPE_TIMEOUT_MS }).catch(() => null)
+
+  return ran === null
+    ? { deny: `The recipe "${recipe.name}" could not start, or ran past its five minutes.` }
+    : { result: resultText(recipe, ran) }
+}
+
 export function tools(on: On): void {
   on('tool.call', async ($, e, next) => {
     const rule = (await read($, toolRules))[e.tool]
+    const recipe = recipeOf(e.tool, await read($, recipes))
+
+    if (recipe === undefined && e.tool.startsWith(RECIPE_TOOL_PREFIX)) {
+      return { deny: RETIRED_RECIPE }
+    }
 
     if (rule === undefined) {
-      return next(e)
+      return recipe === undefined ? next(e) : runRecipe($, recipe, inputOf(e), false)
     }
 
     const name = shortName(e.tool)
@@ -53,16 +108,12 @@ export function tools(on: On): void {
     }
 
     const args = argSummary(e)
-    const answer = await $.ui
-      .ask(`Claude wants to use ${name}${args === '' ? '' : ` with ${args}`}. Allow it?`, {
-        header: 'Ask first',
-        options: [ALLOW_ONCE, DENY],
-      })
-      .catch(() => DENY)
 
-    return answer === ALLOW_ONCE
-      ? next(e)
-      : { deny: `The user declined "${name}" in Claude Clubhouse. Do not retry it without asking them.` }
+    if (!(await isAllowedOnce($, `Claude wants to use ${name}${args === '' ? '' : ` with ${args}`}. Allow it?`))) {
+      return { deny: `The user declined "${name}" in Claude Clubhouse. Do not retry it without asking them.` }
+    }
+
+    return recipe === undefined ? next(e) : runRecipe($, recipe, inputOf(e), true)
   })
 
   on('ui.render', { component: 'Pane', requestId: 'clubhouse-tools' }, async ($, e) => {
