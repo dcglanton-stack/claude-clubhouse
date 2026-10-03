@@ -6,13 +6,16 @@ struct Stroke {
     var width: CGFloat
 }
 
-let paper = NSColor.white
+let paper = NSColor(calibratedWhite: 0.93, alpha: 1)
 let inks: [(String, NSColor)] = [
     ("Black", NSColor(calibratedWhite: 0.08, alpha: 1)),
     ("Red", NSColor(calibratedRed: 0.84, green: 0.19, blue: 0.19, alpha: 1)),
     ("Blue", NSColor(calibratedRed: 0.18, green: 0.5, blue: 0.82, alpha: 1)),
     ("Green", NSColor(calibratedRed: 0.18, green: 0.62, blue: 0.36, alpha: 1)),
     ("Orange", NSColor(calibratedRed: 0.85, green: 0.47, blue: 0.34, alpha: 1)),
+    ("Yellow", NSColor(calibratedRed: 0.95, green: 0.76, blue: 0.19, alpha: 1)),
+    ("Grey", NSColor(calibratedWhite: 0.55, alpha: 1)),
+    ("White", NSColor.white),
 ]
 let widths: [(String, CGFloat)] = [("Fine", 2.5), ("Medium", 5), ("Thick", 10)]
 let eraserWidth: CGFloat = 26

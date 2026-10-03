@@ -9,6 +9,7 @@ struct TintConfig: Decodable, Equatable {
     var ink: String?
     var boost: Double?
     var coverSidebar: Bool?
+    var sidebar: String?
 }
 
 struct SidebarLayout: Equatable {
@@ -61,6 +62,8 @@ let lightSurfaceLimit = 226.0 / 255
 let keyFade = 10.0 / 255
 let defaultBoost = 1.9
 let filterStages = 3
+let zones = 2
+let sidebarBoostGain = 1.4
 let lumaWeights = [0.2126, 0.7152, 0.0722]
 let lightInk = "#faf9f5"
 let darkInk = "#141413"
@@ -307,12 +310,19 @@ final class Tinter {
     }
 
     private func style(_ overlay: Overlay, with config: TintConfig, isLightApp: Bool) {
-        let filters = sessionFilters(config: config, isLightApp: isLightApp)
+        var beside = config
+        beside.target = config.sidebar ?? config.target
+        beside.boost = (config.boost ?? defaultBoost) * sidebarBoostGain
 
-        for (stage, layer) in overlay.layers.enumerated() {
-            layer.filters = filters.map { [$0[stage]] }
-            layer.backgroundColor = filters == nil && stage == 0 ? fallbackColor(config: config) : nil
-            layer.isHidden = filters == nil && stage > 0
+        for (zone, zoneConfig) in [config, beside].enumerated() {
+            let filters = sessionFilters(config: zoneConfig, isLightApp: isLightApp)
+
+            for stage in 0..<filterStages {
+                let layer = overlay.layers[zone * filterStages + stage]
+                layer.filters = filters.map { [$0[stage]] }
+                layer.backgroundColor = filters == nil && stage == 0 ? fallbackColor(config: zoneConfig) : nil
+                layer.isHidden = filters == nil && stage > 0
+            }
         }
     }
 
@@ -350,7 +360,7 @@ final class Tinter {
 
         let view = NSView(frame: NSRect(origin: .zero, size: frame.size))
         view.wantsLayer = true
-        let stages = (0..<filterStages).map { _ in backdropLayer() }
+        let stages = (0..<filterStages * zones).map { _ in backdropLayer() }
         stages.forEach { view.layer?.addSublayer($0.0) }
         window.contentView = view
         let made = Overlay(window: window, layers: stages.map(\.0), masks: stages.map(\.1))
@@ -447,17 +457,17 @@ final class Tinter {
 
                 let local = CGRect(origin: .zero, size: size)
                 var untouched = occluders
+                var strip: CGRect?
 
-                if config.coverSidebar != true, let sidebar = app.sidebar, !sidebar.isCollapsed,
-                   size.width > narrowestWindowWithSidebar {
-                    untouched.append(
-                        CGRect(
-                            x: candidate.bounds.minX,
-                            y: candidate.bounds.minY,
-                            width: sidebar.width,
-                            height: size.height
-                        )
+                if let sidebar = app.sidebar, !sidebar.isCollapsed, size.width > narrowestWindowWithSidebar {
+                    let rect = CGRect(
+                        x: candidate.bounds.minX,
+                        y: candidate.bounds.minY,
+                        width: sidebar.width,
+                        height: size.height
                     )
+                    untouched.append(rect)
+                    strip = rect
                 }
 
                 let path = visiblePath(
@@ -465,11 +475,17 @@ final class Tinter {
                     occluders: untouched,
                     radius: CGFloat(config.radius)
                 )
+                let beside: CGPath = strip.flatMap { rect in
+                    config.coverSidebar == true
+                        ? visiblePath(target: candidate.bounds, occluders: occluders, radius: CGFloat(config.radius))
+                            .intersection(CGPath(rect: CGRect(x: 0, y: 0, width: rect.width, height: rect.height), transform: nil))
+                        : nil
+                } ?? CGMutablePath()
 
-                for (layer, mask) in zip(placed.layers, placed.masks) {
+                for (index, (layer, mask)) in zip(placed.layers, placed.masks).enumerated() {
                     layer.frame = local
                     mask.frame = local
-                    mask.path = path
+                    mask.path = index < filterStages ? path : beside
                 }
 
                 if !placed.window.isVisible {

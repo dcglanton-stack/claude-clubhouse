@@ -18,6 +18,7 @@ A Claude Code mod: one plugin that adds a home button and a Clawd usage meter ab
 | `/clubhouse notes` | Session notes: leave a note for a later session |
 | `/clubhouse ticker` | Ticker: a stock or coin price on the toolbar, search and favorites |
 | `/clubhouse sports` | Live sports: games on now and this week; one score on the toolbar |
+| `/clubhouse weather` | Weather: the next 7 days where you are, and the weather on the toolbar |
 | `/clubhouse fonts` | Fonts: the font of the Clubhouse headings |
 | `/ship` | Release what is on main: next version tag, push, GitHub release with notes (asks first) |
 | `/clubhouse commands` | Every slash command, led by your most used and most recent |
@@ -45,6 +46,7 @@ The Clubhouse loads in every session through `CLAUDE_CODE_PLUGIN_DIRS` in `~/.cl
 - **Draw it**: a toolbar button that opens a small sketch pad (pens, eraser, undo, clear). Send to Claude saves the drawing and puts it in your prompt, so you can show what you want instead of describing it. The sketch file is deleted once Claude has answered that prompt, unless the prompt says to keep it.
 - **Safeguard warning**: off by default, switched on from the Clubhouse home screen. Before a prompt is sent, a small model guesses whether it could set off a safety filter (which can stop it or hand it to a more restricted model). If so, it says why and you choose to edit it or send it anyway. It never rewrites a prompt.
 - **Handoff prompt**: when the conversation is 85% full, the toolbar offers to have Claude write `HANDOFF.md` once your next prompt is finished, so a fresh session can pick up.
+- **Weather**: a toolbar item with the temperature, a drawn sky (sun, partly cloudy, cloud, rain, thunderstorm, snow) and, when it is not raining, the chance of rain. The room finds your place from your connection or a typed town and lists the next 7 days. Forecasts come from Open-Meteo.
 - **Session notes**: a note for a later session to read. Choose who gets it (the next session in this folder, or in any folder) and how often (once, or every new session until deleted). Sessions already running never pick a note up, so two open sessions cannot both take it; "Give to this session" hands one over by hand. Claude reads a note with the session's first message.
 - **Release helper**: `/ship` (or `/ship minor`, `/ship major`, `/ship v1.2.0`) only runs from a clean `main`: it reads the last tag, drafts notes from the commits since, shows them, and after you confirm it tags, pushes and publishes the GitHub release.
 - **Design**: follows `DESIGN.md` (Anthropic's style): serif headings, hairline borders, warm neutrals and one clay accent. The Anthropic palette and three ready-made looks are in Colors.

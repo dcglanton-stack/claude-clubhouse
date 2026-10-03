@@ -19,6 +19,7 @@ import { commands } from './features/commands'
 import { home } from './features/home'
 import { fontsRoom } from './features/fonts'
 import { nightWatch } from './features/watch'
+import { weatherRoom } from './features/weather'
 import { sportsRoom } from './features/sports'
 import { tickerRoom } from './features/ticker'
 import { notesRoom } from './features/notes'
@@ -70,6 +71,7 @@ import {
 } from './lib/sports'
 import { DEFAULT_TICKER, FEED_HEADERS, TICKER_KEY, TICKER_POLL_MS, asTickerPlan, quoteFrom, quoteUrl, watched } from './lib/ticker'
 import { TOOLBAR_PRESETS_KEY } from './lib/toolbar'
+import { DEFAULT_WEATHER, WEATHER_KEY, WEATHER_POLL_MS, asWeatherPlan, forecastFrom, forecastUrl } from './lib/weather'
 import { NOTES_KEY, asNotes, claim } from './lib/notes'
 import { RECIPES_KEY, asRecipes, toolSpecOf } from './lib/recipes'
 import {
@@ -111,6 +113,8 @@ const sports = atom({ plugin: 'clubhouse', key: 'sports' } as const, DEFAULT_SPO
 const liveGame = atom({ plugin: 'clubhouse', key: 'liveGame' } as const, null)
 const logos = atom({ plugin: 'clubhouse', key: 'logos' } as const, {})
 const sportsCheckedAt = atom({ plugin: 'clubhouse', key: 'sportsCheckedAt' } as const, 0)
+const weather = atom({ plugin: 'clubhouse', key: 'weather' } as const, DEFAULT_WEATHER)
+const forecast = atom({ plugin: 'clubhouse', key: 'forecast' } as const, null)
 const receivedNotes = atom({ plugin: 'clubhouse', key: 'receivedNotes' } as const, [])
 const pendingNotes = atom({ plugin: 'clubhouse', key: 'pendingNotes' } as const, [])
 const sessionFolder = atom({ plugin: 'clubhouse', key: 'sessionFolder' } as const, '')
@@ -204,6 +208,20 @@ async function scoreCheck($: EngineInterface): Promise<void> {
   }
 }
 
+async function skyCheck($: EngineInterface): Promise<void> {
+  const held = await read($, prefs)
+  const plan = await read($, weather)
+  const isRoomOpen = (await $.ui.panes().catch(() => [])).some(pane => pane.id === 'clubhouse-weather')
+
+  if (!held.isEnabled || plan.place === null || !(held.bar.weather?.isShown === true || isRoomOpen)) return
+  const page = await $.http.fetch(forecastUrl(plan)).catch(() => null)
+  const found = page !== null && page.ok ? forecastFrom(page.text, await $.clock.now()) : null
+
+  if (found !== null) {
+    await update($, forecast, () => found)
+  }
+}
+
 async function priceCheck($: EngineInterface): Promise<void> {
   const held = await read($, prefs)
   const isRoomOpen = (await $.ui.panes().catch(() => [])).some(pane => pane.id === 'clubhouse-ticker')
@@ -289,6 +307,8 @@ export const register: Register = on => {
     const keptFonts = asFontPresets(await $.store.get(FONT_PRESETS_KEY))
     await update($, fontPresets, () => keptFonts)
     const keptPresets = asColorPresets(await $.store.get(COLOR_PRESETS_KEY))
+    const keptWeather = asWeatherPlan(await $.store.get(WEATHER_KEY))
+    await update($, weather, () => keptWeather)
     const keptSports = asSportsPlan(await $.store.get(SPORTS_KEY))
     await update($, sports, () => keptSports)
     const keptTicker = asTickerPlan(await $.store.get(TICKER_KEY))
@@ -347,11 +367,13 @@ export const register: Register = on => {
     void priceCheck($).catch(() => undefined)
     $.clock.every(SPORTS_POLL_MS, () => void scoreCheck($).catch(() => undefined))
     void scoreCheck($).catch(() => undefined)
+    $.clock.every(WEATHER_POLL_MS, () => void skyCheck($).catch(() => undefined))
+    void skyCheck($).catch(() => undefined)
 
     await $.command.register({
       name: 'clubhouse',
-      description: 'Open Claude Clubhouse. Add a room to open it: agents, summary, opinion, tools, recipes, watch, notes, ticker, sports, commands, toolbar, usage, colors, fonts; or on, off, color reset',
-      argumentHint: '[on|off|agents|summary|opinion|tools|recipes|watch|notes|ticker|sports|commands|toolbar|usage|colors|fonts|color reset]',
+      description: 'Open Claude Clubhouse. Add a room to open it: agents, summary, opinion, tools, recipes, watch, notes, ticker, sports, weather, commands, toolbar, usage, colors, fonts; or on, off, color reset',
+      argumentHint: '[on|off|agents|summary|opinion|tools|recipes|watch|notes|ticker|sports|weather|commands|toolbar|usage|colors|fonts|color reset]',
       immediate: true,
     })
     await $.command
@@ -379,6 +401,7 @@ export const register: Register = on => {
   tickerRoom(on)
   sportsRoom(on)
   fontsRoom(on)
+  weatherRoom(on)
   usageRoom(on)
   commands(on)
   agents(on)

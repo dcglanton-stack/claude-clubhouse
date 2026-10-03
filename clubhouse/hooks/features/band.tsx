@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, On } from 'claude-code'
 
-import type { BarItemId, BarZone, Game, Prefs, Quote, Shortcut } from '../../types'
+import type { BarItemId, BarZone, Forecast, Game, Prefs, Quote, Shortcut } from '../../types'
 import { meterSvg, moodFor, moodName } from '../lib/clawd'
 import { backdropOf } from '../lib/appColor'
 import { mix, rampColor } from '../lib/color'
@@ -33,12 +33,14 @@ import { summaryOf, summaryRequest } from '../lib/summary'
 import { DEFAULT_TICKER, DOWN_COLOR, UP_COLOR, changeText, priceText } from '../lib/ticker'
 import { clearOn, drawnFor } from '../lib/tone'
 import { serifSize, serifSvg } from '../lib/type'
+import { KIND_WORD, weatherSvg } from '../lib/weather'
 import { TIDY_MIN_CHARS, tidyRequest } from '../lib/tidy'
 
 const contextPercent = atom({ plugin: 'clubhouse', key: 'contextPercent' } as const, null)
 const contextSize = atom({ plugin: 'clubhouse', key: 'contextSize' } as const, null)
 const ticker = atom({ plugin: 'clubhouse', key: 'ticker' } as const, DEFAULT_TICKER)
 const handoff = atom({ plugin: 'clubhouse', key: 'handoff' } as const, 'idle')
+const forecast = atom({ plugin: 'clubhouse', key: 'forecast' } as const, null)
 const sports = atom({ plugin: 'clubhouse', key: 'sports' } as const, DEFAULT_SPORTS)
 const liveGame = atom({ plugin: 'clubhouse', key: 'liveGame' } as const, null)
 const logos = atom({ plugin: 'clubhouse', key: 'logos' } as const, {})
@@ -57,6 +59,7 @@ const BAR_HEIGHT = 32
 const HOME_ICON = 40
 const SCORE_WIDTH = 150
 const WORD_SIZE = 13
+const WEATHER_ICON = 30
 const FAINT_SHARE = 0.35
 const WIDE_METER = 210
 const SLIM_METER = 150
@@ -192,6 +195,7 @@ export function band(on: On): void {
     const size = await read($, contextSize)
     const plan = await read($, ticker)
     const handoffState = await read($, handoff)
+    const sky: Forecast | null = await read($, forecast)
     const game: Game | null = await read($, liveGame)
     const marks: { [key: string]: string } = await read($, logos)
     const wanted = (await read($, sports)).gameId
@@ -317,6 +321,20 @@ export function band(on: On): void {
         return <Button key="tidy" label="Tidy" onPress={() => void tidy($)} />
       }
 
+      if (id === 'weather') {
+        if (sky === null) {
+          return words('weather: set it up in the Clubhouse', { isDim: true })
+        }
+
+        return (
+          <Box gap={1} alignItems="center" flexShrink={0}>
+            {picture(weatherSvg(sky.kind, look.ink, backdropOf(chosen), WEATHER_ICON), KIND_WORD[sky.kind], WEATHER_ICON, WEATHER_ICON)}
+            {words(`${sky.temp}°`, { isBold: true })}
+            {!sky.isWet && sky.chance !== null && words(`${sky.chance}% rain`, { isDim: true })}
+          </Box>
+        )
+      }
+
       if (id === 'draw') {
         return <Button key="draw" label="Draw it" onPress={() => void drawIt($)} />
       }
@@ -405,8 +423,12 @@ export function band(on: On): void {
         .map(shortcut),
     ]
 
+    const native = await next(e)
+
     return (
-      <Box flexDirection="column" gap={rows.length > 1 ? 1 : 0} width={columns} {...frame}>
+      <Box flexDirection="column" width={columns}>
+        {native}
+        <Box flexDirection="column" gap={rows.length > 1 ? 1 : 0} width={columns} {...frame}>
         {handoffState === 'idle' && context !== null && context >= HANDOFF_PERCENT && (
           <Box gap={1} alignItems="center" flexWrap="wrap">
             {words(`This conversation is ${context}% full.`)}
@@ -433,6 +455,7 @@ export function band(on: On): void {
             </Box>
           </Box>
         ))}
+        </Box>
       </Box>
     )
   })
