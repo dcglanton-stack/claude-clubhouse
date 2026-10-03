@@ -49,9 +49,7 @@ export function frameRow(kit: Kit, edge: string, drawing: RenderElement) {
   return (
     <Box flexDirection="column" alignItems="flex-end">
       <Box borderStyle="round" borderColor={edge} paddingX={1}>
-        <Box flexDirection="column" marginBottom={-2}>
-          {drawing}
-        </Box>
+        {drawing}
       </Box>
     </Box>
   )

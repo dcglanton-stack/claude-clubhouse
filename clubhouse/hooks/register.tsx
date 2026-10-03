@@ -104,6 +104,10 @@ async function tick($: EngineInterface): Promise<void> {
   const mode = await appModeNow($)
   const held = await read($, prefs)
 
+  if (coversApp(held)) {
+    await $.process.run(['/bin/sh', '-c', START_HELPER]).catch(() => undefined)
+  }
+
   const shared = mergePrefs(await $.store.get(PREFS_KEY))
   const isChangedElsewhere = !sameSettings(shared, held)
 
