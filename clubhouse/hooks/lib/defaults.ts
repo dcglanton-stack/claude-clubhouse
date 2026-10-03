@@ -36,6 +36,8 @@ export const DEFAULT_BAR: BarLayout = {
   cache: { isShown: false, row: 1, zone: 'left' },
   context: { isShown: false, row: 1, zone: 'left' },
   receipt: { isShown: false, row: 1, zone: 'left' },
+  ticker: { isShown: false, row: 1, zone: 'left' },
+  sports: { isShown: false, row: 1, zone: 'left' },
 }
 
 export const BAR_ITEMS: readonly (readonly [BarItemId, string, string])[] = [
@@ -46,6 +48,8 @@ export const BAR_ITEMS: readonly (readonly [BarItemId, string, string])[] = [
   ['cache', 'Cache timer', 'Counts one hour down from the last reply; after that the next turn costs more.'],
   ['context', 'Context gauge', 'How full this conversation is, in tokens.'],
   ['receipt', 'Turn receipt', 'Time, tokens and usage of the last turn.'],
+  ['sports', 'Live score', 'One game: both teams, the score and the clock. Pick the game in the Live sports room.'],
+  ['ticker', 'Ticker', 'One stock or coin: symbol, price and the day\'s change. Pick it in the Ticker room.'],
 ]
 
 export const PREFS_SHAPE = 'prefs-4'
@@ -98,6 +102,8 @@ export const TOOLS_PANE = 'clubhouse-tools'
 export const RECIPES_PANE = 'clubhouse-recipes'
 export const WATCH_PANE = 'clubhouse-watch'
 export const NOTES_PANE = 'clubhouse-notes'
+export const TICKER_PANE = 'clubhouse-ticker'
+export const SPORTS_PANE = 'clubhouse-sports'
 export const OPINION_PANE = 'clubhouse-opinion'
 export const TOOL_RULES_KEY = 'toolRules'
 export const DEFAULT_TOOLS_VIEW: ToolsView = { filter: '', note: null, open: [] }
@@ -148,6 +154,18 @@ export const ROOMS: readonly Room[] = [
     title: 'Session notes',
     word: 'notes',
     about: 'Leave a note for a later session to read.',
+  },
+  {
+    id: TICKER_PANE,
+    title: 'Ticker',
+    word: 'ticker',
+    about: 'A stock or coin price on the toolbar, and your favorites.',
+  },
+  {
+    id: SPORTS_PANE,
+    title: 'Live sports',
+    word: 'sports',
+    about: 'Games on now and this week; put one score on the toolbar.',
   },
   {
     id: COMMANDS_PANE,

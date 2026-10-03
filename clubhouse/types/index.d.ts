@@ -12,7 +12,7 @@ export type ColorPreset = { name: string; palette: Palette }
 
 export type ContextSize = { tokens: number; window: number }
 
-export type BarItemId = 'home' | 'meter' | 'summary' | 'tidy' | 'cache' | 'context' | 'receipt'
+export type BarItemId = 'home' | 'meter' | 'summary' | 'tidy' | 'cache' | 'context' | 'receipt' | 'ticker' | 'sports'
 
 export type BarZone = 'left' | 'center' | 'right'
 
@@ -26,6 +26,8 @@ export type BarLayout = {
   cache: BarSpot
   context: BarSpot
   receipt: BarSpot
+  ticker: BarSpot
+  sports: BarSpot
 }
 
 export type Shortcut = { id: string; label: string; text: string; spot: BarSpot }
@@ -99,6 +101,30 @@ export type SessionNote = { id: string; text: string; folder: string | null; kee
 
 export type NotesView = { note: string | null; where: 'folder' | 'anywhere'; keep: 'once' | 'always' }
 
+export type Quote = { symbol: string; name: string; price: number; changePercent: number | null; at: number }
+
+export type TickerHit = { symbol: string; name: string; kind: string }
+
+export type TickerPlan = { symbol: string | null; favorites: string[]; isColored: boolean }
+
+export type TickerView = { note: string | null; hits: TickerHit[] }
+
+export type Team = { abbr: string; score: string; logo: string | null; color: string }
+
+export type Game = {
+  id: string
+  league: string
+  startsAt: number
+  state: 'pre' | 'in' | 'post'
+  clock: string
+  home: Team
+  away: Team
+}
+
+export type SportsPlan = { league: string; gameId: string | null; gameLeague: string | null; gameDay: string | null }
+
+export type SportsView = { note: string | null; isLoading: boolean }
+
 export type WatchTrigger = 'fails' | 'stalls' | 'changes' | 'always'
 
 export type SavedWatch = {
@@ -168,6 +194,15 @@ declare module 'claude-code' {
       colorsView: ColorsView
       colorPresets: ColorPreset[]
       toolbarPresets: ToolbarPreset[]
+      ticker: TickerPlan
+      quotes: { [symbol: string]: Quote }
+      tickerView: TickerView
+      sports: SportsPlan
+      games: Game[]
+      liveGame: Game | null
+      logos: { [key: string]: string }
+      sportsView: SportsView
+      sportsCheckedAt: number
       commandStats: CommandStats
       commandsView: CommandsView
       hiddenCommands: string[]

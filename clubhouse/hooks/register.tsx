@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { Blueprint, Limit, Prefs } from '../types'
+import type { Blueprint, Game, Limit, Prefs } from '../types'
 import {
   HELPER_BINARY,
   HELPER_CONFIG,
@@ -18,6 +18,8 @@ import { colors } from './features/colors'
 import { commands } from './features/commands'
 import { home } from './features/home'
 import { nightWatch } from './features/watch'
+import { sportsRoom } from './features/sports'
+import { tickerRoom } from './features/ticker'
 import { notesRoom } from './features/notes'
 import { opinionRoom } from './features/opinion'
 import { recipesRoom } from './features/recipes'
@@ -50,6 +52,21 @@ import {
   sameSettings,
 } from './lib/defaults'
 import { percentLeft } from './lib/format'
+import {
+  DEFAULT_SPORTS,
+  LOGO_FOLDER,
+  SPORTS_KEY,
+  SPORTS_POLL_MS,
+  asSportsPlan,
+  dayOf,
+  gamesFrom,
+  isWorthChecking,
+  leagueOf,
+  logoKey,
+  logoUrl,
+  scoreboardUrl,
+} from './lib/sports'
+import { DEFAULT_TICKER, FEED_HEADERS, TICKER_KEY, TICKER_POLL_MS, asTickerPlan, quoteFrom, quoteUrl, watched } from './lib/ticker'
 import { TOOLBAR_PRESETS_KEY } from './lib/toolbar'
 import { NOTES_KEY, asNotes, claim } from './lib/notes'
 import { RECIPES_KEY, asRecipes, toolSpecOf } from './lib/recipes'
@@ -85,6 +102,12 @@ const savedWatches = atom({ plugin: 'clubhouse', key: 'savedWatches' } as const,
 const notes = atom({ plugin: 'clubhouse', key: 'notes' } as const, [])
 const colorPresets = atom({ plugin: 'clubhouse', key: 'colorPresets' } as const, [])
 const toolbarPresets = atom({ plugin: 'clubhouse', key: 'toolbarPresets' } as const, [])
+const ticker = atom({ plugin: 'clubhouse', key: 'ticker' } as const, DEFAULT_TICKER)
+const quotes = atom({ plugin: 'clubhouse', key: 'quotes' } as const, {})
+const sports = atom({ plugin: 'clubhouse', key: 'sports' } as const, DEFAULT_SPORTS)
+const liveGame = atom({ plugin: 'clubhouse', key: 'liveGame' } as const, null)
+const logos = atom({ plugin: 'clubhouse', key: 'logos' } as const, {})
+const sportsCheckedAt = atom({ plugin: 'clubhouse', key: 'sportsCheckedAt' } as const, 0)
 const receivedNotes = atom({ plugin: 'clubhouse', key: 'receivedNotes' } as const, [])
 const pendingNotes = atom({ plugin: 'clubhouse', key: 'pendingNotes' } as const, [])
 const sessionFolder = atom({ plugin: 'clubhouse', key: 'sessionFolder' } as const, '')
@@ -122,6 +145,77 @@ async function tick($: EngineInterface): Promise<void> {
 
   if (userFolder === undefined) return
   await $.fs.write(`${userFolder}/${HELPER_CONFIG}`, helperConfig(turned)).catch(() => undefined)
+}
+
+async function loadLogos($: EngineInterface, game: Game): Promise<void> {
+  const userFolder = await $.env.get('HOME')
+  const held: { [key: string]: string } = await read($, logos)
+
+  if (userFolder === undefined) return
+
+  for (const team of [game.home, game.away]) {
+    const key = logoKey(game.league, team)
+
+    if (team.logo === null || held[key] !== undefined) continue
+    const path = `${userFolder}/${LOGO_FOLDER}/${key}.png`
+
+    if (!(await $.fs.exists(path).catch(() => false))) {
+      await $.process
+        .run(['/bin/sh', '-c', 'mkdir -p "$(dirname "$1")" && curl -s -m 10 -o "$1" "$2"', 'sh', path, logoUrl(team.logo)])
+        .catch(() => undefined)
+    }
+
+    const file = await $.fs.read(path, { as: 'bytes' }).catch(() => null)
+
+    if (file !== null && file.base64.length > 0) {
+      await update($, logos, known => ({ ...known, [key]: file.base64 }))
+    }
+  }
+}
+
+async function scoreCheck($: EngineInterface): Promise<void> {
+  const held = await read($, prefs)
+  const plan = await read($, sports)
+
+  if (!held.isEnabled || plan.gameId === null || held.bar.sports?.isShown !== true) return
+  const at = await $.clock.now()
+  const shown: Game | null = await read($, liveGame)
+  const current = shown !== null && shown.id === plan.gameId ? shown : null
+
+  if (current !== null) await loadLogos($, current)
+  if (!isWorthChecking(current, at, await read($, sportsCheckedAt))) return
+  await update($, sportsCheckedAt, () => at)
+  const league = leagueOf(plan.gameLeague)
+  const days = [undefined, ...(plan.gameDay === null ? [] : [plan.gameDay, dayOf(Date.parse(`${plan.gameDay.slice(0, 4)}-${plan.gameDay.slice(4, 6)}-${plan.gameDay.slice(6)}`) - 86_400_000)])]
+
+  for (const day of days) {
+    const page = await $.http.fetch(scoreboardUrl(league, day), { headers: FEED_HEADERS }).catch(() => null)
+    const found = page !== null && page.ok ? gamesFrom(page.text, league).find(game => game.id === plan.gameId) : undefined
+
+    if (found !== undefined) {
+      await update($, liveGame, () => found)
+      await loadLogos($, found)
+
+      return
+    }
+  }
+}
+
+async function priceCheck($: EngineInterface): Promise<void> {
+  const held = await read($, prefs)
+  const isRoomOpen = (await $.ui.panes().catch(() => [])).some(pane => pane.id === 'clubhouse-ticker')
+
+  if (!held.isEnabled || !(held.bar.ticker?.isShown === true || isRoomOpen)) return
+  const at = await $.clock.now()
+
+  for (const symbol of watched(await read($, ticker))) {
+    const page = await $.http.fetch(quoteUrl(symbol), { headers: FEED_HEADERS }).catch(() => null)
+    const quote = page !== null && page.ok ? quoteFrom(page.text, at) : null
+
+    if (quote !== null) {
+      await update($, quotes, known => ({ ...known, [symbol]: quote }))
+    }
+  }
 }
 
 async function patrol($: EngineInterface): Promise<void> {
@@ -190,6 +284,10 @@ export const register: Register = on => {
     }
 
     const keptPresets = asColorPresets(await $.store.get(COLOR_PRESETS_KEY))
+    const keptSports = asSportsPlan(await $.store.get(SPORTS_KEY))
+    await update($, sports, () => keptSports)
+    const keptTicker = asTickerPlan(await $.store.get(TICKER_KEY))
+    await update($, ticker, () => keptTicker)
     const keptLayouts = asToolbarPresets(await $.store.get(TOOLBAR_PRESETS_KEY))
     await update($, toolbarPresets, () => keptLayouts)
     await update($, colorPresets, () => keptPresets)
@@ -240,11 +338,15 @@ export const register: Register = on => {
     await update($, now, () => startedAt)
     $.clock.every(TICK_MS, () => void tick($).catch(() => undefined))
     $.clock.every(WATCH_POLL_MS, () => void patrol($).catch(() => undefined))
+    $.clock.every(TICKER_POLL_MS, () => void priceCheck($).catch(() => undefined))
+    void priceCheck($).catch(() => undefined)
+    $.clock.every(SPORTS_POLL_MS, () => void scoreCheck($).catch(() => undefined))
+    void scoreCheck($).catch(() => undefined)
 
     await $.command.register({
       name: 'clubhouse',
-      description: 'Open Claude Clubhouse. Add a room to open it: agents, summary, opinion, tools, recipes, watch, notes, commands, toolbar, usage, colors; or on, off, color reset',
-      argumentHint: '[on|off|agents|summary|opinion|tools|recipes|watch|notes|commands|toolbar|usage|colors|color reset]',
+      description: 'Open Claude Clubhouse. Add a room to open it: agents, summary, opinion, tools, recipes, watch, notes, ticker, sports, commands, toolbar, usage, colors; or on, off, color reset',
+      argumentHint: '[on|off|agents|summary|opinion|tools|recipes|watch|notes|ticker|sports|commands|toolbar|usage|colors|color reset]',
       immediate: true,
     })
     await $.command
@@ -269,6 +371,8 @@ export const register: Register = on => {
   recipesRoom(on)
   nightWatch(on)
   notesRoom(on)
+  tickerRoom(on)
+  sportsRoom(on)
   usageRoom(on)
   commands(on)
   agents(on)

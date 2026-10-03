@@ -15,7 +15,9 @@ export const ITEM_SIZE: Record<BarItemId, number> = {
   tidy: 1,
   cache: 2,
   context: 3,
-  receipt: 6,
+  receipt: 8,
+  ticker: 4,
+  sports: 5,
 }
 
 const LETTERS_PER_UNIT = 8

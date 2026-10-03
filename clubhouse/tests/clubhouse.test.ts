@@ -8,6 +8,7 @@ import { pixelFor, shownFrom, toDisplay, toneFor } from '../hooks/lib/tone'
 import { nextVersion, subjectsOf } from '../hooks/lib/ship'
 import { arranged, rowLoad } from '../hooks/lib/toolbar'
 import { serifSize } from '../hooks/lib/type'
+import { LEAGUES, gamesFrom, listed } from '../hooks/lib/sports'
 import { DEFAULT_WATCH_VIEW, stepOf, watchFrom } from '../hooks/lib/watch'
 
 const NOW = Date.UTC(2026, 9, 3, 9)
@@ -48,6 +49,8 @@ type World = {
   output: string
   exitCode: number
   replies: Record<string, { stdout: string; exitCode: number }>
+  pages: Record<string, string>
+  fetched: string[]
   submitted: string[]
   contexts: (readonly string[])[]
   clock: MockClock
@@ -78,11 +81,19 @@ function world(on: On, fiveHourUsed: number, setup: Setup = {}): World {
     output: '',
     exitCode: 0,
     replies: {},
+    pages: {},
+    fetched: [],
     submitted: [],
     contexts: [],
     clock: mock.clock(on, { now: NOW }),
   }
 
+  on('http.fetch', (_$, e) => {
+    const page = Object.entries(seen.pages).find(([part]) => e.url.includes(part))?.[1]
+    seen.fetched.push(e.url)
+
+    return { value: { status: page === undefined ? 404 : 200, ok: page !== undefined, headers: {}, text: page ?? '' } }
+  })
   on('prompt.submit', (_$, e) => {
     seen.submitted.push(e.text)
     seen.contexts.push(e.context ?? [])
@@ -374,6 +385,8 @@ for (const surface of SURFACES) {
 
     await ui.press({ key: 'tab-more' })
     expect(await ui.find({ type: 'Text', text: /Draw it/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /^Ticker$/ })).toBeUndefined()
+    expect(await ui.find({ type: 'Text', text: /^Live sports$/ })).toBeUndefined()
     expect(await ui.find({ type: 'Text', text: /Workshop: recipes/ })).toBeUndefined()
     await ui.unmount()
   })
@@ -1692,7 +1705,7 @@ test('toolbar rows have a capacity: a full row sends the next item to another ro
   await ui.press({ key: 'layout-Old layout' })
   expect(await ui.find({ type: 'Text', text: /Row 1: 5 of 14 used · Row 2: 6 of 14 used/ })).toBeDefined()
   await ui.press({ key: 'layout-Busy' })
-  expect(await ui.find({ type: 'Text', text: /Row 1: 14 of 14 used · Row 2: 8 of 14 used/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Row 1: 14 of 14 used · Row 2: 10 of 14 used/ })).toBeDefined()
   await ui.press({ key: 'layout-delete-Busy' })
   expect(await ui.find({ key: 'layout-Busy' })).toBeUndefined()
 
@@ -1703,6 +1716,120 @@ test('toolbar rows have a capacity: a full row sends the next item to another ro
   )
   expect(rowLoad(packed, 2)).toBe(15)
   expect(arranged(packed, { kind: 'item', id: 'receipt' }, 'toggle').note).toMatch(/All 4 rows are full/)
+  await ui.unmount()
+  await bar.unmount()
+})
+
+const chartPage = (symbol: string, name: string, price: number, before: number) =>
+  JSON.stringify({ chart: { result: [{ meta: { symbol, shortName: name, regularMarketPrice: price, chartPreviousClose: before } }] } })
+
+test('the Ticker finds a symbol, shows it on the toolbar with the day change, and keeps favorites', async ($, on) => {
+  const seen = world(on, 50)
+  seen.pages = {
+    'finance/search?q=apple': JSON.stringify({ quotes: [{ symbol: 'AAPL', shortname: 'Apple Inc.', quoteType: 'EQUITY' }, { symbol: 'bad symbol!' }] }),
+    'chart/AAPL': chartPage('AAPL', 'Apple Inc.', 333.69, 330.32),
+    'chart/BTC-USD': chartPage('BTC-USD', 'Bitcoin USD', 61234.5, 62000),
+  }
+  await start($)
+  const ui = await $.ui.mount({
+    plugin: 'clubhouse',
+    surface: 'desktop',
+    component: 'Pane',
+    requestId: 'clubhouse-ticker',
+    props: { ...PANE, title: 'Ticker' },
+  })
+  const bar = await $.ui.mount({ plugin: 'clubhouse', surface: 'desktop', component: 'AbovePrompt', props: BAND })
+  const barTexts = async () => (await bar.findAll({ type: 'Text' })).map(one => one.text)
+
+  await ui.input({ key: 'ticker-search', text: 'nothing' })
+  expect(await ui.find({ type: 'Text', text: /could not be reached/ })).toBeDefined()
+
+  await ui.input({ key: 'ticker-search', text: 'apple' })
+  expect(await ui.find({ type: 'Text', text: /AAPL · Apple Inc\. · Stock/ })).toBeDefined()
+  expect(await barTexts()).not.toContain('AAPL')
+
+  await ui.press({ key: 'hit-show-AAPL' })
+  expect(await barTexts()).toEqual(expect.arrayContaining(['AAPL', '333.69', '+1.02%']))
+  expect(JSON.stringify(await bar.drawn())).toMatch(/"color":"#2e9e5b"\},"children":\["\+1\.02%"\]/)
+  expect((await ui.find({ key: 'hit-show-AAPL' }))?.text).toBe('On the toolbar')
+
+  await ui.press({ key: 'ticker-color' })
+  expect(JSON.stringify(await bar.drawn())).not.toMatch(/#2e9e5b/)
+
+  await ui.press({ key: 'hit-favorite-AAPL' })
+  expect(await ui.find({ type: 'Text', text: /AAPL · Apple Inc\. · 333\.69 \+1\.02%/ })).toBeDefined()
+
+  seen.pages['chart/AAPL'] = chartPage('AAPL', 'Apple Inc.', 320, 330.32)
+  await seen.clock.advance(60_000)
+  expect(await barTexts()).toEqual(expect.arrayContaining(['320.00', '-3.12%']))
+
+  await ui.press({ key: 'fav-favorite-AAPL' })
+  expect(await ui.find({ key: 'fav-show-AAPL' })).toBeUndefined()
+  await ui.unmount()
+  await bar.unmount()
+})
+
+const scorePage = (events: object[]) => JSON.stringify({ events })
+const event = (id: string, date: string, state: string, clock: string, period: number, detail: string, home: [string, string], away: [string, string]) => ({
+  id,
+  date,
+  status: { displayClock: clock, period, type: { state, shortDetail: detail } },
+  competitions: [
+    {
+      competitors: [
+        { homeAway: 'away', score: away[1], team: { abbreviation: away[0], color: '00338d', logo: null } },
+        { homeAway: 'home', score: home[1], team: { abbreviation: home[0], color: '472a08', logo: 'https://a.espncdn.com/i/teamlogos/nfl/500/cle.png' } },
+      ],
+    },
+  ],
+})
+
+test('Live sports lists games, puts one on the toolbar with the home team first, and follows the clock', async ($, on) => {
+  const seen = world(on, 50)
+  const soon = new Date(NOW + 3_600_000).toISOString()
+  seen.pages = {
+    'football/nfl/scoreboard': scorePage([
+      event('g1', new Date(NOW - 3_600_000).toISOString(), 'in', '11:46', 4, '11:46 - 4th', ['CLE', '27'], ['PIT', '24']),
+      event('g2', soon, 'pre', '0:00', 0, 'Scheduled', ['DAL', '0'], ['NYG', '0']),
+      event('g3', new Date(NOW + 9 * 86_400_000).toISOString(), 'pre', '0:00', 0, 'Scheduled', ['SEA', '0'], ['SF', '0']),
+    ]),
+  }
+  await start($)
+  const ui = await $.ui.mount({
+    plugin: 'clubhouse',
+    surface: 'desktop',
+    component: 'Pane',
+    requestId: 'clubhouse-sports',
+    props: { ...PANE, title: 'Live sports' },
+  })
+  const bar = await $.ui.mount({ plugin: 'clubhouse', surface: 'desktop', component: 'AbovePrompt', props: BAND })
+
+  await ui.press({ key: 'league-nba' })
+  expect(await ui.find({ type: 'Text', text: /could not be reached/ })).toBeDefined()
+
+  await ui.press({ key: 'league-nfl' })
+  expect(await ui.find({ type: 'Text', text: /PIT at CLE · 24–27 · 11:46 4Q/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /NYG at DAL · / })).toBeDefined()
+  expect(await ui.find({ key: 'game-g3' })).toBeUndefined()
+
+  await ui.press({ key: 'game-g1' })
+  expect((await ui.find({ key: 'game-g1' }))?.text).toBe('On the toolbar')
+  const drawn = JSON.stringify(await bar.drawn())
+  expect(drawn).toMatch(/PIT at CLE · 24–27 · 11:46 4Q/)
+  expect(drawn.indexOf('>CLE<')).toBeGreaterThan(-1)
+  expect(drawn.indexOf('>27<')).toBeLessThan(drawn.indexOf('>24<'))
+
+  seen.pages['football/nfl/scoreboard'] = scorePage([
+    event('g1', new Date(NOW - 3_600_000).toISOString(), 'post', '0:00', 4, 'Final', ['CLE', '30'], ['PIT', '24']),
+  ])
+  await seen.clock.advance(30_000)
+  expect(JSON.stringify(await bar.drawn())).toMatch(/PIT at CLE · 24–30 · Final/)
+
+  const hockey = gamesFrom(scorePage([event('h1', soon, 'in', '5:12', 4, '5:12 - OT', ['DET', '2'], ['NYR', '2'])]), LEAGUES[4]!)
+  expect(hockey[0]?.clock).toBe('5:12 OT')
+  const ball = gamesFrom(scorePage([event('b1', soon, 'in', '0:00', 5, 'Bot 5th', ['ATL', '6'], ['PHI', '3'])]), LEAGUES[3]!)
+  expect(ball[0]?.clock).toBe('Bot 5th')
+  expect(listed([...hockey, ...hockey], NOW)).toHaveLength(1)
   await ui.unmount()
   await bar.unmount()
 })
