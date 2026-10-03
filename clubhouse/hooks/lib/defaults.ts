@@ -13,6 +13,7 @@ import type {
   Limit,
   Palette,
   Prefs,
+  RecipesView,
   Shortcut,
   Summary,
   ToolRules,
@@ -88,9 +89,11 @@ export const BAR_PANE = 'clubhouse-bar'
 export const USAGE_PANE = 'clubhouse-usage'
 export const SUMMARY_PANE = 'clubhouse-summary'
 export const TOOLS_PANE = 'clubhouse-tools'
+export const RECIPES_PANE = 'clubhouse-recipes'
 export const OPINION_PANE = 'clubhouse-opinion'
 export const TOOL_RULES_KEY = 'toolRules'
 export const DEFAULT_TOOLS_VIEW: ToolsView = { filter: '', note: null, open: [] }
+export const DEFAULT_RECIPES_VIEW: RecipesView = { note: null, editing: null, trial: null }
 export const COMMANDS_KEY = 'commands'
 
 export type Room = { id: string; title: string; word: string; about: string }
@@ -119,6 +122,12 @@ export const ROOMS: readonly Room[] = [
     title: 'Tool rules',
     word: 'tools',
     about: 'Make Claude ask first, or block it, before it uses a tool.',
+  },
+  {
+    id: RECIPES_PANE,
+    title: 'Recipes',
+    word: 'recipes',
+    about: 'Turn a terminal command into a tool Claude can call.',
   },
   {
     id: COMMANDS_PANE,

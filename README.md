@@ -13,6 +13,7 @@ A Claude Code mod: one plugin that adds a home button and a Clawd usage meter ab
 | `/clubhouse summary` | The last reply cut down to a few bullet points |
 | `/clubhouse opinion` | Second opinion: ask Claude here, or an outside model, about the session without adding to it |
 | `/clubhouse tools` | Tool rules: make Claude ask first, or block it, per tool; one-click money safeguard |
+| `/clubhouse recipes` | Recipes: turn a terminal command into a tool Claude can call |
 | `/clubhouse commands` | Every slash command, led by your most used and most recent |
 | `/clubhouse bar` | Bar layout: add, remove and move bar items, add bars, make your own buttons |
 | `/clubhouse usage` | Both limits, context and the cache timer, full size |
@@ -30,6 +31,7 @@ The Clubhouse loads in every session through `CLAUDE_CODE_PLUGIN_DIRS` in `~/.cl
 - **Agent HQ**: each subagent drawn as Clawd in a suit and sunglasses, with Stand down and Dismiss. Create your own agents from a form, save them, pick their model (or let Auto pick the cheapest that fits), and send one out with a task; Claude is told what was dispatched.
 - **Commands**: every slash command in collapsible groups (your own, built in, one per plugin) with a filter; clicking one puts it in the prompt box. Hide a skill, or a whole group, and it leaves the slash menu, Claude is no longer told about it, and Claude cannot use it. Hidden items can be shown again. Save hidden lists as presets, and mark one for every new session to start with.
 - **Tool rules**: every tool Claude has, grouped by connector, each set to Allowed, Ask first or Blocked. Ask first shows what Claude is about to send and runs nothing unless you allow it. The money safeguard turns Ask first on for every tool that places, changes or cancels an order or moves money.
+- **Recipes**: give a command you would type in a terminal a name, and it becomes a tool Claude can call the same way every time. Put a blank in braces, like `{file}`, for what changes; Claude fills it in, and the value reaches the command as one argument, never as shell code. Recipes run in the session's folder, are kept across sessions, follow Tool rules and the session's permission mode, and can be tried from the room.
 - **Design**: follows `DESIGN.md` (Anthropic's style): serif headings, hairline borders, warm neutrals and one clay accent. The Anthropic palette and three ready-made looks are in Colors.
 - **Tidy**: a bar button that fixes spelling and trims the draft in the prompt box with a small model; press it again to get your original back.
 - **Readable controls**: buttons and text boxes get a contrasting backing when your background would hide them.
