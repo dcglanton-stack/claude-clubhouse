@@ -389,7 +389,7 @@ export function band(on: On): void {
     ]
 
     return (
-      <Box flexDirection="column" width={columns} {...frame}>
+      <Box flexDirection="column" gap={rows.length > 1 ? 1 : 0} width={columns} {...frame}>
         {handoffState === 'idle' && context !== null && context >= HANDOFF_PERCENT && (
           <Box gap={1} alignItems="center" flexWrap="wrap">
             <Text {...ink}>This conversation is {context}% full.</Text>
