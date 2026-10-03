@@ -119,7 +119,7 @@ export function nightWatch(on: On): void {
     const kept = await read($, savedWatches)
     const at = await read($, now)
     const ready = (await read($, recipes)).filter(one => blanksOf(one.command).length === 0)
-    const { frame, rim, note, plain, title, card, Button, Input } = makeParts(elements, chosen, e.surface)
+    const { frame, note, plain, title, card, Button, Input } = makeParts(elements, chosen, e.surface)
     const choose = (change: (shown: WatchView) => WatchView) => void update($, watchView, change)
     const ago = (then: number) => (at - then < MINUTE_MS ? 'just now' : `${formatSpan(at - then)} ago`)
 
@@ -250,25 +250,23 @@ export function nightWatch(on: On): void {
       ])
 
     return (
-      <Box flexDirection="column" {...rim}>
-        <Box flexDirection="column" gap={1} {...frame}>
-          {title('Night watch')}
-          {note(
-            'Checks on things while you are away. Every so often it wakes Claude with your instruction, or runs a command first and only wakes Claude when something is wrong. /clubhouse watch opens this.',
+      <Box flexDirection="column" gap={1} {...frame}>
+        {title('Night watch')}
+        {note(
+          'Checks on things while you are away. Every so often it wakes Claude with your instruction, or runs a command first and only wakes Claude when something is wrong. /clubhouse watch opens this.',
+        )}
+        {view.note !== null && plain(view.note)}
+        {held.map(running)}
+        {savedList}
+        {form}
+        {log.length > 0 &&
+          card(
+            'What happened',
+            log.map(entry => note(`${ago(entry.at)} · ${entry.text}`)),
           )}
-          {view.note !== null && plain(view.note)}
-          {held.map(running)}
-          {savedList}
-          {form}
-          {log.length > 0 &&
-            card(
-              'What happened',
-              log.map(entry => note(`${ago(entry.at)} · ${entry.text}`)),
-            )}
-          {note(
-            `A watch belongs to this session, so keep the Claude app open and your Mac awake. Waking Claude is a full turn and uses your limit: a watch will not wake Claude when under ${LOW_USAGE_PERCENT}% of your 5-hour limit is left, and one with a check command stops itself after ${WAKES_BEFORE_STOPPING} wake-ups in a row. In a permission mode that asks, Claude waits for you at the first thing that needs approval.`,
-          )}
-        </Box>
+        {note(
+          `A watch belongs to this session, so keep the Claude app open and your Mac awake. Waking Claude is a full turn and uses your limit: a watch will not wake Claude when under ${LOW_USAGE_PERCENT}% of your 5-hour limit is left, and one with a check command stops itself after ${WAKES_BEFORE_STOPPING} wake-ups in a row. In a permission mode that asks, Claude waits for you at the first thing that needs approval.`,
+        )}
       </Box>
     )
   })

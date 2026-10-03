@@ -110,7 +110,7 @@ export function clawdMarkup({ x, y, unit, color, mood }: ClawdSpec): string {
     (outline: boolean) =>
     ([left, top, width, height, corner]: readonly [number, number, number, number, number]) =>
       `<rect x="${at(left)}" y="${at(top)}" width="${at(width)}" height="${at(height)}" rx="${at(corner)}" fill="${color}"${
-        outline ? ` stroke="${OUTLINE}" stroke-opacity="0.38" stroke-width="${round(Math.max(1, unit * 0.45))}"` : ''
+        outline ? ` stroke="${OUTLINE}" stroke-opacity="0.38" stroke-width="${round(outlineOf(unit))}"` : ''
       }/>`
   const parts: readonly (readonly [number, number, number, number, number])[] = [
     [0, 3.2, CLAWD_COLUMNS, 2.3, 0.75],
@@ -127,13 +127,26 @@ export function clawdMarkup({ x, y, unit, color, mood }: ClawdSpec): string {
   )
 }
 
+function outlineOf(unit: number): number {
+  return Math.max(1, unit * 0.45)
+}
+
+export function clawdBox(unit: number): { width: number; height: number; margin: number } {
+  const margin = Math.ceil(outlineOf(unit) / 2)
+
+  return {
+    width: Math.ceil(CLAWD_COLUMNS * unit) + 2 * margin,
+    height: Math.ceil(CLAWD_ROWS * unit) + 2 * margin,
+    margin,
+  }
+}
+
 export function clawdSvg(mood: Mood, color: string, unit: number): string {
-  const width = Math.ceil(CLAWD_COLUMNS * unit)
-  const height = Math.ceil(CLAWD_ROWS * unit)
+  const { width, height, margin } = clawdBox(unit)
 
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">` +
-    clawdMarkup({ x: 0, y: 0, unit, color, mood }) +
+    clawdMarkup({ x: margin, y: margin, unit, color, mood }) +
     '</svg>'
   )
 }

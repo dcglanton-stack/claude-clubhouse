@@ -28,9 +28,9 @@ import { makeParts } from '../lib/parts'
 import { DEFAULT_FONT } from '../lib/fonts'
 import { HANDOFF_ARM, HANDOFF_PERCENT } from '../lib/guard'
 import { DRAW_BINARY, DRAW_DONE, DRAW_MISSING, DRAW_OPEN, DRAW_TIMEOUT_MS, sketchPrompt } from '../lib/draw'
-import { DEFAULT_SPORTS, gameLine, logoKey, scoreSvg } from '../lib/sports'
+import { DEFAULT_SPORTS, gameLine, logoFor, logoKey, scoreSvg } from '../lib/sports'
 import { summaryOf, summaryRequest } from '../lib/summary'
-import { DEFAULT_TICKER, DOWN_COLOR, UP_COLOR, changeText, priceText } from '../lib/ticker'
+import { DEFAULT_TICKER, DOWN_COLOR, UP_COLOR, changeText, isStale, priceText } from '../lib/ticker'
 import { clearOn, drawnFor } from '../lib/tone'
 import { serifSize, serifSvg } from '../lib/type'
 import { KIND_WORD, weatherSvg } from '../lib/weather'
@@ -363,8 +363,8 @@ export function band(on: On): void {
             scoreSvg({
               game,
               ink: look.ink,
-              homeLogo: marks[logoKey(game.league, game.home)] ?? null,
-              awayLogo: marks[logoKey(game.league, game.away)] ?? null,
+              homeLogo: logoFor(marks, logoKey(game.league, game.home), look.tone),
+              awayLogo: logoFor(marks, logoKey(game.league, game.away), look.tone),
               width: SCORE_WIDTH,
               height: HOME_ICON,
             }),
@@ -395,7 +395,7 @@ export function band(on: On): void {
         return (
           <Box gap={1} flexShrink={0}>
             {words(quote.symbol, { isBold: true })}
-            {words(priceText(quote.price))}
+            {words(priceText(quote.price), { isDim: isStale(quote, at) })}
             {words(changeText(quote.changePercent), plan.isColored ? { color: usesFont ? (look.tone === null ? wanted : clearOn(look.tone, wanted, 3)) : shown } : {})}
           </Box>
         )

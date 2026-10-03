@@ -77,7 +77,7 @@ export function home(on: On): void {
     const shown = await read($, tab)
     const at = await read($, now)
     await read($, pulse)
-    const { ink, frame, rim, note, title, card, meter, look, picture, Button } = makeParts(elements, chosen, e.surface)
+    const { ink, frame, note, title, card, meter, look, picture, Button } = makeParts(elements, chosen, e.surface)
 
     const header = (
       <Box flexDirection="column" gap={1}>
@@ -210,11 +210,9 @@ export function home(on: On): void {
     )
 
     return (
-      <Box flexDirection="column" {...rim}>
-        <Box flexDirection="column" gap={1} {...frame}>
-          {header}
-          {shown === 'more' ? more() : await main()}
-        </Box>
+      <Box flexDirection="column" gap={1} {...frame}>
+        {header}
+        {shown === 'more' ? more() : await main()}
       </Box>
     )
   })

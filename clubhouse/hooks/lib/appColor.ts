@@ -22,7 +22,7 @@ const HAIRLINE = '#87867f'
 const EDGE_CONTRAST = 4.5
 const HAIRLINE_CONTRAST = 2.5
 const TRACK_CONTRAST = 1.25
-const SIDEBAR_SHADE = { underDarkText: 0.07, underLightText: 0.55 } as const
+const SIDEBAR_SHADE = { lighterUnderDarkText: 0.3, deeperUnderLightText: 0.55 } as const
 const SIDEBAR_TURN = 14
 const WARM_HUES = { until: 75, from: 300 } as const
 const HEADING_CONTRAST = 3
@@ -112,8 +112,11 @@ export function lookOf(prefs: Prefs, surface: string): Look {
 }
 
 export function sidebarOf(spec: ToneSpec): string {
-  const share = luminance(spec.ink) > luminance(spec.target) ? SIDEBAR_SHADE.underLightText : SIDEBAR_SHADE.underDarkText
-  const { hue, saturation, lightness } = toHsl(mix(spec.target, '#000000', share))
+  if (luminance(spec.ink) <= luminance(spec.target)) {
+    return mix(spec.target, '#ffffff', SIDEBAR_SHADE.lighterUnderDarkText)
+  }
+
+  const { hue, saturation, lightness } = toHsl(mix(spec.target, '#000000', SIDEBAR_SHADE.deeperUnderLightText))
   const isWarm = hue < WARM_HUES.until || hue >= WARM_HUES.from
 
   return fromHsl({ hue: hue + (isWarm ? -SIDEBAR_TURN : SIDEBAR_TURN), saturation, lightness })

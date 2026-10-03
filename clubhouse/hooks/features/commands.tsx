@@ -276,7 +276,7 @@ export function commands(on: On): void {
         !hidden.includes(one.name) &&
         (one.name.toLowerCase().includes(wanted) || one.description.toLowerCase().includes(wanted)),
     )
-    const { card, frame, rim, note, plain, title, Button, Input } = makeParts(elements, chosen, e.surface)
+    const { card, frame, note, plain, title, Button, Input } = makeParts(elements, chosen, e.surface)
 
     const setFilter = (typed: string) =>
       void update($, commandsView, held => ({ ...held, filter: typed }))
@@ -307,167 +307,165 @@ export function commands(on: On): void {
     )
 
     return (
-      <Box flexDirection="column" {...rim}>
-        <Box flexDirection="column" gap={1} {...frame}>
-          {title('Commands')}
-          {note(
-            'Everything you can type after a slash, sorted into groups. Click a group to open it and a command to put it in the prompt box. /clubhouse commands opens this.',
-          )}
+      <Box flexDirection="column" gap={1} {...frame}>
+        {title('Commands')}
+        {note(
+          'Everything you can type after a slash, sorted into groups. Click a group to open it and a command to put it in the prompt box. /clubhouse commands opens this.',
+        )}
 
-          {card('Most used and most recent', [
-            <Box gap={1} flexWrap="wrap">
-              {topCommands(stats, TOP_SIZE).map(name => (
-                <Button key={`top-${name}`} label={`/${name}`} onPress={() => void offer($, name)} />
-              ))}
+        {card('Most used and most recent', [
+          <Box gap={1} flexWrap="wrap">
+            {topCommands(stats, TOP_SIZE).map(name => (
+              <Button key={`top-${name}`} label={`/${name}`} onPress={() => void offer($, name)} />
+            ))}
+          </Box>,
+        ])}
+
+        {card('About hiding', [
+          note('Hide puts a skill, or a whole group, out of the way. It leaves the slash menu, Claude is no longer told it exists (which saves a little context every session), and Claude is refused if it tries to use it.'),
+          note('Nothing is deleted from your computer, and it stays hidden in every session until you show it again under Hidden skills at the bottom.'),
+          note('Claude in a session already under way has seen the full list, so for Claude the change starts with the next session or after /clear.'),
+          note('To remove a whole plugin and everything it adds, ask Claude to turn that plugin off.'),
+        ])}
+
+        {Input !== null && (
+          <Input
+            key="filter"
+            label="Find"
+            placeholder="part of a name or what it does"
+            submitLabel="Find"
+            onInput={setFilter}
+            onSubmit={setFilter}
+          />
+        )}
+        {view.note !== null && plain(view.note)}
+
+        {wanted !== '' &&
+          card(
+            `Matching "${wanted}" (${matching.length})`,
+            <Box flexDirection="column" gap={1}>
+              {matching.slice(0, MATCH_SIZE).map(one => entry(one, one.source !== 'builtin'))}
+              {matching.length > MATCH_SIZE && note(`${matching.length - MATCH_SIZE} more. Type more to narrow it.`)}
             </Box>,
-          ])}
-
-          {card('About hiding', [
-            note('Hide puts a skill, or a whole group, out of the way. It leaves the slash menu, Claude is no longer told it exists (which saves a little context every session), and Claude is refused if it tries to use it.'),
-            note('Nothing is deleted from your computer, and it stays hidden in every session until you show it again under Hidden skills at the bottom.'),
-            note('Claude in a session already under way has seen the full list, so for Claude the change starts with the next session or after /clear.'),
-            note('To remove a whole plugin and everything it adds, ask Claude to turn that plugin off.'),
-          ])}
-
-          {Input !== null && (
-            <Input
-              key="filter"
-              label="Find"
-              placeholder="part of a name or what it does"
-              submitLabel="Find"
-              onInput={setFilter}
-              onSubmit={setFilter}
-            />
           )}
-          {view.note !== null && plain(view.note)}
 
-          {wanted !== '' &&
-            card(
-              `Matching "${wanted}" (${matching.length})`,
+        {wanted === '' &&
+          groups.map(group => {
+            const isOpen = view.open.includes(group.id)
+
+            return (
               <Box flexDirection="column" gap={1}>
-                {matching.slice(0, MATCH_SIZE).map(one => entry(one, one.source !== 'builtin'))}
-                {matching.length > MATCH_SIZE && note(`${matching.length - MATCH_SIZE} more. Type more to narrow it.`)}
-              </Box>,
-            )}
-
-          {wanted === '' &&
-            groups.map(group => {
-              const isOpen = view.open.includes(group.id)
-
-              return (
-                <Box flexDirection="column" gap={1}>
-                  <Box gap={1}>
-                    <Button
-                      key={`group-${group.id}`}
-                      label={`${isOpen ? '▾' : '▸'} ${group.title} (${group.commands.length})`}
-                      variant={isOpen ? 'primary' : 'secondary'}
-                      onPress={() => toggleGroup(group.id)}
-                    />
-                    {isOpen && group.canHide && (
-                      <Button
-                        key={`hideall-${group.id}`}
-                        label="Hide all"
-                        onPress={() =>
-                          hide(
-                            group.commands.map(one => one.name),
-                            `All ${group.commands.length} in ${group.title}`,
-                          )
-                        }
-                      />
-                    )}
-                  </Box>
-                  {isOpen &&
-                    card(
-                      group.title,
-                      <Box flexDirection="column" gap={1}>
-                        {group.commands.map(one => entry(one, group.canHide))}
-                      </Box>,
-                    )}
-                </Box>
-              )
-            })}
-
-          {wanted === '' &&
-            card(`Hidden skills (${hidden.length})`, [
-              note('Hidden in every session: gone from the slash menu, and Claude is not told about them and cannot use them.'),
-              hidden.length > 0 && (
-                <Box gap={1} flexWrap="wrap">
-                  {hidden.map(name => (
-                    <Button key={`unhide-${name}`} label={`Show /${name}`} onPress={() => unhide(name)} />
-                  ))}
+                <Box gap={1}>
                   <Button
-                    key="unhide-all"
-                    label="Show all"
-                    onPress={() => void setHidden($, () => [], 'Everything is showing again.')}
+                    key={`group-${group.id}`}
+                    label={`${isOpen ? '▾' : '▸'} ${group.title} (${group.commands.length})`}
+                    variant={isOpen ? 'primary' : 'secondary'}
+                    onPress={() => toggleGroup(group.id)}
+                  />
+                  {isOpen && group.canHide && (
+                    <Button
+                      key={`hideall-${group.id}`}
+                      label="Hide all"
+                      onPress={() =>
+                        hide(
+                          group.commands.map(one => one.name),
+                          `All ${group.commands.length} in ${group.title}`,
+                        )
+                      }
+                    />
+                  )}
+                </Box>
+                {isOpen &&
+                  card(
+                    group.title,
+                    <Box flexDirection="column" gap={1}>
+                      {group.commands.map(one => entry(one, group.canHide))}
+                    </Box>,
+                  )}
+              </Box>
+            )
+          })}
+
+        {wanted === '' &&
+          card(`Hidden skills (${hidden.length})`, [
+            note('Hidden in every session: gone from the slash menu, and Claude is not told about them and cannot use them.'),
+            hidden.length > 0 && (
+              <Box gap={1} flexWrap="wrap">
+                {hidden.map(name => (
+                  <Button key={`unhide-${name}`} label={`Show /${name}`} onPress={() => unhide(name)} />
+                ))}
+                <Button
+                  key="unhide-all"
+                  label="Show all"
+                  onPress={() => void setHidden($, () => [], 'Everything is showing again.')}
+                />
+              </Box>
+            ),
+          ])}
+
+        {wanted === '' &&
+          card('Presets', [
+            note('A preset is a saved list of what to hide. Save the list you have now under a name, and switch between presets whenever you like. Turn on "every session" for one and each new session starts with that list.'),
+            Input !== null && (
+              <Input
+                key="preset-name"
+                label="Name"
+                placeholder="coding"
+                submitLabel="Set"
+                onInput={typed => {
+                  presetName = typed
+                }}
+                onSubmit={typed => {
+                  presetName = typed
+                }}
+              />
+            ),
+            <Box>
+              <Button key="preset-save" label="Save as preset" variant="primary" onPress={() => void savePreset($)} />
+            </Box>,
+            ...Object.entries(plan.presets).map(([name, names]) => (
+              <Box flexDirection="column">
+                {plain(`${name} (${names.length} hidden)`)}
+                <Box gap={1} flexWrap="wrap">
+                  <Button
+                    key={`preset-use-${name}`}
+                    label="Use now"
+                    onPress={() => void setHidden($, () => names, `Now using "${name}".`)}
+                  />
+                  <Button
+                    key={`preset-start-${name}`}
+                    label={plan.startWith === name ? 'Every session: on' : 'Every session: off'}
+                    variant={plan.startWith === name ? 'primary' : 'secondary'}
+                    onPress={() =>
+                      void setPlan(
+                        $,
+                        held => ({ ...held, startWith: held.startWith === name ? null : name }),
+                        plan.startWith === name
+                          ? `New sessions no longer start with "${name}".`
+                          : `Every new session will start with "${name}".`,
+                      )
+                    }
+                  />
+                  <Button
+                    key={`preset-delete-${name}`}
+                    label="Delete"
+                    onPress={() =>
+                      void setPlan(
+                        $,
+                        held => ({
+                          presets: Object.fromEntries(
+                            Object.entries(held.presets).filter(([other]) => other !== name),
+                          ),
+                          startWith: held.startWith === name ? null : held.startWith,
+                        }),
+                        `Deleted "${name}".`,
+                      )
+                    }
                   />
                 </Box>
-              ),
-            ])}
-
-          {wanted === '' &&
-            card('Presets', [
-              note('A preset is a saved list of what to hide. Save the list you have now under a name, and switch between presets whenever you like. Turn on "every session" for one and each new session starts with that list.'),
-              Input !== null && (
-                <Input
-                  key="preset-name"
-                  label="Name"
-                  placeholder="coding"
-                  submitLabel="Set"
-                  onInput={typed => {
-                    presetName = typed
-                  }}
-                  onSubmit={typed => {
-                    presetName = typed
-                  }}
-                />
-              ),
-              <Box>
-                <Button key="preset-save" label="Save as preset" variant="primary" onPress={() => void savePreset($)} />
-              </Box>,
-              ...Object.entries(plan.presets).map(([name, names]) => (
-                <Box flexDirection="column">
-                  {plain(`${name} (${names.length} hidden)`)}
-                  <Box gap={1} flexWrap="wrap">
-                    <Button
-                      key={`preset-use-${name}`}
-                      label="Use now"
-                      onPress={() => void setHidden($, () => names, `Now using "${name}".`)}
-                    />
-                    <Button
-                      key={`preset-start-${name}`}
-                      label={plan.startWith === name ? 'Every session: on' : 'Every session: off'}
-                      variant={plan.startWith === name ? 'primary' : 'secondary'}
-                      onPress={() =>
-                        void setPlan(
-                          $,
-                          held => ({ ...held, startWith: held.startWith === name ? null : name }),
-                          plan.startWith === name
-                            ? `New sessions no longer start with "${name}".`
-                            : `Every new session will start with "${name}".`,
-                        )
-                      }
-                    />
-                    <Button
-                      key={`preset-delete-${name}`}
-                      label="Delete"
-                      onPress={() =>
-                        void setPlan(
-                          $,
-                          held => ({
-                            presets: Object.fromEntries(
-                              Object.entries(held.presets).filter(([other]) => other !== name),
-                            ),
-                            startWith: held.startWith === name ? null : held.startWith,
-                          }),
-                          `Deleted "${name}".`,
-                        )
-                      }
-                    />
-                  </Box>
-                </Box>
-              )),
-            ])}
-        </Box>
+              </Box>
+            )),
+          ])}
       </Box>
     )
   })

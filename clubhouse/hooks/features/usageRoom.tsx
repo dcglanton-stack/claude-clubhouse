@@ -36,61 +36,59 @@ export function usageRoom(on: On): void {
     const context = await read($, contextPercent)
     const made = await read($, receipt)
     const last = await read($, lastReplyAt)
-    const { card, frame, rim, meter, note, plain, title, Button } = makeParts(elements, chosen, e.surface)
+    const { card, frame, meter, note, plain, title, Button } = makeParts(elements, chosen, e.surface)
     const cap = chosen.spendCap ?? 0
     const lifted = await read($, capLiftedUntil)
     const left = fiveHourLeft(list, at)
     const isLifted = lifted !== null && lifted > at
 
     return (
-      <Box flexDirection="column" {...rim}>
-        <Box flexDirection="column" gap={1} {...frame}>
-          {title('Usage')}
-          {card('5-hour limit', [
-            meter({ kind: 'five_hour', limits: list, at, width: METER_WIDTH, height: METER_HEIGHT }),
-            note('Resets on a rolling five hours. Clawd gets unhappier as it drains.'),
-          ])}
-          {card('Spend cap', [
-            <Box gap={1} flexWrap="wrap">
-              <Button
-                key="spend-cap"
-                label={capLabel(cap)}
-                variant={cap > 0 ? 'primary' : 'secondary'}
-                onPress={() => void keep($, held => ({ ...held, spendCap: nextOf(CAP_LEVELS, held.spendCap ?? 0) }))}
-              />
-              {isLifted && (
-                <Button key="spend-cap-restore" label="Put the cap back" onPress={() => void update($, capLiftedUntil, () => null)} />
-              )}
-            </Box>,
-            note(
-              'Helper agents use your limit quickly. With a cap set, Claude has to ask you before starting one once your 5-hour limit drops under that level. You can allow one, allow them all until the limit resets, or say no. Agents you send yourself from Agent HQ are never stopped.',
-            ),
-            cap === 0
-              ? null
-              : plain(
-                  isLifted
-                    ? `You lifted the cap for the next ${formatSpan(lifted - at)}.`
-                    : isCapped({ cap, left, liftedUntil: lifted, at })
-                      ? 'You are under the cap now: Claude will ask before starting a helper agent.'
-                      : 'You are above the cap: helper agents start as usual.',
-                ),
-          ])}
-          {card('Weekly limit', [
-            meter({ kind: 'seven_day', limits: list, at, width: METER_WIDTH, height: METER_HEIGHT }),
-            note('Resets once a week.'),
-          ])}
-          {card('This conversation', [
-            plain(context === null ? 'Context: no reading yet' : `Context window: ${context}% full`),
-            note('A fuller context makes every turn cost more. /compact shrinks it.'),
-            plain(cacheNote(last, at)),
-            note('Counts one hour down from the last reply. After it runs out, the next turn re-reads the whole conversation at full price.'),
-          ])}
-          {card('Last turn', [
-            made === null ? note('No turn has finished yet.') : plain(receiptNote(made)),
-            note('Time taken, tokens read and written, and the share of the 5-hour limit it used.'),
-          ])}
-          {note('/clubhouse usage opens this room.')}
-        </Box>
+      <Box flexDirection="column" gap={1} {...frame}>
+        {title('Usage')}
+        {card('5-hour limit', [
+          meter({ kind: 'five_hour', limits: list, at, width: METER_WIDTH, height: METER_HEIGHT }),
+          note('Resets on a rolling five hours. Clawd gets unhappier as it drains.'),
+        ])}
+        {card('Spend cap', [
+          <Box gap={1} flexWrap="wrap">
+            <Button
+              key="spend-cap"
+              label={capLabel(cap)}
+              variant={cap > 0 ? 'primary' : 'secondary'}
+              onPress={() => void keep($, held => ({ ...held, spendCap: nextOf(CAP_LEVELS, held.spendCap ?? 0) }))}
+            />
+            {isLifted && (
+              <Button key="spend-cap-restore" label="Put the cap back" onPress={() => void update($, capLiftedUntil, () => null)} />
+            )}
+          </Box>,
+          note(
+            'Helper agents use your limit quickly. With a cap set, Claude has to ask you before starting one once your 5-hour limit drops under that level. You can allow one, allow them all until the limit resets, or say no. Agents you send yourself from Agent HQ are never stopped.',
+          ),
+          cap === 0
+            ? null
+            : plain(
+                isLifted
+                  ? `You lifted the cap for the next ${formatSpan(lifted - at)}.`
+                  : isCapped({ cap, left, liftedUntil: lifted, at })
+                    ? 'You are under the cap now: Claude will ask before starting a helper agent.'
+                    : 'You are above the cap: helper agents start as usual.',
+              ),
+        ])}
+        {card('Weekly limit', [
+          meter({ kind: 'seven_day', limits: list, at, width: METER_WIDTH, height: METER_HEIGHT }),
+          note('Resets once a week.'),
+        ])}
+        {card('This conversation', [
+          plain(context === null ? 'Context: no reading yet' : `Context window: ${context}% full`),
+          note('A fuller context makes every turn cost more. /compact shrinks it.'),
+          plain(cacheNote(last, at)),
+          note('Counts one hour down from the last reply. After it runs out, the next turn re-reads the whole conversation at full price.'),
+        ])}
+        {card('Last turn', [
+          made === null ? note('No turn has finished yet.') : plain(receiptNote(made)),
+          note('Time taken, tokens read and written, and the share of the 5-hour limit it used.'),
+        ])}
+        {note('/clubhouse usage opens this room.')}
       </Box>
     )
   })

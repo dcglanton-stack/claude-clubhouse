@@ -291,7 +291,7 @@ export function agents(on: On): void {
       .filter(one => agentStatus(one.status) !== 'running')
       .slice(-PAST_SHOWN)
       .reverse()
-    const { ink, frame, rim, note, plain, title, card, look, picture, Button, Input, Select } = makeParts(
+    const { ink, frame, note, plain, title, card, look, picture, Button, Input, Select } = makeParts(
       elements,
       chosen,
       e.surface,
@@ -450,41 +450,39 @@ export function agents(on: On): void {
         : card(`Send ${one.name}`, [note('Sending needs a text box, which this screen does not have.')])
 
     return (
-      <Box flexDirection="column" {...rim}>
-        <Box flexDirection="column" gap={1} {...frame}>
-          <Box gap={1} alignItems="center">
-            {picture(
-              agentSvg({ color: look.clawd, unit: HEAD_UNIT, status: 'running' }),
-              'A Clawd agent in a suit and sunglasses',
-              HEAD_WIDTH,
-              HEAD_HEIGHT,
-            )}
-            {title('Agent HQ')}
-            {desk.mode === 'idle' && (
-              <Button key="agent-new" label="+ New agent" variant="primary" onPress={() => openForm(null)} />
-            )}
-          </Box>
-
-          {desk.mode === 'form' && form()}
-          {desk.mode === 'send' && target !== undefined && send(target)}
-          {desk.note !== null && plain(desk.note)}
-
-          {card(`In the field (${working.length})`, [
-            working.length === 0 && note('No agents out right now.'),
-            ...working.map(fieldRow),
-          ])}
-
-          {card(
-            `Your agents (${bank.length})`,
-            bank.length === 0
-              ? [note('None saved yet. Press + New agent to make one you can reuse in any session.')]
-              : bank.map(bankRow),
+      <Box flexDirection="column" gap={1} {...frame}>
+        <Box gap={1} alignItems="center">
+          {picture(
+            agentSvg({ color: look.clawd, unit: HEAD_UNIT, status: 'running' }),
+            'A Clawd agent in a suit and sunglasses',
+            HEAD_WIDTH,
+            HEAD_HEIGHT,
           )}
-
-          {past.length > 0 && card('Back from the field', past.map(fieldRow))}
-
-          {note('An agent can be stood down but not paused: Claude Code has no pause. /clubhouse agents opens this room.')}
+          {title('Agent HQ')}
+          {desk.mode === 'idle' && (
+            <Button key="agent-new" label="+ New agent" variant="primary" onPress={() => openForm(null)} />
+          )}
         </Box>
+
+        {desk.mode === 'form' && form()}
+        {desk.mode === 'send' && target !== undefined && send(target)}
+        {desk.note !== null && plain(desk.note)}
+
+        {card(`In the field (${working.length})`, [
+          working.length === 0 && note('No agents out right now.'),
+          ...working.map(fieldRow),
+        ])}
+
+        {card(
+          `Your agents (${bank.length})`,
+          bank.length === 0
+            ? [note('None saved yet. Press + New agent to make one you can reuse in any session.')]
+            : bank.map(bankRow),
+        )}
+
+        {past.length > 0 && card('Back from the field', past.map(fieldRow))}
+
+        {note('An agent can be stood down but not paused: Claude Code has no pause. /clubhouse agents opens this room.')}
       </Box>
     )
   })
