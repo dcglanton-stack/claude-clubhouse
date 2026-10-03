@@ -13,7 +13,7 @@ import {
   inkOf,
   swapsLightAndDark,
 } from '../lib/appColor'
-import { clawdSvg, wheelSvg } from '../lib/clawd'
+import { clawdBox, clawdSvg, wheelSvg } from '../lib/clawd'
 import { contrast, isLight, mix, normalizeHex, rgbString, shift, toHsl } from '../lib/color'
 import type { Hsl } from '../lib/color'
 import {
@@ -39,6 +39,7 @@ const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS
 const THEME_SLUG = 'clubhouse'
 const THEME_REF = `custom:${THEME_SLUG}`
 const WHEEL_SIZE = 110
+const CLAWD_UNIT = 6
 const PRESET_NAME_CHARS = 24
 const COMFORTABLE_CONTRAST = 4.5
 const LOOK_MODEL = 'haiku'
@@ -358,7 +359,7 @@ export function colors(on: On): void {
     const view = await read($, colorsView)
     const slot = view.slot
     const current = colorOf(chosen, slot)
-    const { look, ink, frame, rim, note, plain, title, heading, picture, swatch, Button, Input } = makeParts(
+    const { look, ink, frame, note, plain, title, heading, picture, swatch, Button, Input } = makeParts(
       elements,
       chosen,
       e.surface,
@@ -375,181 +376,184 @@ export function colors(on: On): void {
     const mine = await read($, colorPresets)
 
     return (
-      <Box flexDirection="column" {...rim}>
-        <Box flexDirection="column" gap={1} {...frame}>
-          {title('Colors')}
-          {note(
-            'Pick the colors of everything the Clubhouse draws. Choose what to color, then nudge it, pick a preset, type a hex code or describe a look. /clubhouse colors opens this.',
-          )}
+      <Box flexDirection="column" gap={1} {...frame}>
+        {title('Colors')}
+        {note(
+          'Pick the colors of everything the Clubhouse draws. Choose what to color, then nudge it, pick a preset, type a hex code or describe a look. /clubhouse colors opens this.',
+        )}
 
-          <Box gap={1} flexWrap="wrap">
-            <Button key="reset-colors" label="Reset all to default" onPress={() => void keep($, resetLook)} />
-            <Button
-              key="sidebar"
-              label={chosen.coversSidebar === true ? 'Sidebar: your color too' : 'Sidebar: the app\'s own look'}
-              variant={chosen.coversSidebar === true ? 'primary' : 'secondary'}
-              onPress={() => void keep($, held => ({ ...held, coversSidebar: held.coversSidebar !== true }))}
-            />
-          </Box>
-          {note('Experiment: the Sidebar button extends your color over the list of sessions on the left, so the whole Claude window matches.')}
-          {note(
-            !chosen.isHelperReady
-              ? 'The helper that colors the whole session is not installed on this Mac, so the Background only colors the Clubhouse and the conversation rows. Ask Claude to build it.'
-              : 'Your Background is the color of the whole session: the conversation, the toolbar, the text box and the Clubhouse rooms. The sidebar keeps the app\'s own look. These colors are the same in every session.',
-          )}
-          {swapsLightAndDark(chosen) &&
-            note(
-              `This is a ${chosen.appMode === 'dark' ? 'light' : 'dark'} color on a ${chosen.appMode} app, so the helper swaps light and dark across the session to keep text readable. Pictures in the conversation swap too. Switching the Claude app itself to ${chosen.appMode === 'dark' ? 'light' : 'dark'} mode avoids that, and the Clubhouse notices on its own.`,
-            )}
-          {isHardToRead &&
-            note(
-              'On a mid-bright background like this, neither dark nor light text stands out strongly, and Clawd and the usage bar take lighter shades of their colors. A darker or lighter background reads best.',
-            )}
-
-          {heading('What to color')}
-          {SLOTS.map(([id, label, about]) => (
-            <Box flexDirection="column">
-              <Box gap={1} alignItems="center">
-                <Button
-                  key={`slot-${id}`}
-                  label={label}
-                  variant={slot === id ? 'primary' : 'secondary'}
-                  onPress={() => void update($, colorsView, held => ({ ...held, slot: id }))}
-                />
-                {swatch(colorOf(chosen, id))}
-              </Box>
-              {note(about)}
-              {Input === null ? (
-                <Text {...ink}>{chosen.palette[id] ?? 'app default'}</Text>
-              ) : (
-                <Input
-                  key={`hex-${id}`}
-                  label="Code"
-                  placeholder="app default"
-                  value={chosen.palette[id] ?? ''}
-                  submitLabel="Confirm"
-                  onSubmit={typed => void takeHex($, id, typed)}
-                />
-              )}
-              <Box justifyContent="flex-end">
-                <Button
-                  key={`reset-${id}`}
-                  label="Reset"
-                  onPress={() =>
-                    void keep($, held => ({ ...held, palette: { ...held.palette, [id]: DEFAULT_PALETTE[id] } }))
-                  }
-                />
-              </Box>
-            </Box>
-          ))}
-
-          {heading(`Adjust ${slot}`)}
-          <Box gap={2} alignItems="center">
-            {picture(
-              wheelSvg({ hue: toHsl(current).hue, color: current, size: WHEEL_SIZE }),
-              `Color wheel showing ${current}`,
-              WHEEL_SIZE,
-              WHEEL_SIZE,
-            )}
-            {picture(clawdSvg('happy', look.clawd, 6), 'Clawd in the chosen color', 90, 58)}
-          </Box>
-          <Box gap={1} flexWrap="wrap">
-            {NUDGES.map(([key, label, change]) => (
-              <Button key={key} label={label} onPress={() => nudge(change)} />
-            ))}
-          </Box>
-
-          {heading('Presets')}
-          {note('Each preset sets all three colors at once.')}
-          <Box gap={1} flexWrap="wrap">
-            {PRESETS.map(([name, palette]) => (
-              <Button key={`preset-${name}`} label={name} onPress={() => void keep($, held => ({ ...held, palette }))} />
-            ))}
-            {LOOKS.map(([key, label, palette]) => (
-              <Button key={key} label={label} onPress={() => void keep($, held => ({ ...held, palette }))} />
-            ))}
-          </Box>
-
-          {heading('Your presets')}
-          {note('Found colors you like? Give them a name and save them. A preset keeps all three colors as they are right now.')}
-          {Input !== null && (
-            <Input
-              key="preset-name"
-              label="Name"
-              placeholder="Game day"
-              submitLabel="Save current colors"
-              onSubmit={typed => void savePreset($, typed)}
-            />
-          )}
-          {mine.map(one => (
-            <Box gap={1} flexWrap="wrap" alignItems="center">
-              <Button
-                key={`mine-${one.name}`}
-                label={one.name}
-                variant="primary"
-                onPress={() => void keep($, held => ({ ...held, palette: one.palette }))}
-              />
-              {swatch(one.palette.background ?? backdropOf(chosen))}
-              {swatch(one.palette.accent)}
-              {swatch(one.palette.clawd)}
-              <Button key={`mine-delete-${one.name}`} label="Delete" onPress={() => void dropPreset($, one.name)} />
-            </Box>
-          ))}
-
-          {heading(`One color for ${slot}`)}
-          {note("Anthropic's own palette: warm ivory and oat neutrals with one clay accent. A press changes only the color chosen under What to color.")}
-          <Box gap={1} flexWrap="wrap">
-            {ANTHROPIC.map(([name, hex]) => (
-              <Button key={`anthropic-${name}`} label={name} onPress={() => setSlot(hex)} />
-            ))}
-            {slot === 'background' && <Button key="preset-none" label="None" onPress={() => setSlot(null)} />}
-          </Box>
-
-          {Input !== null && (
-            <Box flexDirection="column" gap={1}>
-              {heading('Describe a look')}
-              {note('A small model picks all three colors from your words. Costs a few tokens.')}
-              <Input
-                key="look"
-                label="Look"
-                placeholder="cozy autumn cabin"
-                submitLabel="Make it"
-                onSubmit={wish => void describeLook($, wish)}
-              />
-            </Box>
-          )}
-
-          {heading('How the session gets its color')}
-          {note(`Claude Code can only paint its own rows and panels, so the Clubhouse runs a small helper on your Mac. Wherever the session shows the app's plain background, the helper swaps in your Background color, and it moves text, icons and borders to your Text color. It notices on its own whether the Claude app is in dark or light mode (${chosen.appMode} right now), and it stops when you reset, switch the Clubhouse off or quit Claude.`)}
-
-          <Box>
-            <Button
-              key="advanced"
-              label={view.isAdvancedOpen ? '▾ Advanced' : '▸ Advanced'}
-              onPress={() => void update($, colorsView, held => ({ ...held, isAdvancedOpen: !held.isAdvancedOpen }))}
-            />
-          </Box>
-          {view.isAdvancedOpen && (
-            <Box flexDirection="column" gap={1}>
-              {heading('Repaint the app itself')}
-              {note('The Claude app has a Developer Mode that lets you change its real colors by hand. It lasts until the app restarts, then you do steps 2 and 3 again.')}
-              {note('1. Look at the very top of your screen, the strip that starts with the Apple logo. Click Help, then Troubleshooting, then Enable Developer Mode, and confirm. You only do this once.')}
-              {note('2. Hold Option and Command and press I. A new window opens. Click the word Console near its top.')}
-              {note('3. Press Copy app colors below. Click in the big empty area of that new window, hold Command and press V, then press Return. If it asks, type the words allow pasting, press Return, and paste again.')}
-              <Box gap={1} flexWrap="wrap">
-                <Button key="window-tint" label="Copy app colors" onPress={() => void shareWindowTint($, false)} />
-                <Button key="window-undo" label="Copy undo" onPress={() => void shareWindowTint($, true)} />
-              </Box>
-              {heading('Claude Code in a terminal')}
-              {note('In a terminal, Claude Code draws everything itself, so this theme recolors its accents, borders and panels there.')}
-              <Box gap={1} flexWrap="wrap">
-                <Button key="apply-app" label="Apply to Claude Code theme" onPress={() => void applyToApp($)} />
-                <Button key="undo-app" label="Undo" onPress={() => void undoApp($)} />
-              </Box>
-            </Box>
-          )}
-          {view.note !== null && plain(view.note)}
+        <Box gap={1} flexWrap="wrap">
+          <Button key="reset-colors" label="Reset all to default" onPress={() => void keep($, resetLook)} />
+          <Button
+            key="sidebar"
+            label={chosen.coversSidebar === true ? 'Sidebar: your color too' : 'Sidebar: the app\'s own look'}
+            variant={chosen.coversSidebar === true ? 'primary' : 'secondary'}
+            onPress={() => void keep($, held => ({ ...held, coversSidebar: held.coversSidebar !== true }))}
+          />
         </Box>
+        {note('Experiment: the Sidebar button extends your color over the list of sessions on the left, so the whole Claude window matches.')}
+        {note(
+          !chosen.isHelperReady
+            ? 'The helper that colors the whole session is not installed on this Mac, so the Background only colors the Clubhouse and the conversation rows. Ask Claude to build it.'
+            : 'Your Background is the color of the whole session: the conversation, the toolbar, the text box and the Clubhouse rooms. The sidebar keeps the app\'s own look. These colors are the same in every session.',
+        )}
+        {swapsLightAndDark(chosen) &&
+          note(
+            `This is a ${chosen.appMode === 'dark' ? 'light' : 'dark'} color on a ${chosen.appMode} app, so the helper swaps light and dark across the session to keep text readable. Pictures in the conversation swap too. Switching the Claude app itself to ${chosen.appMode === 'dark' ? 'light' : 'dark'} mode avoids that, and the Clubhouse notices on its own.`,
+          )}
+        {isHardToRead &&
+          note(
+            'On a mid-bright background like this, neither dark nor light text stands out strongly, and Clawd and the usage bar take lighter shades of their colors. A darker or lighter background reads best.',
+          )}
+
+        {heading('What to color')}
+        {SLOTS.map(([id, label, about]) => (
+          <Box flexDirection="column">
+            <Box gap={1} alignItems="center">
+              <Button
+                key={`slot-${id}`}
+                label={label}
+                variant={slot === id ? 'primary' : 'secondary'}
+                onPress={() => void update($, colorsView, held => ({ ...held, slot: id }))}
+              />
+              {swatch(colorOf(chosen, id))}
+            </Box>
+            {note(about)}
+            {Input === null ? (
+              <Text {...ink}>{chosen.palette[id] ?? 'app default'}</Text>
+            ) : (
+              <Input
+                key={`hex-${id}`}
+                label="Code"
+                placeholder="app default"
+                value={chosen.palette[id] ?? ''}
+                submitLabel="Confirm"
+                onSubmit={typed => void takeHex($, id, typed)}
+              />
+            )}
+            <Box justifyContent="flex-end">
+              <Button
+                key={`reset-${id}`}
+                label="Reset"
+                onPress={() =>
+                  void keep($, held => ({ ...held, palette: { ...held.palette, [id]: DEFAULT_PALETTE[id] } }))
+                }
+              />
+            </Box>
+          </Box>
+        ))}
+
+        {heading(`Adjust ${slot}`)}
+        <Box gap={2} alignItems="center">
+          {picture(
+            wheelSvg({ hue: toHsl(current).hue, color: current, size: WHEEL_SIZE }),
+            `Color wheel showing ${current}`,
+            WHEEL_SIZE,
+            WHEEL_SIZE,
+          )}
+          {picture(
+            clawdSvg('happy', look.clawd, CLAWD_UNIT),
+            'Clawd in the chosen color',
+            clawdBox(CLAWD_UNIT).width,
+            clawdBox(CLAWD_UNIT).height,
+          )}
+        </Box>
+        <Box gap={1} flexWrap="wrap">
+          {NUDGES.map(([key, label, change]) => (
+            <Button key={key} label={label} onPress={() => nudge(change)} />
+          ))}
+        </Box>
+
+        {heading('Presets')}
+        {note('Each preset sets all three colors at once.')}
+        <Box gap={1} flexWrap="wrap">
+          {PRESETS.map(([name, palette]) => (
+            <Button key={`preset-${name}`} label={name} onPress={() => void keep($, held => ({ ...held, palette }))} />
+          ))}
+          {LOOKS.map(([key, label, palette]) => (
+            <Button key={key} label={label} onPress={() => void keep($, held => ({ ...held, palette }))} />
+          ))}
+        </Box>
+
+        {heading('Your presets')}
+        {note('Found colors you like? Give them a name and save them. A preset keeps all three colors as they are right now.')}
+        {Input !== null && (
+          <Input
+            key="preset-name"
+            label="Name"
+            placeholder="Game day"
+            submitLabel="Save current colors"
+            onSubmit={typed => void savePreset($, typed)}
+          />
+        )}
+        {mine.map(one => (
+          <Box gap={1} flexWrap="wrap" alignItems="center">
+            <Button
+              key={`mine-${one.name}`}
+              label={one.name}
+              variant="primary"
+              onPress={() => void keep($, held => ({ ...held, palette: one.palette }))}
+            />
+            {swatch(one.palette.background ?? backdropOf(chosen))}
+            {swatch(one.palette.accent)}
+            {swatch(one.palette.clawd)}
+            <Button key={`mine-delete-${one.name}`} label="Delete" onPress={() => void dropPreset($, one.name)} />
+          </Box>
+        ))}
+
+        {heading(`One color for ${slot}`)}
+        {note("Anthropic's own palette: warm ivory and oat neutrals with one clay accent. A press changes only the color chosen under What to color.")}
+        <Box gap={1} flexWrap="wrap">
+          {ANTHROPIC.map(([name, hex]) => (
+            <Button key={`anthropic-${name}`} label={name} onPress={() => setSlot(hex)} />
+          ))}
+          {slot === 'background' && <Button key="preset-none" label="None" onPress={() => setSlot(null)} />}
+        </Box>
+
+        {Input !== null && (
+          <Box flexDirection="column" gap={1}>
+            {heading('Describe a look')}
+            {note('A small model picks all three colors from your words. Costs a few tokens.')}
+            <Input
+              key="look"
+              label="Look"
+              placeholder="cozy autumn cabin"
+              submitLabel="Make it"
+              onSubmit={wish => void describeLook($, wish)}
+            />
+          </Box>
+        )}
+
+        {heading('How the session gets its color')}
+        {note(`Claude Code can only paint its own rows and panels, so the Clubhouse runs a small helper on your Mac. Wherever the session shows the app's plain background, the helper swaps in your Background color, and it moves text, icons and borders to your Text color. It notices on its own whether the Claude app is in dark or light mode (${chosen.appMode} right now), and it stops when you reset, switch the Clubhouse off or quit Claude.`)}
+
+        <Box>
+          <Button
+            key="advanced"
+            label={view.isAdvancedOpen ? '▾ Advanced' : '▸ Advanced'}
+            onPress={() => void update($, colorsView, held => ({ ...held, isAdvancedOpen: !held.isAdvancedOpen }))}
+          />
+        </Box>
+        {view.isAdvancedOpen && (
+          <Box flexDirection="column" gap={1}>
+            {heading('Repaint the app itself')}
+            {note('The Claude app has a Developer Mode that lets you change its real colors by hand. It lasts until the app restarts, then you do steps 2 and 3 again.')}
+            {note('1. Look at the very top of your screen, the strip that starts with the Apple logo. Click Help, then Troubleshooting, then Enable Developer Mode, and confirm. You only do this once.')}
+            {note('2. Hold Option and Command and press I. A new window opens. Click the word Console near its top.')}
+            {note('3. Press Copy app colors below. Click in the big empty area of that new window, hold Command and press V, then press Return. If it asks, type the words allow pasting, press Return, and paste again.')}
+            <Box gap={1} flexWrap="wrap">
+              <Button key="window-tint" label="Copy app colors" onPress={() => void shareWindowTint($, false)} />
+              <Button key="window-undo" label="Copy undo" onPress={() => void shareWindowTint($, true)} />
+            </Box>
+            {heading('Claude Code in a terminal')}
+            {note('In a terminal, Claude Code draws everything itself, so this theme recolors its accents, borders and panels there.')}
+            <Box gap={1} flexWrap="wrap">
+              <Button key="apply-app" label="Apply to Claude Code theme" onPress={() => void applyToApp($)} />
+              <Button key="undo-app" label="Undo" onPress={() => void undoApp($)} />
+            </Box>
+          </Box>
+        )}
+        {view.note !== null && plain(view.note)}
       </Box>
     )
   })

@@ -91,75 +91,73 @@ export function weatherRoom(on: On): void {
     const plan = await read($, weather)
     const sky: Forecast | null = await read($, forecast)
     const view = await read($, weatherView)
-    const { look, frame, rim, note, plain, title, card, picture, Button, Input } = makeParts(elements, chosen, e.surface)
+    const { look, frame, note, plain, title, card, picture, Button, Input } = makeParts(elements, chosen, e.surface)
     const mark = plan.unit === 'c' ? '°C' : '°F'
     const isShown = chosen.bar.weather?.isShown === true
 
     return (
-      <Box flexDirection="column" {...rim}>
-        <Box flexDirection="column" gap={1} {...frame}>
-          {title('Weather')}
-          {note(
-            'The weather where you are: the temperature, a picture of the sky and the chance of rain on the toolbar, and the next 7 days here. /clubhouse weather opens this.',
-          )}
-          {card('Where', [
-            plain(plan.place === null ? 'No place set yet.' : plan.place.name),
-            <Box gap={1} flexWrap="wrap">
-              <Button key="weather-locate" label="Use my location" variant="primary" onPress={() => void locate($)} />
-              <Button
-                key="weather-unit"
-                label={plan.unit === 'c' ? 'Celsius' : 'Fahrenheit'}
-                onPress={() => void keep($, held => ({ ...held, unit: held.unit === 'c' ? 'f' : 'c' }))}
-              />
-              <Button key="weather-refresh" label="Refresh" onPress={() => void load($)} />
-              <Button
-                key="weather-show"
-                label={isShown ? 'On the toolbar' : 'Add to toolbar'}
-                variant={isShown ? 'primary' : 'secondary'}
-                onPress={() => void showOnToolbar($)}
-              />
+      <Box flexDirection="column" gap={1} {...frame}>
+        {title('Weather')}
+        {note(
+          'The weather where you are: the temperature, a picture of the sky and the chance of rain on the toolbar, and the next 7 days here. /clubhouse weather opens this.',
+        )}
+        {card('Where', [
+          plain(plan.place === null ? 'No place set yet.' : plan.place.name),
+          <Box gap={1} flexWrap="wrap">
+            <Button key="weather-locate" label="Use my location" variant="primary" onPress={() => void locate($)} />
+            <Button
+              key="weather-unit"
+              label={plan.unit === 'c' ? 'Celsius' : 'Fahrenheit'}
+              onPress={() => void keep($, held => ({ ...held, unit: held.unit === 'c' ? 'f' : 'c' }))}
+            />
+            <Button key="weather-refresh" label="Refresh" onPress={() => void load($)} />
+            <Button
+              key="weather-show"
+              label={isShown ? 'On the toolbar' : 'Add to toolbar'}
+              variant={isShown ? 'primary' : 'secondary'}
+              onPress={() => void showOnToolbar($)}
+            />
+          </Box>,
+          Input !== null && (
+            <Input
+              key="weather-search"
+              label="Or type a town"
+              placeholder="Austin"
+              submitLabel="Find"
+              onSubmit={asked => void search($, asked)}
+            />
+          ),
+          ...view.hits.map(hit => (
+            <Box>
+              <Button key={`weather-place-${hit.name}`} label={hit.name} onPress={() => void setPlace($, hit)} />
+            </Box>
+          )),
+          note('"Use my location" asks a lookup service where your internet connection is, which is usually right to the nearest town. Typing a town is exact.'),
+        ])}
+        {view.note !== null && plain(view.note)}
+        {sky !== null &&
+          card('Now', [
+            <Box gap={1} alignItems="center">
+              {picture(weatherSvg(sky.kind, look.ink, backdropOf(chosen), DAY_ICON + 8), KIND_WORD[sky.kind], DAY_ICON + 8, DAY_ICON + 8)}
+              {plain(
+                `${sky.temp}${mark} · ${KIND_WORD[sky.kind]}${sky.isWet || sky.chance === null ? '' : ` · ${sky.chance}% chance of rain today`}`,
+              )}
             </Box>,
-            Input !== null && (
-              <Input
-                key="weather-search"
-                label="Or type a town"
-                placeholder="Austin"
-                submitLabel="Find"
-                onSubmit={asked => void search($, asked)}
-              />
-            ),
-            ...view.hits.map(hit => (
-              <Box>
-                <Button key={`weather-place-${hit.name}`} label={hit.name} onPress={() => void setPlace($, hit)} />
+          ])}
+        {sky !== null &&
+          sky.days.length > 0 &&
+          card(
+            'Next 7 days',
+            sky.days.map(day => (
+              <Box gap={1} alignItems="center">
+                {picture(weatherSvg(day.kind, look.ink, backdropOf(chosen), DAY_ICON), KIND_WORD[day.kind], DAY_ICON, DAY_ICON)}
+                {plain(
+                  `${dayName(day.date)} · ${day.high}° / ${day.low}° · ${KIND_WORD[day.kind]}${day.chance === null ? '' : ` · ${day.chance}% rain`}`,
+                )}
               </Box>
             )),
-            note('"Use my location" asks a lookup service where your internet connection is, which is usually right to the nearest town. Typing a town is exact.'),
-          ])}
-          {view.note !== null && plain(view.note)}
-          {sky !== null &&
-            card('Now', [
-              <Box gap={1} alignItems="center">
-                {picture(weatherSvg(sky.kind, look.ink, backdropOf(chosen), DAY_ICON + 8), KIND_WORD[sky.kind], DAY_ICON + 8, DAY_ICON + 8)}
-                {plain(
-                  `${sky.temp}${mark} · ${KIND_WORD[sky.kind]}${sky.isWet || sky.chance === null ? '' : ` · ${sky.chance}% chance of rain today`}`,
-                )}
-              </Box>,
-            ])}
-          {sky !== null &&
-            sky.days.length > 0 &&
-            card(
-              'Next 7 days',
-              sky.days.map(day => (
-                <Box gap={1} alignItems="center">
-                  {picture(weatherSvg(day.kind, look.ink, backdropOf(chosen), DAY_ICON), KIND_WORD[day.kind], DAY_ICON, DAY_ICON)}
-                  {plain(
-                    `${dayName(day.date)} · ${day.high}° / ${day.low}° · ${KIND_WORD[day.kind]}${day.chance === null ? '' : ` · ${day.chance}% rain`}`,
-                  )}
-                </Box>
-              )),
-            )}
-          {note('Forecasts come from Open-Meteo, a free weather service, and refresh every 15 minutes.')}
-        </Box>
+          )}
+        {note('Forecasts come from Open-Meteo, a free weather service, and refresh every 15 minutes.')}
       </Box>
     )
   })

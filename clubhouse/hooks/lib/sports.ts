@@ -3,7 +3,7 @@ import type { Game, SportsPlan, Team } from '../../types'
 export type League = { id: string; path: string; label: string; clock: 'quarter' | 'period' | 'inning' | 'minute'; isWeekly: boolean }
 
 export const SPORTS_KEY = 'sports'
-export const SPORTS_POLL_MS = 30_000
+export const SPORTS_POLL_MS = 10_000
 export const LOGO_FOLDER = '.claude/clubhouse-helper/logos'
 export const LOGO_SIZE = 64
 export const LEAGUES: readonly League[] = [
