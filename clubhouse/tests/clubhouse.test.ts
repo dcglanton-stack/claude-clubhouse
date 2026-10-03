@@ -719,7 +719,7 @@ test('without the helper the background paints the rooms and every conversation 
     })
 
   expect(await shown(reply)).toBe(native)
-  expect(await ui.find({ type: 'Text', text: /helper is not installed/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /is not installed on this Mac/ })).toBeDefined()
 
   await ui.press({ key: 'look-slate' })
   for (const drawing of [mine, reply, toolRow]) {
@@ -782,16 +782,28 @@ test('with the helper the whole app takes the color and the Clubhouse paints not
   expect(seen.launched).toEqual([])
 
   await ui.press({ key: 'look-slate' })
-  expect(config()).toEqual({ enabled: true, target: '#141413', base: '#151515', maxAlpha: 0.45, radius: 18 })
+  expect(config()).toEqual({ enabled: true, target: '#141413', radius: 18, isLightApp: false })
   expect(seen.launched).toHaveLength(1)
   expect(seen.launched[0]).toMatch(/clubhouse-helper\/window-tint/)
   expect(await painted(ui)).toBe(false)
   expect(await painted(reply)).toBe(false)
   expect(await painted(bar)).toBe(false)
 
+  expect(JSON.stringify(await ui.drawn())).toMatch(/^\{"type":"Box","props":\{"flexDirection":"column","gap":1,"borderStyle":"round","borderColor":"#[0-9a-f]{6}","paddingX":1\}/)
+  expect(JSON.stringify(await bar.drawn())).toMatch(/"borderStyle":"round"/)
+
   await ui.press({ key: 'app-mode' })
-  expect(config().base).toBe('#f0eee6')
+  expect(config()).toEqual({ enabled: false, target: '#141413', radius: 18, isLightApp: true })
+  expect(await ui.find({ type: 'Text', text: /your app is in light mode, so the app's own text would be unreadable/ })).toBeDefined()
+  expect(await painted(ui)).toBe(true)
   await ui.press({ key: 'app-mode' })
+  expect(config().enabled).toBe(true)
+
+  await ui.press({ key: 'look-ivory' })
+  expect(config().enabled).toBe(false)
+  expect(await ui.find({ type: 'Text', text: /Your Background is a light color and your app is in dark mode/ })).toBeDefined()
+  await ui.press({ key: 'look-slate' })
+  expect(config().enabled).toBe(true)
 
   await ui.press({ key: 'reach' })
   expect(config().enabled).toBe(false)

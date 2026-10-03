@@ -7,13 +7,16 @@ import {
   DEFAULT_PREFS,
   IDLE_SUMMARY,
   PREFS_KEY,
+  PREFS_SHAPE,
   WORKING_SUMMARY,
 } from '../lib/defaults'
 import { makeParts } from '../lib/parts'
 import { summaryOf, summaryRequest } from '../lib/summary'
 
 const lastAnswer = atom({ plugin: 'clubhouse', key: 'lastAnswer' } as const, '')
-const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS)
+const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS, {
+  shape: PREFS_SHAPE,
+})
 const summary = atom({ plugin: 'clubhouse', key: 'summary' } as const, IDLE_SUMMARY)
 
 async function keep($: EngineInterface, change: (held: Prefs) => Prefs): Promise<void> {

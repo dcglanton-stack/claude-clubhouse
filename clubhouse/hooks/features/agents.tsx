@@ -10,6 +10,7 @@ import {
   DEFAULT_AGENT_DESK,
   DEFAULT_PREFS,
   MODEL_LABEL,
+  PREFS_SHAPE,
   agentSlug,
 } from '../lib/defaults'
 import { makeParts } from '../lib/parts'
@@ -17,7 +18,9 @@ import { makeParts } from '../lib/parts'
 const agentBank = atom({ plugin: 'clubhouse', key: 'agentBank' } as const, [])
 const agentDesk = atom({ plugin: 'clubhouse', key: 'agentDesk' } as const, DEFAULT_AGENT_DESK)
 const now = atom({ plugin: 'clubhouse', key: 'now' } as const, 0)
-const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS)
+const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS, {
+  shape: PREFS_SHAPE,
+})
 const pulse = atom({ plugin: 'clubhouse', key: 'pulse' } as const, 0)
 
 const ROW_UNIT = 2

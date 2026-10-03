@@ -2,10 +2,12 @@ import { atom, read } from 'claude-code'
 import type { EngineInterface, On, RenderElement, ResolveInput } from 'claude-code'
 
 import { tintsRows } from '../lib/appColor'
-import { DEFAULT_PREFS } from '../lib/defaults'
+import { DEFAULT_PREFS, PREFS_SHAPE } from '../lib/defaults'
 import { tintRow } from '../lib/parts'
 
-const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS)
+const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS, {
+  shape: PREFS_SHAPE,
+})
 
 async function tinted<E extends ResolveInput>(
   $: EngineInterface,

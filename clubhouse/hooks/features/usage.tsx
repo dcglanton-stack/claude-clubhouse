@@ -8,6 +8,7 @@ import {
   DEFAULT_PREFS,
   IDLE_SUMMARY,
   LIMITS_KEY,
+  PREFS_SHAPE,
   WORKING_SUMMARY,
 } from '../lib/defaults'
 import { LOW_PERCENT, WINDOW_LABEL, formatSpan, percentLeft, resetIn, usedOf } from '../lib/format'
@@ -17,7 +18,9 @@ const contextPercent = atom({ plugin: 'clubhouse', key: 'contextPercent' } as co
 const lastReplyAt = atom({ plugin: 'clubhouse', key: 'lastReplyAt' } as const, null)
 const limits = atom({ plugin: 'clubhouse', key: 'limits' } as const, [])
 const now = atom({ plugin: 'clubhouse', key: 'now' } as const, 0)
-const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS)
+const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS, {
+  shape: PREFS_SHAPE,
+})
 const receipt = atom({ plugin: 'clubhouse', key: 'receipt' } as const, null)
 const pulse = atom({ plugin: 'clubhouse', key: 'pulse' } as const, 0)
 const lastAnswer = atom({ plugin: 'clubhouse', key: 'lastAnswer' } as const, '')

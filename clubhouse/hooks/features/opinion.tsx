@@ -2,7 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, On } from 'claude-code'
 
 import type { Prefs } from '../../types'
-import { DEFAULT_PREFS, PREFS_KEY } from '../lib/defaults'
+import { DEFAULT_PREFS, PREFS_KEY, PREFS_SHAPE } from '../lib/defaults'
 import {
   DEFAULT_QUESTION,
   IDLE_OPINION,
@@ -15,7 +15,9 @@ import {
 import { makeParts } from '../lib/parts'
 
 const opinion = atom({ plugin: 'clubhouse', key: 'opinion' } as const, IDLE_OPINION)
-const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS)
+const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS, {
+  shape: PREFS_SHAPE,
+})
 
 const MARKDOWN_LIMIT = 9000
 

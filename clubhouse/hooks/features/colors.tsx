@@ -2,16 +2,25 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, On } from 'claude-code'
 
 import type { Palette, PaletteSlot, Prefs, Reach } from '../../types'
-import { HELPER_CONFIG, START_HELPER, coversApp, helperConfig } from '../lib/appColor'
+import { HELPER_CONFIG, START_HELPER, coversApp, fitsApp, helperConfig } from '../lib/appColor'
 import { clawdSvg, wheelSvg } from '../lib/clawd'
 import { isLight, mix, normalizeHex, rgbString, shift, toHsl } from '../lib/color'
 import type { Hsl } from '../lib/color'
-import { DEFAULT_COLORS_VIEW, DEFAULT_PREFS, PREFS_KEY, isRecord, resetLook } from '../lib/defaults'
+import {
+  DEFAULT_COLORS_VIEW,
+  DEFAULT_PREFS,
+  PREFS_KEY,
+  PREFS_SHAPE,
+  isRecord,
+  resetLook,
+} from '../lib/defaults'
 import { makeParts } from '../lib/parts'
 import { WINDOW_TINT_UNDO, windowTintSnippet } from '../lib/windowTint'
 
 const colorsView = atom({ plugin: 'clubhouse', key: 'colorsView' } as const, DEFAULT_COLORS_VIEW)
-const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS)
+const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS, {
+  shape: PREFS_SHAPE,
+})
 
 const THEME_SLUG = 'clubhouse'
 const THEME_REF = `custom:${THEME_SLUG}`
@@ -68,7 +77,7 @@ const LOOKS: readonly (readonly [string, string, Palette])[] = [
 
 const REACH_NEXT: Record<Reach, Reach> = { app: 'conversation', conversation: 'rooms', rooms: 'app' }
 const REACH_LABEL: Record<Reach, string> = {
-  app: 'Background covers: the whole app',
+  app: 'Background covers: the whole session',
   conversation: 'Background covers: the conversation',
   rooms: 'Background covers: the Clubhouse only',
 }
@@ -331,18 +340,22 @@ export function colors(on: On): void {
         <Box gap={1} flexWrap="wrap">
           <Button
             key="reach"
-            label={REACH_LABEL[chosen.reach]}
+            label={REACH_LABEL[chosen.reach] ?? REACH_LABEL.app}
             variant="primary"
             onPress={() => void keep($, held => ({ ...held, reach: REACH_NEXT[held.reach] }))}
           />
           <Button key="reset-colors" label="Reset to default" onPress={() => void keep($, resetLook)} />
         </Box>
         {note(
-          chosen.reach === 'app' && !chosen.isHelperReady
-            ? 'The whole-app helper is not installed on this Mac, so the Background color stops at the conversation. Ask Claude to build it.'
-            : chosen.palette.background === null
-              ? 'Pick a Background color below and it becomes the color of the whole app: the conversation, the text box, the bar, the tabs and the sidebar.'
-              : 'Your Background color is the color of the whole app: the conversation, the text box, the bar, the tabs and the sidebar. Press the button to keep it to the conversation or to the Clubhouse only.',
+          chosen.reach !== 'app'
+            ? 'Press the button to make your Background color the color of the whole session.'
+            : !chosen.isHelperReady
+              ? 'The helper that colors the whole session is not installed on this Mac, so the Background color stops at the conversation. Ask Claude to build it.'
+              : !fitsApp(chosen)
+                ? `Your Background is a ${chosen.appMode === 'dark' ? 'light' : 'dark'} color and your app is in ${chosen.appMode} mode, so the app's own text would be unreadable on it. It stops at the conversation. Pick a ${chosen.appMode} color, or switch the app's mode and press the mode button below.`
+                : chosen.palette.background === null
+                  ? 'Pick a Background color below and it becomes the color of the whole session: the conversation, the bar, the text box and the Clubhouse rooms. The sidebar keeps the app\'s own look.'
+                  : 'Your Background color is the color of the whole session: the conversation, the bar, the text box and the Clubhouse rooms. The sidebar keeps the app\'s own look.',
         )}
 
         {heading('What to color')}
@@ -449,8 +462,8 @@ export function colors(on: On): void {
           />
         </Box>
 
-        {heading('How the whole app gets its color')}
-        {note('Claude Code can only paint its own rows and panels. The text box, the tabs and the sidebar belong to the Claude app, which offers no color setting. So the Clubhouse runs a small helper on your Mac that lays your color over the Claude window, matched so the app\'s background comes out as exactly the color you picked. It stops when you reset, switch the Clubhouse off or quit Claude.')}
+        {heading('How the session gets its color')}
+        {note('Claude Code can only paint its own rows and panels, so the Clubhouse runs a small helper on your Mac. Wherever the session shows the app\'s plain background, the helper swaps in your color. Text, icons, buttons and borders are left exactly as they are. It stops when you reset, switch the Clubhouse off or quit Claude.')}
 
         <Box>
           <Button

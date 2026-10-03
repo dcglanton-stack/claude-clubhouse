@@ -102,7 +102,7 @@ declare module 'claude-code' {
   interface PluginState {
     clubhouse: {
       limits: Limit[]
-      prefs: Prefs
+      prefs: Shaped<Prefs>
       contextPercent: number | null
       lastReplyAt: number | null
       now: number

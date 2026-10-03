@@ -4,9 +4,13 @@ import Darwin
 struct TintConfig: Decodable, Equatable {
     var enabled: Bool
     var target: String
-    var base: String
-    var maxAlpha: Double
     var radius: Double
+    var isLightApp: Bool?
+}
+
+struct SidebarLayout: Equatable {
+    var width: CGFloat
+    var isCollapsed: Bool
 }
 
 struct ScreenWindow {
@@ -18,21 +22,33 @@ struct ScreenWindow {
     let owner: String
 }
 
+struct Overlay {
+    let window: NSWindow
+    let recolor: CALayer
+    let mask: CAShapeLayer
+}
+
 let helperDirectory = FileManager.default.homeDirectoryForCurrentUser
     .appendingPathComponent(".claude/clubhouse-helper", isDirectory: true)
 let configURL = helperDirectory.appendingPathComponent("tint.json")
 let lockPath = helperDirectory.appendingPathComponent("tint.lock").path
+let appLayoutURL = FileManager.default.homeDirectoryForCurrentUser
+    .appendingPathComponent("Library/Application Support/Claude/config.json")
+let narrowestWindowWithSidebar: CGFloat = 700
 let targetBundleIDs = ["com.anthropic.claudefordesktop"]
 let ticksPerSecond = 60.0
 let idleTicksPerCheck = 6
 let secondsHotAfterChange = 1.5
-let smallestAlpha = 0.02
 let secondsDisabledBeforeExit = 2.0
 let secondsWithoutAppBeforeExit = 30.0
 let smallestTarget = CGSize(width: 300, height: 200)
 let smallestOccluder = CGSize(width: 40, height: 40)
 let menuBarLayer = 24
 let menuBarOverlapAllowed: CGFloat = 4
+let darkSurfaceLimit = 34.5 / 255
+let lightSurfaceLimit = 226.0 / 255
+let keyFade = 22.0 / 255
+let fallbackAlpha: CGFloat = 0.3
 
 func screenWindows() -> [ScreenWindow] {
     let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
@@ -60,6 +76,18 @@ func screenWindows() -> [ScreenWindow] {
     }
 }
 
+func sidebarLayout() -> SidebarLayout? {
+    guard let data = try? Data(contentsOf: appLayoutURL),
+          let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+          let layout = root["bootFrameLayout"] as? [String: Any],
+          let width = layout["sidebarWidth"] as? Double
+    else {
+        return nil
+    }
+
+    return SidebarLayout(width: CGFloat(width), isCollapsed: layout["collapsed"] as? Bool ?? false)
+}
+
 func displayComponents(hex: String) -> [Double] {
     let digits = hex.trimmingCharacters(in: CharacterSet(charactersIn: "#"))
     let value = UInt32(digits, radix: 16) ?? 0x808080
@@ -73,21 +101,41 @@ func displayComponents(hex: String) -> [Double] {
     return [color?.redComponent, color?.greenComponent, color?.blueComponent].map { Double($0 ?? 0.5) }
 }
 
-func layerColor(over base: [Double], toReach target: [Double], maxAlpha: Double) -> CGColor {
-    let needed = zip(base, target).map { from, to in
-        to >= from ? (to - from) / max(1 - from, 0.0001) : (from - to) / max(from, 0.0001)
+func surfaceKeyFilter(config: TintConfig) -> NSObject? {
+    guard let filterClass = NSClassFromString("CAFilter") as? NSObject.Type,
+          let filter = filterClass.perform(NSSelectorFromString("filterWithType:"), with: "colorMatrix")?
+              .takeUnretainedValue() as? NSObject
+    else {
+        return nil
     }
-    let alpha = min(max(needed.max() ?? 0, smallestAlpha), maxAlpha)
-    let components = zip(base, target).map { from, to in
-        CGFloat(min(max((to - from * (1 - alpha)) / alpha, 0), 1))
-    }
-    let space = CGColorSpace(name: CGColorSpace.displayP3) ?? CGColorSpaceCreateDeviceRGB()
 
-    return CGColor(colorSpace: space, components: components + [CGFloat(alpha)])
-        ?? NSColor.clear.cgColor
+    let target = displayComponents(hex: config.target)
+    let gain = 1 / keyFade
+    let isLightApp = config.isLightApp ?? false
+    let weight = Float((isLightApp ? gain : -gain) / 3)
+    let offset = Float(isLightApp ? 1 - gain * lightSurfaceLimit : 1 + gain * darkSurfaceLimit)
+    let matrix: [Float] = [
+        0, 0, 0, 0, Float(target[0]),
+        0, 0, 0, 0, Float(target[1]),
+        0, 0, 0, 0, Float(target[2]),
+        weight, weight, weight, 0, offset,
+    ]
+    let boxed = matrix.withUnsafeBytes {
+        NSValue(bytes: $0.baseAddress!, objCType: "{CAColorMatrix=ffffffffffffffffffff}")
+    }
+    filter.setValue(boxed, forKey: "inputColorMatrix")
+
+    return filter
 }
 
-func tintPath(target: CGRect, occluders: [CGRect], radius: CGFloat) -> CGPath {
+func fallbackColor(config: TintConfig) -> CGColor {
+    let target = displayComponents(hex: config.target).map { CGFloat($0) }
+    let space = CGColorSpace(name: CGColorSpace.displayP3) ?? CGColorSpaceCreateDeviceRGB()
+
+    return CGColor(colorSpace: space, components: target + [fallbackAlpha]) ?? NSColor.clear.cgColor
+}
+
+func visiblePath(target: CGRect, occluders: [CGRect], radius: CGFloat) -> CGPath {
     let local = CGRect(origin: .zero, size: target.size)
     let corner = min(radius, local.width / 2, local.height / 2)
     var path = CGPath(roundedRect: local, cornerWidth: corner, cornerHeight: corner, transform: nil)
@@ -114,8 +162,10 @@ func tintPath(target: CGRect, occluders: [CGRect], radius: CGFloat) -> CGPath {
 final class Tinter {
     private var config: TintConfig?
     private var configStamp: Date?
-    private var overlays: [CGWindowID: NSWindow] = [:]
-    private var shapes: [CGWindowID: CAShapeLayer] = [:]
+    private var appliedConfig: TintConfig?
+    private var sidebar: SidebarLayout?
+    private var sidebarStamp: Date?
+    private var overlays: [CGWindowID: Overlay] = [:]
     private var disabledSince: Date?
     private var appMissingSince: Date?
     private var tickCount = 0
@@ -140,6 +190,17 @@ final class Tinter {
         config = (try? Data(contentsOf: configURL)).flatMap { try? JSONDecoder().decode(TintConfig.self, from: $0) }
     }
 
+    private func reloadSidebar() {
+        let stamp = (try? FileManager.default.attributesOfItem(atPath: appLayoutURL.path))?[.modificationDate] as? Date
+
+        if stamp == sidebarStamp {
+            return
+        }
+
+        sidebarStamp = stamp
+        sidebar = sidebarLayout()
+    }
+
     private func exitWhenIdle(since: inout Date?, limit: Double) {
         let started = since ?? Date()
         since = started
@@ -150,16 +211,25 @@ final class Tinter {
     }
 
     private func removeOverlays(except kept: Set<CGWindowID>) {
-        for (id, window) in overlays where !kept.contains(id) {
-            window.orderOut(nil)
+        for (id, overlay) in overlays where !kept.contains(id) {
+            overlay.window.orderOut(nil)
             overlays[id] = nil
-            shapes[id] = nil
         }
     }
 
-    private func overlay(for id: CGWindowID, frame: NSRect) -> (NSWindow, CAShapeLayer) {
-        if let window = overlays[id], let shape = shapes[id] {
-            return (window, shape)
+    private func style(_ overlay: Overlay, with config: TintConfig) {
+        if let filter = surfaceKeyFilter(config: config) {
+            overlay.recolor.backgroundColor = nil
+            overlay.recolor.filters = [filter]
+        } else {
+            overlay.recolor.filters = nil
+            overlay.recolor.backgroundColor = fallbackColor(config: config)
+        }
+    }
+
+    private func overlay(for id: CGWindowID, frame: NSRect, config: TintConfig) -> Overlay {
+        if let existing = overlays[id] {
+            return existing
         }
 
         let window = NSWindow(contentRect: frame, styleMask: .borderless, backing: .buffered, defer: false)
@@ -174,13 +244,25 @@ final class Tinter {
 
         let view = NSView(frame: NSRect(origin: .zero, size: frame.size))
         view.wantsLayer = true
-        let shape = CAShapeLayer()
-        view.layer?.addSublayer(shape)
-        window.contentView = view
-        overlays[id] = window
-        shapes[id] = shape
+        let backdropClass = NSClassFromString("CABackdropLayer") as? CALayer.Type
+        let recolor = backdropClass?.init() ?? CALayer()
 
-        return (window, shape)
+        if backdropClass != nil {
+            recolor.setValue(true, forKey: "windowServerAware")
+            recolor.setValue(1.0, forKey: "scale")
+            recolor.setValue(0.0, forKey: "bleedAmount")
+        }
+
+        let mask = CAShapeLayer()
+        mask.fillColor = NSColor.black.cgColor
+        recolor.mask = mask
+        view.layer?.addSublayer(recolor)
+        window.contentView = view
+        let made = Overlay(window: window, recolor: recolor, mask: mask)
+        style(made, with: config)
+        overlays[id] = made
+
+        return made
     }
 
     private func tick() {
@@ -191,6 +273,7 @@ final class Tinter {
         }
 
         reloadConfig()
+        reloadSidebar()
 
         guard let config, config.enabled else {
             removeOverlays(except: [])
@@ -213,17 +296,13 @@ final class Tinter {
 
         appMissingSince = nil
         let mainHeight = NSScreen.screens.first?.frame.height ?? 0
-        let color = layerColor(
-            over: displayComponents(hex: config.base),
-            toReach: displayComponents(hex: config.target),
-            maxAlpha: config.maxAlpha
-        )
-        var layout = "\(config)"
         let onScreen = screenWindows()
         let menuBars = onScreen.filter { $0.layer == menuBarLayer }.map(\.bounds)
+        let isRestyled = appliedConfig != config
         var occluders: [CGRect] = []
         var covered: [CGRect] = []
         var kept = Set<CGWindowID>()
+        var layout = "\(config)"
 
         CATransaction.begin()
         CATransaction.setDisableActions(true)
@@ -247,22 +326,44 @@ final class Tinter {
                     width: size.width,
                     height: size.height
                 )
-                let (window, shape) = overlay(for: candidate.id, frame: frame)
+                let placed = overlay(for: candidate.id, frame: frame, config: config)
 
-                if window.frame != frame {
-                    window.setFrame(frame, display: true)
+                if placed.window.frame != frame {
+                    placed.window.setFrame(frame, display: true)
                 }
 
-                shape.frame = CGRect(origin: .zero, size: size)
-                shape.fillColor = color
-                shape.path = tintPath(target: candidate.bounds, occluders: occluders, radius: CGFloat(config.radius))
+                if isRestyled {
+                    style(placed, with: config)
+                }
 
-                if !window.isVisible {
-                    window.orderFrontRegardless()
+                let local = CGRect(origin: .zero, size: size)
+                placed.recolor.frame = local
+                placed.mask.frame = local
+                var untouched = occluders
+
+                if let sidebar, !sidebar.isCollapsed, size.width > narrowestWindowWithSidebar {
+                    untouched.append(
+                        CGRect(
+                            x: candidate.bounds.minX,
+                            y: candidate.bounds.minY,
+                            width: sidebar.width,
+                            height: size.height
+                        )
+                    )
+                }
+
+                placed.mask.path = visiblePath(
+                    target: candidate.bounds,
+                    occluders: untouched,
+                    radius: CGFloat(config.radius)
+                )
+
+                if !placed.window.isVisible {
+                    placed.window.orderFrontRegardless()
                 }
 
                 kept.insert(candidate.id)
-                layout += "|\(candidate.id):\(candidate.bounds):\(occluders)"
+                layout += "|\(candidate.id):\(candidate.bounds):\(untouched)"
             }
 
             if size.width >= smallestOccluder.width, size.height >= smallestOccluder.height {
@@ -272,6 +373,7 @@ final class Tinter {
 
         CATransaction.commit()
         removeOverlays(except: kept)
+        appliedConfig = config
 
         if layout != lastLayout {
             lastLayout = layout
