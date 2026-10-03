@@ -43,8 +43,6 @@ const summary = atom({ plugin: 'clubhouse', key: 'summary' } as const, IDLE_SUMM
 
 const warned = new Set<string>()
 
-let hasOfferedHandoff = false
-
 function warnWhenLow($: EngineInterface, list: readonly Limit[], at: number): void {
   for (const one of list) {
     const left = percentLeft(one, at)
@@ -172,10 +170,10 @@ export function usage(on: On): void {
 
     if (e.context.percent !== undefined) {
       const percent = e.context.percent
+      const before = (await read($, contextPercent)) ?? 0
       await update($, contextPercent, () => percent)
 
-      if (percent >= HANDOFF_PERCENT && !hasOfferedHandoff && (await read($, handoff)) === 'idle' && (await read($, prefs)).isEnabled) {
-        hasOfferedHandoff = true
+      if (percent >= HANDOFF_PERCENT && before < HANDOFF_PERCENT && (await read($, handoff)) === 'idle' && (await read($, prefs)).isEnabled) {
         $.ui.toast(`This conversation is ${percent}% full. The toolbar has a button to write a handoff file for a fresh session.`, {
           timeoutMs: 10_000,
         })
