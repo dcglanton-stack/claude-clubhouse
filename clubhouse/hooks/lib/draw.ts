@@ -1,6 +1,6 @@
 export const DRAW_BINARY = '.claude/clubhouse-helper/draw-pad'
 export const DRAW_TIMEOUT_MS = 600_000
-export const DRAW_MISSING = 'Draw it needs its small helper window, which is not installed on this Mac. Ask Claude to build it.'
+export const DRAW_MISSING = 'Draw it needs its small helper window, which is not built on this Mac yet. Open Colors and press Build the helper.'
 export const DRAW_OPEN = 'The sketch pad is open. Draw what you want, then press Send to Claude.'
 export const DRAW_DONE = 'Your sketch is in the prompt box. Say what it is for, then send. It is deleted once Claude has answered, unless you say to keep it.'
 

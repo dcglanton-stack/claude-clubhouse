@@ -87,7 +87,13 @@ export type Receipt = {
   usageDelta: number | null
 }
 
-export type ColorsView = { slot: PaletteSlot; note: string | null; isAdvancedOpen: boolean }
+export type ColorsView = {
+  slot: PaletteSlot
+  note: string | null
+  isAdvancedOpen: boolean
+  helperNote?: string | null
+  isBuilding?: boolean
+}
 
 export type CommandStat = { count: number; lastAt: number }
 

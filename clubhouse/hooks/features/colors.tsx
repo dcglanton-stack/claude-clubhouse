@@ -30,6 +30,18 @@ import {
 } from '../lib/defaults'
 import { makeParts } from '../lib/parts'
 import { WINDOW_TINT_UNDO, windowTintSnippet } from '../lib/windowTint'
+import {
+  BUILD_DONE,
+  BUILD_NEEDS_TOOLS,
+  BUILD_NO_FOLDER,
+  BUILD_SCRIPT,
+  BUILD_STARTED,
+  BUILD_TIMEOUT_MS,
+  FIND_COMPILER,
+  STOP_HELPER,
+  buildFailed,
+} from '../lib/build'
+import { ownFolder } from '../lib/own'
 import { PROJECT_COLORS_KEY, asProjectColors, forStore, projectName, withoutProject } from '../lib/project'
 
 const colorPresets = atom({ plugin: 'clubhouse', key: 'colorPresets' } as const, [])
@@ -193,6 +205,40 @@ async function keepForProject($: EngineInterface, isOwn: boolean): Promise<void>
   await update($, sharedPalette, () => null)
   await keep($, held => ({ ...held, palette: shared ?? held.palette }))
   await say($, `${projectName(folder)} is back on the shared colors.`)
+}
+
+async function buildHelper($: EngineInterface): Promise<void> {
+  const tell = (helperNote: string, isBuilding: boolean) => update($, colorsView, view => ({ ...view, helperNote, isBuilding }))
+  const folder = ownFolder(await $.env.get('CLAUDE_CODE_PLUGIN_DIRS'))
+
+  if ((await read($, colorsView)).isBuilding === true) return
+
+  if (folder === null) {
+    await tell(BUILD_NO_FOLDER, false)
+
+    return
+  }
+
+  const compiler = await $.process.run(FIND_COMPILER).catch(() => null)
+
+  if (compiler === null || compiler.exitCode !== 0) {
+    await tell(BUILD_NEEDS_TOOLS, false)
+
+    return
+  }
+
+  await tell(BUILD_STARTED, true)
+  const built = await $.process.run(['/bin/sh', `${folder}/${BUILD_SCRIPT}`], { timeoutMs: BUILD_TIMEOUT_MS }).catch(() => null)
+
+  if (built === null || built.exitCode !== 0) {
+    await tell(buildFailed(built === null ? '' : `${built.stdout}\n${built.stderr}`), false)
+
+    return
+  }
+
+  await $.process.run(STOP_HELPER).catch(() => undefined)
+  await keep($, held => ({ ...held, isHelperReady: true }))
+  await tell(BUILD_DONE, false)
 }
 
 async function say($: EngineInterface, note: string): Promise<void> {
@@ -449,9 +495,21 @@ export function colors(on: On): void {
           )}
         {note(
           !chosen.isHelperReady
-            ? 'The helper that colors the whole session is not installed on this Mac, so the Background only colors the Clubhouse and the conversation rows. Ask Claude to build it.'
+            ? 'The helper that colors the whole window is not built on this Mac yet, so the Background only colors the Clubhouse and the conversation rows. Press Build the helper: it takes about a minute and you only do it once.'
             : 'Your Background is the color of the whole session: the conversation, the toolbar, the text box and the Clubhouse rooms. These colors are the same in every session, unless a project keeps its own.',
         )}
+        <Box gap={1} flexWrap="wrap">
+          <Button
+            key="build-helper"
+            label={view.isBuilding === true ? 'Building\u2026' : chosen.isHelperReady ? 'Rebuild the helper' : 'Build the helper'}
+            variant={chosen.isHelperReady ? 'secondary' : 'primary'}
+            onPress={() => void buildHelper($)}
+          />
+        </Box>
+        {(view.helperNote ?? null) !== null && plain(view.helperNote ?? '')}
+        {chosen.isHelperReady &&
+          (view.helperNote ?? null) === null &&
+          note('Rebuild after you update the Clubhouse, so the helper matches the new version.')}
         {swapsLightAndDark(chosen) &&
           note(
             `This is a ${chosen.appMode === 'dark' ? 'light' : 'dark'} color on a ${chosen.appMode} app, so the helper swaps light and dark across the session to keep text readable. Pictures in the conversation swap too. Switching the Claude app itself to ${chosen.appMode === 'dark' ? 'light' : 'dark'} mode avoids that, and the Clubhouse notices on its own.`,
