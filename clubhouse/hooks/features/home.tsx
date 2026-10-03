@@ -91,7 +91,7 @@ export function home(on: On): void {
             onPress={() => void keep($, held => ({ ...held, isEnabled: !held.isEnabled }))}
           />
         </Box>
-        <Box gap={1}>
+        <Box gap={1} flexWrap="wrap">
           {TABS.map(([id, label]) => (
             <Button
               key={`tab-${id}`}
@@ -99,6 +99,9 @@ export function home(on: On): void {
               variant={shown === id ? 'primary' : 'secondary'}
               onPress={() => void update($, tab, () => id)}
             />
+          ))}
+          {ROOMS.filter(room => room.isLook === true).map(room => (
+            <Button key={`room-${room.word}`} label={room.title} onPress={() => void visit($, room.id, room.title, false)} />
           ))}
         </Box>
         <Box flexDirection="column">
@@ -130,7 +133,7 @@ export function home(on: On): void {
           {card(
             'Rooms',
             <Box flexDirection="column" gap={1}>
-              {ROOMS.map(room => {
+              {ROOMS.filter(room => room.isLook !== true).map(room => {
                 const isOpen = openIds.includes(room.id)
 
                 return (
