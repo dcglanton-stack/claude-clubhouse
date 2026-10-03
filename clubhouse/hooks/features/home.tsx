@@ -31,7 +31,6 @@ const TABS: readonly (readonly [HomeTab, string])[] = [
 ]
 
 const PLANNED: readonly (readonly [string, string])[] = [
-  ['Night watch', 'Timers that check on work while you are away and report back.'],
   ['Zen mode', 'Hide tool rows while work runs; show progress and the answer only.'],
   ['Spend cap', 'Pause new subagents below a usage level, with a continue button.'],
   ['Session notes', 'A note you leave for the next session.'],

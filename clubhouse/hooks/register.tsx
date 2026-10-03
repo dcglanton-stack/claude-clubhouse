@@ -17,6 +17,7 @@ import { bar } from './features/bar'
 import { colors } from './features/colors'
 import { commands } from './features/commands'
 import { home } from './features/home'
+import { nightWatch } from './features/watch'
 import { opinionRoom } from './features/opinion'
 import { recipesRoom } from './features/recipes'
 import { summaryRoom } from './features/summary'
@@ -43,7 +44,9 @@ import {
   isLimitList,
   mergePrefs,
 } from './lib/defaults'
+import { percentLeft } from './lib/format'
 import { RECIPES_KEY, asRecipes, toolSpecOf } from './lib/recipes'
+import { WATCH_COMMAND_MS, WATCH_POLL_MS, claimed, dueWatches, settled, stepOf, withEntry } from './lib/watch'
 
 const contextPercent = atom({ plugin: 'clubhouse', key: 'contextPercent' } as const, null)
 const limits = atom({ plugin: 'clubhouse', key: 'limits' } as const, [])
@@ -57,6 +60,9 @@ const hiddenCommands = atom({ plugin: 'clubhouse', key: 'hiddenCommands' } as co
 const hiddenPlan = atom({ plugin: 'clubhouse', key: 'hiddenPlan' } as const, DEFAULT_HIDDEN_PLAN)
 const toolRules = atom({ plugin: 'clubhouse', key: 'toolRules' } as const, {})
 const recipes = atom({ plugin: 'clubhouse', key: 'recipes' } as const, [])
+const lastReplyAt = atom({ plugin: 'clubhouse', key: 'lastReplyAt' } as const, null)
+const watches = atom({ plugin: 'clubhouse', key: 'watches' } as const, [])
+const watchLog = atom({ plugin: 'clubhouse', key: 'watchLog' } as const, [])
 
 const TICK_MS = 30_000
 
@@ -79,6 +85,35 @@ async function tick($: EngineInterface): Promise<void> {
 
   if (userFolder === undefined) return
   await $.fs.write(`${userFolder}/${HELPER_CONFIG}`, helperConfig(turned)).catch(() => undefined)
+}
+
+async function patrol($: EngineInterface): Promise<void> {
+  const at = await $.clock.now()
+  const due = dueWatches(await read($, watches), at)
+
+  if (due.length === 0) return
+  await update($, watches, held => claimed(held, due, at))
+  const fiveHour = (await read($, limits)).find(one => one.kind === 'five_hour')
+  const facts = {
+    at,
+    percentLeft: fiveHour === undefined ? null : percentLeft(fiveHour, at),
+    lastReplyAt: await read($, lastReplyAt),
+  }
+
+  for (const watch of due) {
+    const ran =
+      watch.command === ''
+        ? null
+        : await $.process
+            .run(['/bin/sh', '-c', watch.command], { timeoutMs: WATCH_COMMAND_MS })
+            .catch(() => null)
+    const step = stepOf(watch, { ...facts, ran })
+    await update($, watches, held => settled(held, watch.id, step))
+    await update($, watchLog, held => withEntry(held, { at, text: step.entry }))
+
+    if (step.toast !== null) $.ui.toast(step.toast)
+    if (step.prompt !== null) void $.prompt.submit({ text: step.prompt }).catch(() => undefined)
+  }
 }
 
 export const register: Register = on => {
@@ -141,11 +176,12 @@ export const register: Register = on => {
     const startedAt = await $.clock.now()
     await update($, now, () => startedAt)
     $.clock.every(TICK_MS, () => void tick($).catch(() => undefined))
+    $.clock.every(WATCH_POLL_MS, () => void patrol($).catch(() => undefined))
 
     await $.command.register({
       name: 'clubhouse',
-      description: 'Open Claude Clubhouse. Add a room to open it: agents, summary, opinion, tools, recipes, commands, bar, usage, colors; or on, off, color reset',
-      argumentHint: '[on|off|agents|summary|opinion|tools|recipes|commands|bar|usage|colors|color reset]',
+      description: 'Open Claude Clubhouse. Add a room to open it: agents, summary, opinion, tools, recipes, watch, commands, bar, usage, colors; or on, off, color reset',
+      argumentHint: '[on|off|agents|summary|opinion|tools|recipes|watch|commands|bar|usage|colors|color reset]',
       immediate: true,
     })
 
@@ -160,6 +196,7 @@ export const register: Register = on => {
   opinionRoom(on)
   tools(on)
   recipesRoom(on)
+  nightWatch(on)
   usageRoom(on)
   commands(on)
   agents(on)

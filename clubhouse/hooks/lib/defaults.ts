@@ -90,6 +90,7 @@ export const USAGE_PANE = 'clubhouse-usage'
 export const SUMMARY_PANE = 'clubhouse-summary'
 export const TOOLS_PANE = 'clubhouse-tools'
 export const RECIPES_PANE = 'clubhouse-recipes'
+export const WATCH_PANE = 'clubhouse-watch'
 export const OPINION_PANE = 'clubhouse-opinion'
 export const TOOL_RULES_KEY = 'toolRules'
 export const DEFAULT_TOOLS_VIEW: ToolsView = { filter: '', note: null, open: [] }
@@ -128,6 +129,12 @@ export const ROOMS: readonly Room[] = [
     title: 'Recipes',
     word: 'recipes',
     about: 'Turn a terminal command into a tool Claude can call.',
+  },
+  {
+    id: WATCH_PANE,
+    title: 'Night watch',
+    word: 'watch',
+    about: 'Check on things while you are away, and wake Claude when needed.',
   },
   {
     id: COMMANDS_PANE,

@@ -87,6 +87,33 @@ export type RecipeTrial = { name: string; text: string }
 
 export type RecipesView = { note: string | null; editing: string | null; trial: RecipeTrial | null }
 
+export type WatchTrigger = 'fails' | 'stalls' | 'changes' | 'always'
+
+export type Watch = {
+  id: string
+  task: string
+  command: string
+  trigger: WatchTrigger
+  isQuiet: boolean
+  everyMinutes: number
+  maxChecks: number
+  checksDone: number
+  nextAt: number
+  lastOutput: string | null
+  wakesInARow: number
+  wokeAt: number | null
+}
+
+export type WatchEntry = { at: number; text: string }
+
+export type WatchView = {
+  note: string | null
+  everyMinutes: number
+  maxChecks: number
+  trigger: WatchTrigger
+  isQuiet: boolean
+}
+
 export type AgentModel = 'haiku' | 'sonnet' | 'opus' | 'inherit'
 
 export type Blueprint = {
@@ -130,6 +157,9 @@ declare module 'claude-code' {
       opinion: Opinion
       recipes: Recipe[]
       recipesView: RecipesView
+      watches: Watch[]
+      watchLog: WatchEntry[]
+      watchView: WatchView
     }
   }
 }
