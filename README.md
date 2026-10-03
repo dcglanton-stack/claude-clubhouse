@@ -31,13 +31,9 @@ For the whole-window color and the sketch pad (macOS only), type `/clubhouse bui
 
 To update later: `/plugin marketplace update claude-clubhouse`. To remove: `/plugin uninstall clubhouse@claude-clubhouse`, and delete `~/.claude/clubhouse-helper`.
 
-### For one project, including cloud sessions
+### For one project
 
-A cloud session (claude.ai/code, or the Claude app on a phone) starts in a fresh container with a copy of your project's repository. It never sees your computer's settings, so installing the quick way does nothing there. The Clubhouse has to be switched on inside the project, in `.claude/settings.json`, and that file has to be on GitHub. Do this once per project.
-
-**From a computer with Claude Code**
-
-1. Open a terminal in the project's folder, on the branch your cloud sessions start from (usually `main`), and run these two commands. `--scope project` is what makes them write to the project instead of your computer.
+To switch the Clubhouse on for one project instead of every session on your computer, open a terminal in the project's folder and run these two commands. `--scope project` is what makes them write to the project.
 
 ```bash
 claude plugin marketplace add dcglanton-stack/claude-clubhouse --scope project
@@ -47,42 +43,16 @@ claude plugin marketplace add dcglanton-stack/claude-clubhouse --scope project
 claude plugin install clubhouse@claude-clubhouse --scope project
 ```
 
-2. They add a few lines to `.claude/settings.json` in the project (creating the file if needed, keeping what is already there). Commit that file and push it:
+They add a few lines to `.claude/settings.json` in the project (creating the file if needed, keeping what is already there). Start a new session in that project. If you commit the file, everyone who opens the project on their own computer is offered the Clubhouse too. If you already load the Clubhouse on your computer another way, skip this, or it loads twice.
 
-```bash
-git add .claude/settings.json && git commit -m "Enable Claude Clubhouse" && git push
-```
+### Cloud sessions: not supported
 
-3. Start a **new** cloud session in that project and type `/clubhouse`. A session that was already open, local or cloud, does not pick it up: plugins load when a session starts.
+The Clubhouse does not work in cloud sessions (claude.ai/code, the Code tab on a phone, or Cloud in the desktop app), and nothing in this repository can change that. Two limits in Claude Code itself:
 
-**Without a computer (from GitHub's website or a phone)**
+- A cloud session does not install plugins. It ignores the ones on your computer and the ones a project's `.claude/settings.json` turns on, so `/clubhouse` is not a command there. Tried on 2026-10-03 with the setting committed to the project: the plugin list in the cloud session was empty. Claude Code's documentation says the same under [What carries over from your setup](https://code.claude.com/docs/en/cloud-environments#what-carries-over-from-your-setup). The one exception is an organization on a Team or Enterprise plan pushing plugins from its admin settings.
+- Even where a plugin does reach a cloud session, nothing a mod draws is shown there: no toolbar and no rooms ([Where mods run](https://code.claude.com/docs/en/plugins/mods/overview#where-mods-run)). The window color and the sketch pad are Mac programs and could not run there either.
 
-1. In the project's repository on GitHub, open `.claude/settings.json` and press the pencil to edit it. If the file is not there, choose Add file, Create new file, and name it `.claude/settings.json`.
-2. Add these lines. If the file already has `enabledPlugins` or `extraKnownMarketplaces`, add the Clubhouse line inside the one that is there instead of making a second one.
-
-```json
-{
-  "extraKnownMarketplaces": {
-    "claude-clubhouse": {
-      "source": { "source": "github", "repo": "dcglanton-stack/claude-clubhouse" }
-    }
-  },
-  "enabledPlugins": { "clubhouse@claude-clubhouse": true }
-}
-```
-
-3. Commit to the branch your cloud sessions start from, then start a **new** cloud session and type `/clubhouse`.
-
-**If `/clubhouse` is not recognized in the cloud session**
-
-- Check the file is on the branch the session started from: ask the session to show `.claude/settings.json`.
-- Check the session is new. One opened before the push never picks it up.
-- Check the session can reach GitHub. The plugin is downloaded from `github.com` when the session starts, so an environment with network access switched off cannot fetch it.
-- Asking a running session to clone or install the Clubhouse does not help; it only loads at the start.
-
-What to expect in a cloud session: the commands and rooms at most. The whole-window color and the sketch pad are Mac programs and cannot run there, and how much of the toolbar the web and phone apps draw is up to those apps. The project route is tested on a Mac; in a cloud session it is not confirmed yet.
-
-Everyone who works on that project gets the Clubhouse too, since the setting is in the repository. If you already load the Clubhouse on your own computer another way, skip this for projects you open locally, or it loads twice.
+To use the Clubhouse, run the session on your own computer: the terminal, or the desktop app with **Local** selected. You can steer that session from a phone with Remote Control, but the toolbar and rooms still only show on the computer.
 
 ### The way to change it yourself
 
