@@ -171,7 +171,7 @@ export function band(on: On): void {
     const home = () => (
       <Box gap={1} alignItems="center" flexShrink={0}>
         {picture(homeIconSvg({ size: HOME_ICON, accent: look.accent }), 'Claude Clubhouse', HOME_ICON, HOME_ICON)}
-        <Button key="home" label={canDraw ? '▸' : '⌂ Clubhouse'} onPress={openHome} />
+        <Button key="home" label={canDraw ? '→' : '⌂ Clubhouse'} onPress={openHome} />
       </Box>
     )
 

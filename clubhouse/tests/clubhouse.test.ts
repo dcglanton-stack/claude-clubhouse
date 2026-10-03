@@ -3,6 +3,7 @@ import type { On } from 'claude-code'
 import type { Engine, MockClock } from 'claude-code/testing'
 
 import { appModeFrom } from '../hooks/lib/appColor'
+import { mergePrefs, sameSettings } from '../hooks/lib/defaults'
 import { pixelFor, shownFrom, toDisplay, toneFor } from '../hooks/lib/tone'
 import { nextVersion, subjectsOf } from '../hooks/lib/ship'
 import { serifSize } from '../hooks/lib/type'
@@ -308,7 +309,7 @@ for (const surface of SURFACES) {
 
     expect(await ui.find({ type: 'Text', text: /82%/ })).toBeDefined()
     expect((await ui.find({ key: 'window' }))?.text).toBe('5h')
-    expect((await ui.find({ key: 'home' }))?.text).toMatch(surface === 'terminal' ? /Clubhouse/ : /▸/)
+    expect((await ui.find({ key: 'home' }))?.text).toMatch(surface === 'terminal' ? /Clubhouse/ : /→/)
 
     if (surface === 'desktop') {
       expect(await ui.findAll({ type: 'Svg' })).toHaveLength(2)
@@ -779,15 +780,7 @@ test('without the helper the background paints the rooms and every conversation 
   }
   expect(JSON.stringify(await ui.drawn())).toMatch(/"backgroundColor":"#141413","padding":1/)
 
-  await ui.press({ key: 'reach' })
-  expect((await ui.find({ key: 'reach' }))?.text).toBe('Background covers: the conversation')
-  expect(await shown(reply)).toBe(tinted('#141413', [BLANK]))
-
-  await ui.press({ key: 'reach' })
-  expect((await ui.find({ key: 'reach' }))?.text).toBe('Background covers: the Clubhouse only')
-  expect(await shown(reply)).toBe(native)
-
-  await ui.press({ key: 'reach' })
+  expect(await ui.find({ key: 'reach' })).toBeUndefined()
   await ui.press({ key: 'look-ivory' })
   expect(await shown(reply)).toBe(
     tinted('#faf9f5', [
@@ -859,15 +852,6 @@ test('with the helper the whole app takes the color and the Clubhouse paints not
   await ui.press({ key: 'look-slate' })
   expect(config().enabled).toBe(true)
 
-  await ui.press({ key: 'reach' })
-  expect(config().enabled).toBe(false)
-  expect(await painted(ui)).toBe(true)
-  expect(await painted(reply)).toBe(true)
-  expect(await painted(bar)).toBe(true)
-
-  await ui.press({ key: 'reach' })
-  await ui.press({ key: 'reach' })
-  expect(config().enabled).toBe(true)
 
   expect((await run($, 'clubhouse', 'off')).text).toMatch(/Clubhouse is off/)
   expect(config().enabled).toBe(false)
@@ -1149,8 +1133,11 @@ test('the Clubhouse reads dark or light from the app instead of asking', async (
   await ui.unmount()
 })
 
-test('the Text color is what the helper writes with, and each color resets on its own', async ($, on) => {
-  const seen = world(on, 50, { hasHelper: true })
+test('a preset sets all three colors, your own presets save and return them, and each color resets alone', async ($, on) => {
+  const seen = world(on, 50, {
+    hasHelper: true,
+    stored: { colorPresets: [{ name: 'Old one', palette: { accent: '#112233', clawd: '#445566', background: '#778899' } }, { name: '', palette: {} }] },
+  })
   await start($)
   const ui = await $.ui.mount({
     plugin: 'clubhouse',
@@ -1160,36 +1147,46 @@ test('the Text color is what the helper writes with, and each color resets on it
     props: { ...PANE, title: 'Colors' },
   })
   const config = () => JSON.parse(seen.written.at(-1)?.text ?? '{}') as Record<string, unknown>
+  const hexes = async () => (await ui.findAll({ type: 'Text' })).map(one => one.text).filter(text => /^#[0-9a-f]{6}$/.test(text))
 
-  await ui.press({ key: 'preset-Night' })
-  expect(config()).toMatchObject({ enabled: true, target: '#15171c', ink: '#faf9f5' })
-
-  await ui.press({ key: 'slot-text' })
-  expect((await ui.find({ key: 'preset-none' }))?.text).toBe('Automatic')
-  await ui.press({ key: 'preset-Sun' })
-  expect(config().ink).toBe('#f2b632')
-  await ui.press({ key: 'preset-none' })
-  expect(config().ink).toBe('#faf9f5')
-  expect(await ui.find({ type: 'Text', text: /^automatic$/ })).toBeDefined()
-
-  await ui.press({ key: 'preset-Sun' })
-  await ui.press({ key: 'reset-text' })
-  expect(config().ink).toBe('#faf9f5')
+  expect(await ui.find({ key: 'slot-text' })).toBeUndefined()
+  await ui.press({ key: 'preset-Forest' })
+  expect(await hexes()).toEqual(['#0b3d2c', '#ffb81c', '#db7037'])
+  expect(config()).toMatchObject({ enabled: true, target: '#0b3d2c', ink: '#faf9f5' })
 
   await ui.press({ key: 'slot-accent' })
-  await ui.press({ key: 'preset-Ocean' })
-  expect(await ui.find({ type: 'Text', text: /^#2f7fd1$/ })).toBeDefined()
-  await ui.press({ key: 'reset-accent' })
-  expect(await ui.find({ type: 'Text', text: /^#2f7fd1$/ })).toBeUndefined()
-  expect(config().enabled).toBe(true)
+  await ui.press({ key: 'anthropic-Clay' })
+  await ui.input({ key: 'preset-name', text: '' })
+  expect(await ui.find({ type: 'Text', text: /Type a name for the preset/ })).toBeDefined()
+  await ui.input({ key: 'preset-name', text: 'Game day' })
+  expect(await ui.find({ key: 'mine-Game day' })).toBeDefined()
 
+  await ui.press({ key: 'mine-Old one' })
+  expect(await hexes()).toEqual(['#778899', '#112233', '#445566'])
+  await ui.press({ key: 'mine-Game day' })
+  expect(await hexes()).toEqual(['#0b3d2c', '#d97757', '#db7037'])
+
+  await ui.press({ key: 'reset-accent' })
+  expect(await hexes()).toEqual(['#0b3d2c', '#d97757', '#db7037'])
+  await ui.press({ key: 'reset-clawd' })
+  expect(await hexes()).toEqual(['#0b3d2c', '#d97757', '#e8743b'])
   await ui.press({ key: 'reset-background' })
   expect(config().enabled).toBe(false)
 
-  await ui.press({ key: 'slot-text' })
-  await ui.press({ key: 'preset-Sun' })
-  expect(config()).toMatchObject({ enabled: true, target: '#151515', ink: '#f2b632' })
+  await ui.press({ key: 'mine-delete-Old one' })
+  expect(await ui.find({ key: 'mine-Old one' })).toBeUndefined()
   await ui.unmount()
+})
+
+test('settings count as changed elsewhere only when something the user set differs', () => {
+  const held = mergePrefs({ palette: { accent: '#d97757', clawd: '#e8743b', background: '#141413' } })
+  const reordered = { ...held, palette: { background: '#141413', clawd: '#e8743b', text: null, accent: '#d97757' } }
+
+  expect(sameSettings(held, reordered)).toBe(true)
+  expect(sameSettings(held, { ...held, isHelperReady: true, appMode: 'light' })).toBe(true)
+  expect(sameSettings(held, { ...held, palette: { ...held.palette, background: '#faf9f5' } })).toBe(false)
+  expect(mergePrefs({ reach: 'rooms', palette: { text: '#ff0000' } }).reach).toBe('app')
+  expect(mergePrefs({ palette: { text: '#ff0000' } }).palette.text).toBeNull()
 })
 
 test('under the helper pictures are redrawn for the screen and your own prompts get a border', async ($, on) => {
@@ -1230,8 +1227,6 @@ test('under the helper pictures are redrawn for the screen and your own prompts 
   expect(await shown(notice)).toBe(native)
   expect(await shown(reply)).toBe(native)
 
-  await ui.press({ key: 'reach' })
-  expect(await shown(bar)).not.toMatch(/display-p3/)
   await ui.unmount()
   await bar.unmount()
   await mine.unmount()

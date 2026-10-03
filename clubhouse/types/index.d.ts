@@ -2,11 +2,13 @@ export type WindowKind = 'five_hour' | 'seven_day'
 
 export type Limit = { kind: string; percentUsed: number; resetsAt: string | null }
 
-export type PaletteSlot = 'accent' | 'clawd' | 'background' | 'text'
+export type PaletteSlot = 'accent' | 'clawd' | 'background'
 
 export type Palette = { accent: string; clawd: string; background: string | null; text: string | null }
 
 export type HomeTab = 'home' | 'more'
+
+export type ColorPreset = { name: string; palette: Palette }
 
 export type ContextSize = { tokens: number; window: number }
 
@@ -162,6 +164,7 @@ declare module 'claude-code' {
       receipt: Receipt | null
       tab: HomeTab
       colorsView: ColorsView
+      colorPresets: ColorPreset[]
       commandStats: CommandStats
       commandsView: CommandsView
       hiddenCommands: string[]

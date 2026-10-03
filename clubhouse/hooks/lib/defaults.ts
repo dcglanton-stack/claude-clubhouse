@@ -6,6 +6,7 @@ import type {
   BarSpot,
   BarZone,
   Blueprint,
+  ColorPreset,
   ColorsView,
   CommandStats,
   CommandsView,
@@ -252,10 +253,10 @@ export function mergePrefs(saved: unknown): Prefs {
     autoSummary: saved.autoSummary === true,
     spendCap: typeof saved.spendCap === 'number' && saved.spendCap > 0 && saved.spendCap <= 90 ? Math.round(saved.spendCap) : 0,
     appMode: saved.appMode === 'light' ? 'light' : 'dark',
-    reach: saved.reach === 'rooms' || saved.reach === 'conversation' ? saved.reach : 'app',
+    reach: 'app',
     isHelperReady: saved.isHelperReady === true,
     opinionModel: saved.opinionModel === 'haiku' || saved.opinionModel === 'opus' ? saved.opinionModel : 'sonnet',
-    palette: { ...DEFAULT_PALETTE, ...palette } as Palette,
+    palette: { ...DEFAULT_PALETTE, ...palette, text: null } as Palette,
     previousTheme: typeof saved.previousTheme === 'string' ? saved.previousTheme : null,
   }
 }
@@ -363,4 +364,56 @@ export function asHiddenPlan(saved: unknown): HiddenPlan {
   const startWith = typeof saved.startWith === 'string' && saved.startWith in presets ? saved.startWith : null
 
   return { presets, startWith }
+}
+
+export const COLOR_PRESETS_KEY = 'colorPresets'
+export const MAX_COLOR_PRESETS = 12
+
+export function withPreset(held: readonly ColorPreset[], preset: ColorPreset): ColorPreset[] {
+  return [preset, ...held.filter(one => one.name !== preset.name)].slice(0, MAX_COLOR_PRESETS)
+}
+
+export function asColorPresets(stored: unknown): ColorPreset[] {
+  if (!Array.isArray(stored)) return []
+  const hex = /^#[0-9a-f]{6}$/
+
+  return stored
+    .flatMap(one => {
+      const palette = isRecord(one) && isRecord(one.palette) ? one.palette : null
+
+      return isRecord(one) &&
+        typeof one.name === 'string' &&
+        one.name.trim() !== '' &&
+        palette !== null &&
+        typeof palette.accent === 'string' &&
+        typeof palette.clawd === 'string' &&
+        hex.test(palette.accent) &&
+        hex.test(palette.clawd) &&
+        (palette.background === null || (typeof palette.background === 'string' && hex.test(palette.background)))
+        ? [
+            {
+              name: one.name,
+              palette: { accent: palette.accent, clawd: palette.clawd, background: palette.background, text: null },
+            },
+          ]
+        : []
+    })
+    .slice(0, MAX_COLOR_PRESETS)
+}
+
+function sorted(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sorted)
+  if (!isRecord(value)) return value
+
+  return Object.fromEntries(
+    Object.keys(value)
+      .sort()
+      .map(key => [key, sorted(value[key])]),
+  )
+}
+
+export function sameSettings(one: Prefs, other: Prefs): boolean {
+  const comparable = (prefs: Prefs) => JSON.stringify(sorted({ ...prefs, isHelperReady: null, appMode: null }))
+
+  return comparable(one) === comparable(other)
 }
