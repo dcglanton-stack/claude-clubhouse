@@ -14,13 +14,17 @@
   "keywords": [
     "mod",
     "toolbar",
-    "theme",
+    "custom-ui",
+    "draw-tool",
     "colors",
-    "usage",
+    "themes",
     "agents",
-    "tool-rules",
-    "productivity",
-    "macos"
+    "macos",
+    "clubhouse",
+    "usage-meter",
+    "live-scores",
+    "stock-ticker",
+    "weather"
   ],
   "types": "./types/index.d.ts"
 }
