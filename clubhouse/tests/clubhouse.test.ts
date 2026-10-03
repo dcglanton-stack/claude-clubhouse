@@ -1980,6 +1980,32 @@ test('a chosen font is used for the toolbar text too, but not for buttons or the
   await bar.unmount()
 })
 
+test('a sketch is deleted once the prompt that used it has been answered, unless asked to keep it', async ($, on) => {
+  const seen = world(on, 50)
+  await start($)
+  const sketch = '/tmp/clubhouse-home/.claude/clubhouse-helper/sketches/sketch-12.png'
+  const finish = () =>
+    $.turn.complete({ answer: 'Done.', durationMs: 1000, usage: undefined } as unknown as Parameters<Engine['turn']['complete']>[0])
+  const removed = () => seen.launched.filter(line => line.startsWith('/bin/rm'))
+
+  await seen.clock.advance(60_000)
+  await finish()
+  expect(removed()).toEqual([])
+
+  await $.prompt.submit({ text: `I drew what I want. Look at my sketch at ${sketch} and build it` })
+  await seen.clock.advance(5000)
+  await finish()
+  expect(removed()).toEqual([`/bin/rm -f ${sketch}`])
+  await finish()
+  expect(removed()).toHaveLength(1)
+
+  await $.prompt.submit({ text: `Look at ${sketch} and keep the sketch for later` })
+  await $.prompt.submit({ text: 'Look at /etc/sketch-1.png and /tmp/clubhouse-home/.claude/clubhouse-helper/sketches/../sketch-3.png' })
+  await seen.clock.advance(5000)
+  await finish()
+  expect(removed()).toHaveLength(1)
+})
+
 test('the Sidebar switch tells the helper to color the session list too', async ($, on) => {
   const seen = world(on, 50, { hasHelper: true })
   await start($)

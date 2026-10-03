@@ -216,6 +216,7 @@ declare module 'claude-code' {
       sportsView: SportsView
       sportsCheckedAt: number
       handoff: 'idle' | 'armed' | 'sent' | 'dismissed'
+      sketchesToClear: { path: string; at: number }[]
       commandStats: CommandStats
       commandsView: CommandsView
       hiddenCommands: string[]
