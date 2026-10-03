@@ -1,16 +1,55 @@
-import type { ColorsView, CommandStats, CommandsView, Limit, Palette, Prefs } from '../../types'
+import type {
+  AgentDesk,
+  AgentModel,
+  BarItemId,
+  BarLayout,
+  BarZone,
+  Blueprint,
+  ColorsView,
+  CommandStats,
+  CommandsView,
+  Limit,
+  Palette,
+  Prefs,
+} from '../../types'
 
 export const DEFAULT_PALETTE: Palette = { accent: '#d97757', clawd: '#e8743b', background: null }
+
+export const BAR_ROWS = 2
+export const BAR_ZONES: readonly BarZone[] = ['left', 'center', 'right']
+
+export const DEFAULT_BAR: BarLayout = {
+  home: { isShown: true, row: 1, zone: 'center' },
+  meter: { isShown: true, row: 1, zone: 'right' },
+  context: { isShown: false, row: 1, zone: 'left' },
+  receipt: { isShown: false, row: 1, zone: 'left' },
+}
+
+export const BAR_ITEMS: readonly (readonly [BarItemId, string, string])[] = [
+  ['home', 'Home button', 'The house that opens the Clubhouse.'],
+  ['meter', 'Usage meter', 'Clawd on a bar that drains as you use your limit.'],
+  ['context', 'Context gauge', 'How full this conversation is.'],
+  ['receipt', 'Turn receipt', 'Time, tokens and usage of the last turn.'],
+]
 
 export const DEFAULT_PREFS: Prefs = {
   isEnabled: true,
   window: 'five_hour',
-  showHome: true,
-  showMeter: true,
-  showContext: false,
-  showReceipt: false,
+  bar: DEFAULT_BAR,
   palette: DEFAULT_PALETTE,
   previousTheme: null,
+}
+
+export const AGENTS_KEY = 'agents'
+export const AGENT_PREFIX = 'clubhouse:'
+export const DEFAULT_AGENT_DESK: AgentDesk = { mode: 'idle', target: null, note: null, dismissed: [] }
+
+export const AGENT_MODELS: readonly AgentModel[] = ['haiku', 'sonnet', 'opus', 'inherit']
+export const MODEL_LABEL: Record<AgentModel, string> = {
+  haiku: 'Haiku (fast, cheapest)',
+  sonnet: 'Sonnet (balanced)',
+  opus: 'Opus (strongest)',
+  inherit: 'Same as this session',
 }
 
 export const HOME_PANE = 'clubhouse'
@@ -63,15 +102,61 @@ export function isLimitList(value: unknown): value is Limit[] {
   )
 }
 
+function asSpot(saved: unknown, fallback: BarLayout[BarItemId]): BarLayout[BarItemId] {
+  if (!isRecord(saved)) return fallback
+  const zone = BAR_ZONES.find(one => one === saved.zone) ?? fallback.zone
+  const row = typeof saved.row === 'number' && saved.row >= 1 && saved.row <= BAR_ROWS ? saved.row : fallback.row
+
+  return { isShown: typeof saved.isShown === 'boolean' ? saved.isShown : fallback.isShown, row, zone }
+}
+
 export function mergePrefs(saved: unknown): Prefs {
   if (!isRecord(saved)) return DEFAULT_PREFS
   const palette = isRecord(saved.palette) ? saved.palette : {}
+  const bar = isRecord(saved.bar) ? saved.bar : {}
 
   return {
-    ...DEFAULT_PREFS,
-    ...saved,
-    palette: { ...DEFAULT_PALETTE, ...palette },
-  } as Prefs
+    isEnabled: typeof saved.isEnabled === 'boolean' ? saved.isEnabled : DEFAULT_PREFS.isEnabled,
+    window: saved.window === 'seven_day' ? 'seven_day' : 'five_hour',
+    bar: {
+      home: asSpot(bar.home, DEFAULT_BAR.home),
+      meter: asSpot(bar.meter, DEFAULT_BAR.meter),
+      context: asSpot(bar.context, DEFAULT_BAR.context),
+      receipt: asSpot(bar.receipt, DEFAULT_BAR.receipt),
+    },
+    palette: { ...DEFAULT_PALETTE, ...palette } as Palette,
+    previousTheme: typeof saved.previousTheme === 'string' ? saved.previousTheme : null,
+  }
+}
+
+export function asBlueprints(saved: unknown): Blueprint[] {
+  if (!Array.isArray(saved)) return []
+
+  return saved.flatMap(one =>
+    isRecord(one) &&
+    typeof one.name === 'string' &&
+    typeof one.purpose === 'string' &&
+    typeof one.prompt === 'string'
+      ? [
+          {
+            name: one.name,
+            purpose: one.purpose,
+            prompt: one.prompt,
+            model: AGENT_MODELS.find(model => model === one.model) ?? 'sonnet',
+            isAuto: one.isAuto === true,
+          },
+        ]
+      : [],
+  )
+}
+
+export function agentSlug(typed: string): string {
+  return typed
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40)
 }
 
 export function asCommandStats(saved: unknown): CommandStats {
