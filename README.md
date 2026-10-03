@@ -33,7 +33,27 @@ To update later: `/plugin marketplace update claude-clubhouse`. To remove: `/plu
 
 ### For one project, including cloud sessions
 
-Cloud sessions do not see your computer's settings; they read the project's own. Put this in `.claude/settings.json` in the project's repository and commit it:
+Cloud sessions do not see your computer's settings; they read the project's own. So the Clubhouse has to be switched on inside the project and committed.
+
+1. Open a terminal in the project's folder and run these two commands. `--scope project` is what makes them write to the project instead of your computer.
+
+```bash
+claude plugin marketplace add dcglanton-stack/claude-clubhouse --scope project
+```
+
+```bash
+claude plugin install clubhouse@claude-clubhouse --scope project
+```
+
+2. They add a few lines to `.claude/settings.json` in the project (creating the file if needed, keeping what is already there). Commit that file and push it:
+
+```bash
+git add .claude/settings.json && git commit -m "Enable Claude Clubhouse" && git push
+```
+
+3. Start a **new** session in that project. A session that was already open, local or cloud, does not pick it up.
+
+If you would rather edit the file by hand, these are the lines the commands add:
 
 ```json
 {
@@ -46,7 +66,9 @@ Cloud sessions do not see your computer's settings; they read the project's own.
 }
 ```
 
-Every new session in that project then installs and loads the Clubhouse, on your computer and in the cloud. In a cloud session expect the commands and rooms at most: the whole-window color and the sketch pad are Mac programs and cannot run there, and how much of the toolbar the web and phone apps draw is up to those apps. This route has been tested on a Mac, not yet in a cloud session.
+What to expect in a cloud session: the commands and rooms at most. The whole-window color and the sketch pad are Mac programs and cannot run there, and how much of the toolbar the web and phone apps draw is up to those apps. The project route is tested on a Mac; in a cloud session it is not confirmed yet.
+
+Everyone who works on that project gets the Clubhouse too, since the setting is in the repository. If you already load the Clubhouse on your own computer another way, skip this for projects you open locally, or it loads twice.
 
 ### The way to change it yourself
 
