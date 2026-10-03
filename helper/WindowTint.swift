@@ -8,6 +8,7 @@ struct TintConfig: Decodable, Equatable {
     var isLightApp: Bool?
     var ink: String?
     var boost: Double?
+    var coverSidebar: Bool?
 }
 
 struct SidebarLayout: Equatable {
@@ -447,7 +448,8 @@ final class Tinter {
                 let local = CGRect(origin: .zero, size: size)
                 var untouched = occluders
 
-                if let sidebar = app.sidebar, !sidebar.isCollapsed, size.width > narrowestWindowWithSidebar {
+                if config.coverSidebar != true, let sidebar = app.sidebar, !sidebar.isCollapsed,
+                   size.width > narrowestWindowWithSidebar {
                     untouched.append(
                         CGRect(
                             x: candidate.bounds.minX,

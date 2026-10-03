@@ -66,6 +66,7 @@ export type Prefs = {
   autoSummary: boolean
   spendCap: number
   warnsSafeguards: boolean
+  coversSidebar: boolean
   font: FontChoice
   appMode: 'dark' | 'light'
   reach: Reach
