@@ -12,7 +12,7 @@ export type ColorPreset = { name: string; palette: Palette }
 
 export type ContextSize = { tokens: number; window: number }
 
-export type BarItemId = 'home' | 'meter' | 'summary' | 'tidy' | 'cache' | 'context' | 'receipt' | 'ticker'
+export type BarItemId = 'home' | 'meter' | 'summary' | 'tidy' | 'cache' | 'context' | 'receipt' | 'ticker' | 'sports'
 
 export type BarZone = 'left' | 'center' | 'right'
 
@@ -27,6 +27,7 @@ export type BarLayout = {
   context: BarSpot
   receipt: BarSpot
   ticker: BarSpot
+  sports: BarSpot
 }
 
 export type Shortcut = { id: string; label: string; text: string; spot: BarSpot }
@@ -108,6 +109,22 @@ export type TickerPlan = { symbol: string | null; favorites: string[]; isColored
 
 export type TickerView = { note: string | null; hits: TickerHit[] }
 
+export type Team = { abbr: string; score: string; logo: string | null; color: string }
+
+export type Game = {
+  id: string
+  league: string
+  startsAt: number
+  state: 'pre' | 'in' | 'post'
+  clock: string
+  home: Team
+  away: Team
+}
+
+export type SportsPlan = { league: string; gameId: string | null; gameLeague: string | null; gameDay: string | null }
+
+export type SportsView = { note: string | null; isLoading: boolean }
+
 export type WatchTrigger = 'fails' | 'stalls' | 'changes' | 'always'
 
 export type SavedWatch = {
@@ -180,6 +197,12 @@ declare module 'claude-code' {
       ticker: TickerPlan
       quotes: { [symbol: string]: Quote }
       tickerView: TickerView
+      sports: SportsPlan
+      games: Game[]
+      liveGame: Game | null
+      logos: { [key: string]: string }
+      sportsView: SportsView
+      sportsCheckedAt: number
       commandStats: CommandStats
       commandsView: CommandsView
       hiddenCommands: string[]

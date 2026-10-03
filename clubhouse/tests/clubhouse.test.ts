@@ -8,6 +8,7 @@ import { pixelFor, shownFrom, toDisplay, toneFor } from '../hooks/lib/tone'
 import { nextVersion, subjectsOf } from '../hooks/lib/ship'
 import { arranged, rowLoad } from '../hooks/lib/toolbar'
 import { serifSize } from '../hooks/lib/type'
+import { LEAGUES, gamesFrom, listed } from '../hooks/lib/sports'
 import { DEFAULT_WATCH_VIEW, stepOf, watchFrom } from '../hooks/lib/watch'
 
 const NOW = Date.UTC(2026, 9, 3, 9)
@@ -385,6 +386,7 @@ for (const surface of SURFACES) {
     await ui.press({ key: 'tab-more' })
     expect(await ui.find({ type: 'Text', text: /Draw it/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /^Ticker$/ })).toBeUndefined()
+    expect(await ui.find({ type: 'Text', text: /^Live sports$/ })).toBeUndefined()
     expect(await ui.find({ type: 'Text', text: /Workshop: recipes/ })).toBeUndefined()
     await ui.unmount()
   })
@@ -1763,6 +1765,71 @@ test('the Ticker finds a symbol, shows it on the toolbar with the day change, an
 
   await ui.press({ key: 'fav-favorite-AAPL' })
   expect(await ui.find({ key: 'fav-show-AAPL' })).toBeUndefined()
+  await ui.unmount()
+  await bar.unmount()
+})
+
+const scorePage = (events: object[]) => JSON.stringify({ events })
+const event = (id: string, date: string, state: string, clock: string, period: number, detail: string, home: [string, string], away: [string, string]) => ({
+  id,
+  date,
+  status: { displayClock: clock, period, type: { state, shortDetail: detail } },
+  competitions: [
+    {
+      competitors: [
+        { homeAway: 'away', score: away[1], team: { abbreviation: away[0], color: '00338d', logo: null } },
+        { homeAway: 'home', score: home[1], team: { abbreviation: home[0], color: '472a08', logo: 'https://a.espncdn.com/i/teamlogos/nfl/500/cle.png' } },
+      ],
+    },
+  ],
+})
+
+test('Live sports lists games, puts one on the toolbar with the home team first, and follows the clock', async ($, on) => {
+  const seen = world(on, 50)
+  const soon = new Date(NOW + 3_600_000).toISOString()
+  seen.pages = {
+    'football/nfl/scoreboard': scorePage([
+      event('g1', new Date(NOW - 3_600_000).toISOString(), 'in', '11:46', 4, '11:46 - 4th', ['CLE', '27'], ['PIT', '24']),
+      event('g2', soon, 'pre', '0:00', 0, 'Scheduled', ['DAL', '0'], ['NYG', '0']),
+      event('g3', new Date(NOW + 9 * 86_400_000).toISOString(), 'pre', '0:00', 0, 'Scheduled', ['SEA', '0'], ['SF', '0']),
+    ]),
+  }
+  await start($)
+  const ui = await $.ui.mount({
+    plugin: 'clubhouse',
+    surface: 'desktop',
+    component: 'Pane',
+    requestId: 'clubhouse-sports',
+    props: { ...PANE, title: 'Live sports' },
+  })
+  const bar = await $.ui.mount({ plugin: 'clubhouse', surface: 'desktop', component: 'AbovePrompt', props: BAND })
+
+  await ui.press({ key: 'league-nba' })
+  expect(await ui.find({ type: 'Text', text: /could not be reached/ })).toBeDefined()
+
+  await ui.press({ key: 'league-nfl' })
+  expect(await ui.find({ type: 'Text', text: /PIT at CLE · 24–27 · 11:46 4Q/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /NYG at DAL · / })).toBeDefined()
+  expect(await ui.find({ key: 'game-g3' })).toBeUndefined()
+
+  await ui.press({ key: 'game-g1' })
+  expect((await ui.find({ key: 'game-g1' }))?.text).toBe('On the toolbar')
+  const drawn = JSON.stringify(await bar.drawn())
+  expect(drawn).toMatch(/PIT at CLE · 24–27 · 11:46 4Q/)
+  expect(drawn.indexOf('>CLE<')).toBeGreaterThan(-1)
+  expect(drawn.indexOf('>27<')).toBeLessThan(drawn.indexOf('>24<'))
+
+  seen.pages['football/nfl/scoreboard'] = scorePage([
+    event('g1', new Date(NOW - 3_600_000).toISOString(), 'post', '0:00', 4, 'Final', ['CLE', '30'], ['PIT', '24']),
+  ])
+  await seen.clock.advance(30_000)
+  expect(JSON.stringify(await bar.drawn())).toMatch(/PIT at CLE · 24–30 · Final/)
+
+  const hockey = gamesFrom(scorePage([event('h1', soon, 'in', '5:12', 4, '5:12 - OT', ['DET', '2'], ['NYR', '2'])]), LEAGUES[4]!)
+  expect(hockey[0]?.clock).toBe('5:12 OT')
+  const ball = gamesFrom(scorePage([event('b1', soon, 'in', '0:00', 5, 'Bot 5th', ['ATL', '6'], ['PHI', '3'])]), LEAGUES[3]!)
+  expect(ball[0]?.clock).toBe('Bot 5th')
+  expect(listed([...hockey, ...hockey], NOW)).toHaveLength(1)
   await ui.unmount()
   await bar.unmount()
 })
