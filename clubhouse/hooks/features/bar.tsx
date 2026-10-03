@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, On } from 'claude-code'
 
-import type { BarItemId, BarSpot, Prefs } from '../../types'
+import type { BarSpot, Prefs } from '../../types'
 import {
   BAR_ITEMS,
   DEFAULT_BAR,
@@ -16,8 +16,22 @@ import {
   withBarCount,
 } from '../lib/defaults'
 import { makeParts } from '../lib/parts'
+import {
+  ITEM_SIZE,
+  ROW_CAPACITY,
+  TOOLBAR_PRESETS_KEY,
+  arranged,
+  layoutOf,
+  presetFrom,
+  rowLoad,
+  shortcutSize,
+  withSpot,
+  withToolbarPreset,
+} from '../lib/toolbar'
+import type { ItemKey } from '../lib/toolbar'
 
 const barNote = atom({ plugin: 'clubhouse', key: 'barNote' } as const, null)
+const toolbarPresets = atom({ plugin: 'clubhouse', key: 'toolbarPresets' } as const, [])
 const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS, {
   shape: PREFS_SHAPE,
 })
@@ -31,6 +45,31 @@ let draft: ShortcutDraft = BLANK_SHORTCUT
 async function keep($: EngineInterface, change: (held: Prefs) => Prefs): Promise<void> {
   await update($, prefs, change)
   await $.store.set(PREFS_KEY, await read($, prefs))
+}
+
+async function arrange($: EngineInterface, key: ItemKey, wish: 'toggle' | 'row'): Promise<void> {
+  const outcome = arranged(await read($, prefs), key, wish)
+  await keep($, () => outcome.prefs)
+  await update($, barNote, () => outcome.note)
+}
+
+async function saveLayout($: EngineInterface, typed: string): Promise<void> {
+  if (typed.trim() === '') {
+    await update($, barNote, () => 'Type a name for the layout, then press Save this layout.')
+
+    return
+  }
+
+  const made = presetFrom(typed, await read($, prefs))
+  await update($, toolbarPresets, held => withToolbarPreset(held, made))
+  await $.store.set(TOOLBAR_PRESETS_KEY, await read($, toolbarPresets))
+  await update($, barNote, () => `Saved this layout as "${made.name}".`)
+}
+
+async function dropLayout($: EngineInterface, name: string): Promise<void> {
+  await update($, toolbarPresets, held => held.filter(one => one.name !== name))
+  await $.store.set(TOOLBAR_PRESETS_KEY, await read($, toolbarPresets))
+  await update($, barNote, () => `Deleted the layout "${name}".`)
 }
 
 async function addShortcut($: EngineInterface): Promise<void> {
@@ -51,12 +90,15 @@ async function addShortcut($: EngineInterface): Promise<void> {
   }
 
   const id = `s${(await $.clock.now()).toString(36)}`
-  await keep($, held => ({
-    ...held,
-    shortcuts: [...held.shortcuts, { id, label, text, spot: SHORTCUT_SPOT }],
-  }))
+  const held = await read($, prefs)
+  const outcome = arranged(
+    { ...held, shortcuts: [...held.shortcuts, { id, label, text, spot: { ...SHORTCUT_SPOT, isShown: false } }] },
+    { kind: 'shortcut', id },
+    'toggle',
+  )
+  await keep($, () => outcome.prefs)
   draft = BLANK_SHORTCUT
-  await update($, barNote, () => `"${label}" is on the toolbar.`)
+  await update($, barNote, () => outcome.note ?? `"${label}" is on the toolbar.`)
 }
 
 export function bar(on: On): void {
@@ -68,33 +110,22 @@ export function bar(on: On): void {
     const { card, frame, note, plain, title, Button, Input } = makeParts(elements, chosen, e.surface)
     const hasBars = chosen.barCount > 1
 
-    const moveItem = (id: BarItemId, change: (spot: BarSpot) => BarSpot) =>
-      void keep($, held => ({ ...held, bar: { ...held.bar, [id]: change(held.bar[id]) } }))
-    const moveShortcut = (id: string, change: (spot: BarSpot) => BarSpot) =>
-      void keep($, held => ({
-        ...held,
-        shortcuts: held.shortcuts.map(one => (one.id === id ? { ...one, spot: change(one.spot) } : one)),
-      }))
-    const controls = (prefix: string, spot: BarSpot, move: (change: (held: BarSpot) => BarSpot) => void) => [
+    const kept = await read($, toolbarPresets)
+    const controls = (prefix: string, spot: BarSpot, key: ItemKey) => [
       <Button
         key={`${prefix}-show`}
         label={spot.isShown ? 'On the toolbar' : 'Add to toolbar'}
         variant={spot.isShown ? 'primary' : 'secondary'}
-        onPress={() => move(held => ({ ...held, isShown: !held.isShown }))}
+        onPress={() => void arrange($, key, 'toggle')}
       />,
-      hasBars && (
-        <Button
-          key={`${prefix}-row`}
-          label={`Row ${spot.row}`}
-          onPress={() => move(held => ({ ...held, row: (held.row % chosen.barCount) + 1 }))}
-        />
-      ),
+      hasBars && <Button key={`${prefix}-row`} label={`Row ${spot.row}`} onPress={() => void arrange($, key, 'row')} />,
       <Button
         key={`${prefix}-zone`}
         label={ZONE_LABEL[spot.zone]}
-        onPress={() => move(held => ({ ...held, zone: nextZone(held.zone) }))}
+        onPress={() => void keep($, held => withSpot(held, key, { ...spot, zone: nextZone(spot.zone) }))}
       />,
     ]
+    const rows = Array.from({ length: chosen.barCount }, (_, index) => index + 1)
 
     return (
       <Box flexDirection="column" gap={1} {...frame}>
@@ -103,8 +134,11 @@ export function bar(on: On): void {
           'The toolbar is the strip above the box you type in. Each item has buttons to add or remove it, pick its row, and place it left, center or right. /clubhouse toolbar opens this.',
         )}
 
-        {card('Bars', [
-          plain(chosen.barCount === 1 ? 'You have 1 bar.' : `You have ${chosen.barCount} bars. Bar 1 is on top.`),
+        {card('Rows', [
+          plain(rows.map(row => `Row ${row}: ${rowLoad(chosen, row)} of ${ROW_CAPACITY} used`).join(' · ')),
+          note(
+            `Every item has a size, and a row holds ${ROW_CAPACITY}, so nothing overlaps: a few big items or many small ones. When a row is full, the next item goes on another row. You can have up to ${MAX_BARS} rows; row 1 is on top.`,
+          ),
           <Box gap={1}>
             {chosen.barCount < MAX_BARS && (
               <Button
@@ -117,7 +151,7 @@ export function bar(on: On): void {
             {hasBars && (
               <Button
                 key="bar-remove"
-                label={`Remove bar ${chosen.barCount}`}
+                label={`Remove row ${chosen.barCount}`}
                 onPress={() => void keep($, held => withBarCount(held, held.barCount - 1))}
               />
             )}
@@ -127,18 +161,18 @@ export function bar(on: On): void {
 
         {BAR_ITEMS.map(([id, title, about]) =>
           card(title, [
-            note(about),
+            note(`${about} Size ${ITEM_SIZE[id]}.`),
             <Box gap={1} flexWrap="wrap">
-              {controls(`bar-${id}`, chosen.bar[id], change => moveItem(id, change))}
+              {controls(`bar-${id}`, chosen.bar[id], { kind: 'item', id })}
             </Box>,
           ]),
         )}
 
         {chosen.shortcuts.map(one =>
           card(`Your button: ${one.label}`, [
-            note(`Types: ${one.text}`),
+            note(`Types: ${one.text} Size ${shortcutSize(one)}.`),
             <Box gap={1} flexWrap="wrap">
-              {controls(`sc-${one.id}`, one.spot, change => moveShortcut(one.id, change))}
+              {controls(`sc-${one.id}`, one.spot, { kind: 'shortcut', id: one.id })}
               <Button
                 key={`sc-${one.id}-remove`}
                 label="Delete"
@@ -184,6 +218,30 @@ export function bar(on: On): void {
           ])}
 
         {said !== null && plain(said)}
+
+        {card('Saved layouts', [
+          note('Keep the toolbar as it is now under a name, and switch back to it with one press. Example: one for work, one for game day.'),
+          Input !== null && (
+            <Input
+              key="layout-name"
+              label="Name"
+              placeholder="Game day"
+              submitLabel="Save this layout"
+              onSubmit={typed => void saveLayout($, typed)}
+            />
+          ),
+          ...kept.map(one => (
+            <Box gap={1} flexWrap="wrap">
+              <Button
+                key={`layout-${one.name}`}
+                label={`Use ${one.name}`}
+                variant="primary"
+                onPress={() => void keep($, held => ({ ...held, ...layoutOf(one) }))}
+              />
+              <Button key={`layout-delete-${one.name}`} label="Delete" onPress={() => void dropLayout($, one.name)} />
+            </Box>
+          )),
+        ])}
 
         <Box>
           <Button

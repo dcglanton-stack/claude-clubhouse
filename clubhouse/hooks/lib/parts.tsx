@@ -122,7 +122,7 @@ export function makeParts(kit: Kit, prefs: Prefs, surface: string) {
   const title = (text: string) => serif(text, TITLE_SIZE)
   const heading = (text: string) => serif(text, HEADING_SIZE)
   const card = (heading: string, body: unknown) => (
-    <Box flexDirection="column" borderStyle="round" borderColor={look.hairline} paddingX={1}>
+    <Box flexDirection="column" gap={1} borderStyle="round" borderColor={look.hairline} paddingX={1}>
       {serif(heading, HEADING_SIZE)}
       {body}
     </Box>

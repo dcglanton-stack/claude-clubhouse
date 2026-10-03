@@ -18,12 +18,13 @@ import type {
   Shortcut,
   Summary,
   ToolRules,
+  ToolbarPreset,
   ToolsView,
 } from '../../types'
 
 export const DEFAULT_PALETTE: Palette = { accent: '#d97757', clawd: '#e8743b', background: null, text: null }
 
-export const MAX_BARS = 3
+export const MAX_BARS = 4
 export const MAX_SHORTCUTS = 8
 export const BAR_ZONES: readonly BarZone[] = ['left', 'center', 'right']
 
@@ -228,6 +229,29 @@ function asShortcuts(saved: unknown, barCount: number): Shortcut[] {
     .slice(0, MAX_SHORTCUTS)
 }
 
+export function asBarLayout(bar: Record<string, unknown>, barCount: number): BarLayout {
+  return Object.fromEntries(BAR_ITEMS.map(([id]) => [id, asSpot(bar[id], DEFAULT_BAR[id], barCount)])) as BarLayout
+}
+
+export function asToolbarPresets(stored: unknown): ToolbarPreset[] {
+  if (!Array.isArray(stored)) return []
+
+  return stored.flatMap(one => {
+    if (!isRecord(one) || typeof one.name !== 'string' || one.name.trim() === '') return []
+    const barCount =
+      typeof one.barCount === 'number' && one.barCount >= 1 && one.barCount <= MAX_BARS ? Math.round(one.barCount) : 1
+
+    return [
+      {
+        name: one.name,
+        barCount,
+        bar: asBarLayout(isRecord(one.bar) ? one.bar : {}, barCount),
+        shortcuts: asShortcuts(one.shortcuts, barCount),
+      },
+    ]
+  })
+}
+
 export function mergePrefs(saved: unknown): Prefs {
   if (!isRecord(saved)) return DEFAULT_PREFS
   const palette = isRecord(saved.palette) ? saved.palette : {}
@@ -240,15 +264,7 @@ export function mergePrefs(saved: unknown): Prefs {
   return {
     isEnabled: typeof saved.isEnabled === 'boolean' ? saved.isEnabled : DEFAULT_PREFS.isEnabled,
     window: saved.window === 'seven_day' ? 'seven_day' : 'five_hour',
-    bar: {
-      home: asSpot(bar.home, DEFAULT_BAR.home, barCount),
-      meter: asSpot(bar.meter, DEFAULT_BAR.meter, barCount),
-      summary: asSpot(bar.summary, DEFAULT_BAR.summary, barCount),
-      tidy: asSpot(bar.tidy, DEFAULT_BAR.tidy, barCount),
-      cache: asSpot(bar.cache, DEFAULT_BAR.cache, barCount),
-      context: asSpot(bar.context, DEFAULT_BAR.context, barCount),
-      receipt: asSpot(bar.receipt, DEFAULT_BAR.receipt, barCount),
-    },
+    bar: asBarLayout(bar, barCount),
     barCount,
     shortcuts: asShortcuts(saved.shortcuts, barCount),
     autoSummary: saved.autoSummary === true,
@@ -271,15 +287,7 @@ export function withBarCount(held: Prefs, barCount: number): Prefs {
   return {
     ...held,
     barCount,
-    bar: {
-      home: fit(held.bar.home),
-      meter: fit(held.bar.meter),
-      summary: fit(held.bar.summary),
-      tidy: fit(held.bar.tidy),
-      cache: fit(held.bar.cache),
-      context: fit(held.bar.context),
-      receipt: fit(held.bar.receipt),
-    },
+    bar: Object.fromEntries(BAR_ITEMS.map(([id]) => [id, fit(held.bar[id])])) as BarLayout,
     shortcuts: held.shortcuts.map(one => ({ ...one, spot: fit(one.spot) })),
   }
 }

@@ -30,6 +30,8 @@ export type BarLayout = {
 
 export type Shortcut = { id: string; label: string; text: string; spot: BarSpot }
 
+export type ToolbarPreset = { name: string; bar: BarLayout; barCount: number; shortcuts: Shortcut[] }
+
 export type Summary = {
   status: 'idle' | 'working' | 'ready' | 'failed'
   text: string
@@ -165,6 +167,7 @@ declare module 'claude-code' {
       tab: HomeTab
       colorsView: ColorsView
       colorPresets: ColorPreset[]
+      toolbarPresets: ToolbarPreset[]
       commandStats: CommandStats
       commandsView: CommandsView
       hiddenCommands: string[]

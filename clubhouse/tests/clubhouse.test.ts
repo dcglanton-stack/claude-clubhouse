@@ -6,6 +6,7 @@ import { appModeFrom } from '../hooks/lib/appColor'
 import { mergePrefs, sameSettings } from '../hooks/lib/defaults'
 import { pixelFor, shownFrom, toDisplay, toneFor } from '../hooks/lib/tone'
 import { nextVersion, subjectsOf } from '../hooks/lib/ship'
+import { arranged, rowLoad } from '../hooks/lib/toolbar'
 import { serifSize } from '../hooks/lib/type'
 import { DEFAULT_WATCH_VIEW, stepOf, watchFrom } from '../hooks/lib/watch'
 
@@ -401,7 +402,7 @@ for (const surface of SURFACES) {
     expect(await bar.find({ type: 'Text', text: /context 24k\/200k full/ })).toBeDefined()
 
     await ui.press({ key: 'bar-add' })
-    expect(await ui.find({ type: 'Text', text: /You have 2 bars/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /Row 1: 14 of 14 used · Row 2: 0 of 14 used/ })).toBeDefined()
     await ui.press({ key: 'bar-meter-row' })
     expect((await ui.find({ key: 'bar-meter-row' }))?.text).toBe('Row 2')
     expect(await rowCount()).toBe(2)
@@ -1660,4 +1661,48 @@ test('/ship works out the version, asks, then tags, pushes and publishes, and on
   expect(seen.launched.at(-1)).toMatch(/^gh release create v0\.16\.0 --title v0\.16\.0 --notes /)
 
   expect((await run($, 'ship', 'soon')).text).toMatch(/"soon" is not a version/)
+})
+
+test('toolbar rows have a capacity: a full row sends the next item to another row, and layouts can be saved', async ($, on) => {
+  world(on, 50, { stored: { toolbarPresets: [{ name: 'Old layout', barCount: 2, bar: { meter: { isShown: true, row: 2, zone: 'left' } }, shortcuts: [] }] } })
+  await start($)
+  const ui = await $.ui.mount({
+    plugin: 'clubhouse',
+    surface: 'desktop',
+    component: 'Pane',
+    requestId: 'clubhouse-bar',
+    props: { ...PANE, title: 'Toolbar' },
+  })
+  const bar = await $.ui.mount({ plugin: 'clubhouse', surface: 'desktop', component: 'AbovePrompt', props: BAND })
+  const rowCount = async () => ((await bar.drawn()) as { children: unknown[] }).children.length
+
+  expect(await ui.find({ type: 'Text', text: /Row 1: 11 of 14 used/ })).toBeDefined()
+  await ui.press({ key: 'bar-context-show' })
+  await ui.press({ key: 'bar-receipt-show' })
+  expect(await ui.find({ type: 'Text', text: /Every row was full, so a new row 2 was added for it\./ })).toBeDefined()
+  expect((await ui.find({ key: 'bar-receipt-row' }))?.text).toBe('Row 2')
+  expect(await rowCount()).toBe(2)
+
+  await ui.press({ key: 'bar-cache-show' })
+  expect(await ui.find({ type: 'Text', text: /Row 1 is full, so it went on row 2\./ })).toBeDefined()
+  await ui.press({ key: 'bar-receipt-row' })
+  expect(await ui.find({ type: 'Text', text: /No other row has room for it/ })).toBeDefined()
+
+  await ui.input({ key: 'layout-name', text: 'Busy' })
+  await ui.press({ key: 'layout-Old layout' })
+  expect(await ui.find({ type: 'Text', text: /Row 1: 5 of 14 used · Row 2: 6 of 14 used/ })).toBeDefined()
+  await ui.press({ key: 'layout-Busy' })
+  expect(await ui.find({ type: 'Text', text: /Row 1: 14 of 14 used · Row 2: 8 of 14 used/ })).toBeDefined()
+  await ui.press({ key: 'layout-delete-Busy' })
+  expect(await ui.find({ key: 'layout-Busy' })).toBeUndefined()
+
+  const full = mergePrefs({ barCount: 4, bar: Object.fromEntries(['home', 'meter', 'summary', 'tidy', 'context'].map(id => [id, { isShown: true, row: 1, zone: 'left' }])) })
+  const packed = [2, 3, 4].reduce(
+    (held, row) => ({ ...held, shortcuts: [...held.shortcuts, ...Array.from({ length: 5 }, (_, at) => ({ id: `s${row}${at}`, label: 'A long label for a button', text: 'x', spot: { isShown: true, row, zone: 'left' as const } }))] }),
+    full,
+  )
+  expect(rowLoad(packed, 2)).toBe(15)
+  expect(arranged(packed, { kind: 'item', id: 'receipt' }, 'toggle').note).toMatch(/All 4 rows are full/)
+  await ui.unmount()
+  await bar.unmount()
 })
