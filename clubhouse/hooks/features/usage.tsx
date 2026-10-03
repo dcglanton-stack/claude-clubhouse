@@ -23,6 +23,7 @@ import {
   isWorthGuarding,
   verdictFrom,
 } from '../lib/guard'
+import { dueSketches, keepsSketch, sketchesIn } from '../lib/draw'
 import { contextOf } from '../lib/notes'
 import { summaryOf, summaryRequest } from '../lib/summary'
 
@@ -30,6 +31,7 @@ const contextPercent = atom({ plugin: 'clubhouse', key: 'contextPercent' } as co
 const contextSize = atom({ plugin: 'clubhouse', key: 'contextSize' } as const, null)
 const pendingNotes = atom({ plugin: 'clubhouse', key: 'pendingNotes' } as const, [])
 const handoff = atom({ plugin: 'clubhouse', key: 'handoff' } as const, 'idle')
+const sketchesToClear = atom({ plugin: 'clubhouse', key: 'sketchesToClear' } as const, [])
 const lastReplyAt = atom({ plugin: 'clubhouse', key: 'lastReplyAt' } as const, null)
 const limits = atom({ plugin: 'clubhouse', key: 'limits' } as const, [])
 const now = atom({ plugin: 'clubhouse', key: 'now' } as const, 0)
@@ -78,6 +80,13 @@ export function usage(on: On): void {
   on('prompt.submit', async ($, e, next) => {
     turnBase = usedOf(await read($, limits), 'five_hour')
     const chosen = await read($, prefs)
+    const userFolder = await $.env.get('HOME')
+    const drawn = userFolder === undefined || keepsSketch(e.text) ? [] : sketchesIn(e.text, userFolder)
+
+    if (drawn.length > 0) {
+      const at = await $.clock.now()
+      await update($, sketchesToClear, held => [...held, ...drawn.map(path => ({ path, at }))])
+    }
 
     if (chosen.isEnabled && chosen.warnsSafeguards === true && isWorthGuarding(e.text, e.origin?.kind ?? 'composer')) {
       const reply = await $.model.complete(guardRequest(e.text)).catch(() => null)
@@ -122,6 +131,17 @@ export function usage(on: On): void {
       }
       await update($, lastReplyAt, () => at)
       await update($, receipt, () => made)
+
+      const waitingSketches = await read($, sketchesToClear)
+      const finished = dueSketches(waitingSketches, at - e.durationMs)
+
+      if (finished.length > 0) {
+        await update($, sketchesToClear, held => held.filter(one => !finished.some(done => done.path === one.path)))
+
+        for (const sketch of finished) {
+          await $.process.run(['/bin/rm', '-f', sketch.path]).catch(() => undefined)
+        }
+      }
 
       if ((await read($, handoff)) === 'armed') {
         await update($, handoff, () => 'sent')
