@@ -9,7 +9,7 @@ A mod for Claude Code in the Claude desktop app that turns the space around your
 
 It is one plugin, written with Claude Code's function hooks. Tested with Claude Code 2.1.286 in the Claude desktop app on macOS; the rooms and toolbar also draw in the terminal, the whole-window color does not.
 
-Not made by or affiliated with Anthropic. Clawd is Anthropic's mascot, drawn here by a fan. Prices come from Yahoo's unofficial feed and scores from ESPN's; neither is guaranteed to keep working.
+MIT licensed (see `LICENSE`). Not made by or affiliated with Anthropic. Clawd is Anthropic's mascot, drawn here by a fan. Prices come from Yahoo's unofficial feed and scores from ESPN's; neither is guaranteed to keep working.
 
 ## Install
 
