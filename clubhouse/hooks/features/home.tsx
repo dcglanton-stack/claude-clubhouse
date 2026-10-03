@@ -28,7 +28,6 @@ const TABS: readonly (readonly [HomeTab, string])[] = [
 ]
 
 const PLANNED: readonly (readonly [string, string])[] = [
-  ['Workshop: tools', 'Set any tool to Allow, Ask first or Block. Trade safeguards live here.'],
   ['Workshop: recipes', 'Turn a shell command into a tool without writing code.'],
   ['Prompt tidy', 'Spell-fix or shorten the draft in the prompt box before you send it.'],
   ['Second opinion', 'Ask an outside model about the session without touching it.'],
@@ -69,17 +68,18 @@ async function offer($: EngineInterface, name: string): Promise<void> {
 export function home(on: On): void {
   on('ui.render', { component: 'Pane', requestId: 'clubhouse' }, async ($, e) => {
     const elements = $.ui.resolve(e)
+    const canDraw = e.surface !== 'terminal'
     const { Box, Button, Text } = elements
     const chosen = await read($, prefs)
     const shown = await read($, tab)
     const at = await read($, now)
     await read($, pulse)
-    const { ink, frame, note, card, meter } = makeParts(elements, chosen.palette)
+    const { ink, frame, note, title, card, meter } = makeParts(elements, chosen.palette, e.surface)
 
     const header = (
       <Box flexDirection="column" gap={1}>
         <Box gap={1} alignItems="center">
-          {'Svg' in elements && (
+          {canDraw && 'Svg' in elements && (
             <elements.Svg
               source={homeIconSvg({ size: LOGO_SIZE, accent: chosen.palette.accent })}
               alt="Claude Clubhouse"
@@ -87,9 +87,7 @@ export function home(on: On): void {
               height={LOGO_SIZE}
             />
           )}
-          <Text {...ink} bold>
-            Claude Clubhouse
-          </Text>
+          {title('Claude Clubhouse')}
           <Button
             key="power"
             label={chosen.isEnabled ? 'On' : 'Off'}

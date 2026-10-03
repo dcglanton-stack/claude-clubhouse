@@ -14,6 +14,7 @@ const BAND = {
 }
 const PANE = { title: 'Clubhouse', isFocused: true, bodyColumns: 60, placement: 'dock' as const }
 const BLANK = { type: 'Box', props: {}, children: [] }
+const BROKER = '0a1b2c3d-1111-2222-3333-444455556666'
 
 type World = {
   open: string[]
@@ -23,6 +24,8 @@ type World = {
   registered: { name: string; model?: string }[]
   spawned: { subagentType: string; prompt: string }[]
   appended: string[]
+  ran: string[]
+  answer: string
 }
 
 function world(on: On, fiveHourUsed: number): World {
@@ -34,6 +37,8 @@ function world(on: On, fiveHourUsed: number): World {
     registered: [],
     spawned: [],
     appended: [],
+    ran: [],
+    answer: 'Allow once',
   }
 
   mock.clock(on, { now: NOW })
@@ -130,13 +135,49 @@ function world(on: On, fiveHourUsed: number): World {
     },
   }))
   on('turn.complete', (_$, e) => ({ text: e.answer }))
+  on('tool.list', () => ({
+    value: [
+      { name: 'Bash', description: 'Run a shell command', mcp: false },
+      { name: `mcp__${BROKER}__place_equity_order`, description: 'Place a stock order', mcp: true },
+      { name: `mcp__${BROKER}__get_portfolio`, description: 'Read the portfolio', mcp: true },
+      { name: 'mcp__coinbase__coinbase_orders_create', description: 'Create an order', mcp: true },
+      { name: 'mcp__coinbase__coinbase_balance', description: 'Read balances', mcp: true },
+    ],
+  }))
   on('tool.call', (_$, e) => {
-    seen.stopped.push(String((e as { task_id?: string }).task_id))
+    const call = e as { tool: string; task_id?: string; questions?: { question: string }[] }
 
-    return { result: 'stopped', isError: false }
+    if (call.tool === 'AskUserQuestion') {
+      const questions = call.questions ?? []
+
+      return {
+        result: {
+          questions,
+          answers: Object.fromEntries(questions.map(one => [one.question, seen.answer])),
+        },
+      }
+    }
+
+    if (call.tool === 'TaskStop') {
+      seen.stopped.push(String(call.task_id))
+    } else {
+      seen.ran.push(call.tool)
+    }
+
+    return { result: 'done', isError: false }
   })
 
   return seen
+}
+
+type Drawing = {
+  findAll: (query: { type: string }) => Promise<{ text: string; props: Record<string, unknown> }[]>
+}
+
+async function says(ui: Drawing, pattern: RegExp): Promise<boolean> {
+  const drawn = [...(await ui.findAll({ type: 'Text' })), ...(await ui.findAll({ type: 'Svg' }))]
+
+  return drawn.some(one => pattern.test(one.text) || pattern.test(String(one.props.alt ?? '')))
 }
 
 async function start($: Engine): Promise<void> {
@@ -164,6 +205,8 @@ for (const surface of SURFACES) {
 
     if (surface === 'desktop') {
       expect(await ui.findAll({ type: 'Svg' })).toHaveLength(2)
+    } else {
+      expect(await ui.findAll({ type: 'Svg' })).toHaveLength(0)
     }
 
     await ui.press({ key: 'home' })
@@ -221,7 +264,7 @@ for (const surface of SURFACES) {
     expect((await ui.find({ key: 'power' }))?.text).toBe('Off')
 
     await ui.press({ key: 'tab-more' })
-    expect(await ui.find({ type: 'Text', text: /Workshop: tools/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /Workshop: recipes/ })).toBeDefined()
     await ui.unmount()
   })
 
@@ -289,7 +332,7 @@ for (const surface of SURFACES) {
     await ui.input({ key: 'shortcut-label', text: 'Run tests' })
     await ui.input({ key: 'shortcut-text', text: 'run the tests and fix what fails' })
     await ui.press({ key: 'shortcut-add' })
-    expect(await ui.find({ type: 'Text', text: /Your button: Run tests/ })).toBeDefined()
+    expect(await says(ui, /Your button: Run tests/)).toBe(true)
 
     const made = (await bar.findAll({ type: 'Button' })).find(one => one.text === 'Run tests')
     expect(made).toBeDefined()
@@ -366,7 +409,7 @@ for (const surface of SURFACES) {
       props: { ...PANE, title: 'Agent HQ' },
     })
 
-    expect(await ui.find({ type: 'Text', text: /In the field \(1\)/ })).toBeDefined()
+    expect(await says(ui, /In the field \(1\)/)).toBe(true)
     expect(await ui.find({ type: 'Text', text: /Scout the test suite/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /mission complete/ })).toBeDefined()
     expect(await ui.find({ key: 'stop-a2' })).toBeUndefined()
@@ -401,7 +444,7 @@ for (const surface of SURFACES) {
     await ui.press({ key: 'agent-save' })
 
     expect(seen.registered).toEqual([{ name: 'test-scout', model: 'haiku' }])
-    expect(await ui.find({ type: 'Text', text: /Your agents \(1\)/ })).toBeDefined()
+    expect(await says(ui, /Your agents \(1\)/)).toBe(true)
     expect(await ui.find({ type: 'Text', text: /picked for you/ })).toBeDefined()
 
     await ui.press({ key: 'model-test-scout' })
@@ -414,7 +457,7 @@ for (const surface of SURFACES) {
     expect(await ui.find({ type: 'Text', text: /is on assignment/ })).toBeDefined()
 
     await ui.press({ key: 'delete-test-scout' })
-    expect(await ui.find({ type: 'Text', text: /Your agents \(0\)/ })).toBeDefined()
+    expect(await says(ui, /Your agents \(0\)/)).toBe(true)
     await ui.unmount()
   })
 
@@ -478,6 +521,51 @@ for (const surface of SURFACES) {
     await ui.press({ key: 'run-deploy' })
     expect(seen.filled).toEqual(['/deploy '])
     expect(await ui.find({ type: 'Text', text: /is in the prompt box/ })).toBeDefined()
+    await ui.unmount()
+  })
+
+  test(`Tool rules group tools, guard money tools, ask first and block on ${surface}`, async ($, on) => {
+    const seen = world(on, 50)
+    await start($)
+    const ui = await $.ui.mount({
+      plugin: 'clubhouse',
+      surface,
+      component: 'Pane',
+      requestId: 'clubhouse-tools',
+      props: { ...PANE, title: 'Tool rules' },
+    })
+    const order = 'mcp__coinbase__coinbase_orders_create'
+    const balance = 'mcp__coinbase__coinbase_balance'
+    const call = (tool: string) =>
+      $.tool.call({ tool, product_id: 'BTC-USD' } as Parameters<Engine['tool']['call']>[0])
+
+    expect((await ui.find({ key: 'tgroup-built-in' }))?.text).toBe('▸ Built in (1)')
+    expect((await ui.find({ key: 'tgroup-coinbase' }))?.text).toBe('▸ Coinbase (2)')
+    expect((await ui.find({ key: `tgroup-${BROKER}` }))?.text).toBe('▸ Connector 1 (2)')
+    expect(await ui.find({ type: 'Text', text: /2 connected tools can place/ })).toBeDefined()
+
+    await call(order)
+    expect(seen.ran).toEqual([order])
+
+    await ui.press({ key: 'tools-safeguard' })
+    expect((await ui.find({ key: 'tools-safeguard' }))?.text).toBe('Safeguard is on')
+    expect(await ui.find({ key: `mine-mcp__${BROKER}__place_equity_order` })).toBeDefined()
+
+    await call(order)
+    expect(seen.ran).toEqual([order, order])
+
+    seen.answer = 'Deny'
+    expect(JSON.stringify(await call(order))).toMatch(/declined/)
+    expect(seen.ran).toEqual([order, order])
+
+    await ui.press({ key: 'tgroup-coinbase' })
+    await ui.press({ key: `rule-${balance}` })
+    await ui.press({ key: `rule-${balance}` })
+    expect(JSON.stringify(await call(balance))).toMatch(/blocked the tool/)
+
+    await ui.press({ key: 'rules-clear' })
+    await call(balance)
+    expect(seen.ran).toEqual([order, order, balance])
     await ui.unmount()
   })
 

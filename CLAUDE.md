@@ -12,7 +12,7 @@ A Claude Code function-hooks plugin (a "mod"). The plugin is the `clubhouse/` fo
 - `$` may only be passed to a function declared at the top of the same file. Never import a function that takes `$`.
 - State atoms are declared in the file that uses them: `atom({ plugin: 'clubhouse', key: '...' } as const, initial)`. Shared defaults live in `hooks/lib/defaults.ts`.
 - Every state key is declared in `types/index.d.ts`, which exports types only.
-- One hook per event without a matcher: one `session.start` (in `hooks/register.tsx`; startup work for a new feature goes there), one `turn.complete` (`usage.tsx`), one `command.run` (`commands.tsx`, which counts every command and answers `/clubhouse`).
+- One hook per event without a matcher: one `session.start` (in `hooks/register.tsx`; startup work for a new feature goes there), one `turn.complete` (`usage.tsx`), one `command.run` (`commands.tsx`, which counts every command and answers `/clubhouse`), one `tool.call` (`tools.tsx`).
 - Matchers use string literals (`requestId: 'clubhouse'`), not imported constants.
 
 ## Adding a feature
@@ -29,7 +29,6 @@ A Claude Code function-hooks plugin (a "mod"). The plugin is the `clubhouse/` fo
 - `hooks/lib/` is pure: no `$`, no hooks. `clawd.ts`, `icon.ts` and `color.ts` import nothing, so `node` can run them directly for previews.
 - Only `Button` is clickable; an `Svg` is a picture, so pair an icon with a `Button`.
 - A pane that shows engine lists (`$.ui.panes()`, `$.agent.list()`) reads the `pulse` atom, and whatever changes those lists bumps it, so the pane redraws.
-- Desktop draws with `Svg`; the terminal has none, so every `Svg` needs a text fallback (`'Svg' in elements`).
 - Text on a user-chosen background takes `inkOn(background)` so it stays readable.
 - Everything the Clubhouse shows respects `prefs.isEnabled`.
 - Keep the bar quiet: new bar items default to hidden.
@@ -39,6 +38,10 @@ A Claude Code function-hooks plugin (a "mod"). The plugin is the `clubhouse/` fo
 - Every feature with a screen is a room that opens as its own tab, including features that also sit on the bar.
 - A `$` helper needed in several files is copied into each (see `summarize`); keep its logic in a pure `lib/` function so the copies stay a few lines.
 - Hidden skills are enforced in three places in `commands.tsx`: `command.describe` (slash menu), `prompt.attachment` for `skill_listing` (what Claude is told) and `tool.call` for `Skill` (what Claude can run). Keep all three in step.
+- Design follows `DESIGN.md` at the repo root. Mods cannot set a font on `Text` (the app's own font is used), so headings are serif SVGs from `makeParts` (`title`, `heading`, `card`); never hand-roll a heading. Borders are hairlines in Cloud Dark; clay is for headings and the primary action only.
+- Every surface accepts `Svg`, and the terminal draws only its alt text. Decide with `e.surface !== 'terminal'` (`canDraw`), not with `'Svg' in elements` alone.
+- Tool rules are enforced by the one unmatched `tool.call` hook in `tools.tsx`; it fails closed (no answer means deny) and ignores `prefs.isEnabled` on purpose.
+- Button keys must be unique within a pane: give a second listing of the same items its own key prefix.
 - No unnecessary comments.
 
 ## Release

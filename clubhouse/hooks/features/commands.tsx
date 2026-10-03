@@ -135,7 +135,7 @@ export function commands(on: On): void {
 
   on('ui.render', { component: 'Pane', requestId: 'clubhouse-commands' }, async ($, e) => {
     const elements = $.ui.resolve(e)
-    const { Box, Button, Text } = elements
+    const { Box, Button } = elements
     const chosen = await read($, prefs)
     const stats = await read($, commandStats)
     const view = await read($, commandsView)
@@ -148,7 +148,7 @@ export function commands(on: On): void {
         !hidden.includes(one.name) &&
         (one.name.toLowerCase().includes(wanted) || one.description.toLowerCase().includes(wanted)),
     )
-    const { ink, frame, note, plain, card } = makeParts(elements, chosen.palette)
+    const { card, frame, note, plain, title } = makeParts(elements, chosen.palette, e.surface)
 
     const setFilter = (typed: string) =>
       void update($, commandsView, held => ({ ...held, filter: typed }))
@@ -180,9 +180,7 @@ export function commands(on: On): void {
 
     return (
       <Box flexDirection="column" gap={1} {...frame}>
-        <Text {...ink} bold>
-          Commands
-        </Text>
+        {title('Commands')}
         {note(
           'Everything you can type after a slash, sorted into groups. Click a group to open it and a command to put it in the prompt box. /clubhouse commands opens this.',
         )}
@@ -193,6 +191,13 @@ export function commands(on: On): void {
               <Button key={`top-${name}`} label={`/${name}`} onPress={() => void offer($, name)} />
             ))}
           </Box>,
+        ])}
+
+        {card('About hiding', [
+          note('Hide puts a skill, or a whole group, out of the way. It leaves the slash menu, Claude is no longer told it exists (which saves a little context every session), and Claude is refused if it tries to use it.'),
+          note('Nothing is deleted from your computer, and it stays hidden in every session until you show it again from the Hidden group at the bottom.'),
+          note('Claude in a session already under way has seen the full list, so for Claude the change starts with the next session or after /clear.'),
+          note('To remove a whole plugin and everything it adds, ask Claude to turn that plugin off.'),
         ])}
 
         {'Input' in elements && (

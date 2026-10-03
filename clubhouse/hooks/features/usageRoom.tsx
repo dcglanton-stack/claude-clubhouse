@@ -18,20 +18,18 @@ const METER_HEIGHT = 56
 export function usageRoom(on: On): void {
   on('ui.render', { component: 'Pane', requestId: 'clubhouse-usage' }, async ($, e) => {
     const elements = $.ui.resolve(e)
-    const { Box, Text } = elements
+    const { Box } = elements
     const chosen = await read($, prefs)
     const at = await read($, now)
     const list = await read($, limits)
     const context = await read($, contextPercent)
     const made = await read($, receipt)
     const last = await read($, lastReplyAt)
-    const { ink, frame, note, plain, card, meter } = makeParts(elements, chosen.palette)
+    const { card, frame, meter, note, plain, title } = makeParts(elements, chosen.palette, e.surface)
 
     return (
       <Box flexDirection="column" gap={1} {...frame}>
-        <Text {...ink} bold>
-          Usage
-        </Text>
+        {title('Usage')}
         {card('5-hour limit', [
           meter({ kind: 'five_hour', limits: list, at, width: METER_WIDTH, height: METER_HEIGHT }),
           note('Resets on a rolling five hours. Clawd gets unhappier as it drains.'),

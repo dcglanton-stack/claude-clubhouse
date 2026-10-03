@@ -4,6 +4,7 @@ import type { Limit, Palette, WindowKind } from '../../types'
 import { meterSvg, moodFor, moodName } from './clawd'
 import { inkOn, rampColor } from './color'
 import { WINDOW_NAME, formatSpan, percentLeft, resetIn, textBar } from './format'
+import { serifSize, serifSvg } from './type'
 
 type Kit = Elements[keyof Elements]
 
@@ -16,10 +17,14 @@ export type MeterBlock = {
 }
 
 const TEXT_CELLS = 28
+const TITLE_SIZE = 24
+const HEADING_SIZE = 17
+const HAIRLINE = '#87867f'
 
-export function makeParts(kit: Kit, palette: Palette) {
+export function makeParts(kit: Kit, palette: Palette, surface: string) {
   const { Box, Text } = kit
   const { accent, background, clawd } = palette
+  const canDraw = surface !== 'terminal'
   const ink = background === null ? {} : { color: inkOn(background) }
   const frame = background === null ? {} : { backgroundColor: background, padding: 1 }
 
@@ -33,11 +38,24 @@ export function makeParts(kit: Kit, palette: Palette) {
       {text}
     </Text>
   )
-  const card = (title: string, body: unknown) => (
-    <Box flexDirection="column" borderStyle="round" borderColor={accent} paddingX={1}>
+  const serif = (text: string, size: number) =>
+    canDraw && 'Svg' in kit ? (
+      <kit.Svg
+        source={serifSvg({ text, size, color: accent, isStrong: true })}
+        alt={text}
+        width={serifSize({ text, size }).width}
+        height={serifSize({ text, size }).height}
+      />
+    ) : (
       <Text bold color={accent}>
-        {title}
+        {text}
       </Text>
+    )
+  const title = (text: string) => serif(text, TITLE_SIZE)
+  const heading = (text: string) => serif(text, HEADING_SIZE)
+  const card = (heading: string, body: unknown) => (
+    <Box flexDirection="column" borderStyle="round" borderColor={HAIRLINE} paddingX={1}>
+      {serif(heading, HEADING_SIZE)}
       {body}
     </Box>
   )
@@ -59,7 +77,7 @@ export function makeParts(kit: Kit, palette: Palette) {
         <Text {...ink}>
           {WINDOW_NAME[kind]}: {left}% left{reset}
         </Text>
-        {'Svg' in kit ? (
+        {canDraw && 'Svg' in kit ? (
           <kit.Svg
             source={meterSvg({ left, barColor: rampColor(left), clawdColor: clawd, width, height })}
             alt={`${left}% left; Clawd looks ${moodName(moodFor(left))}`}
@@ -76,5 +94,5 @@ export function makeParts(kit: Kit, palette: Palette) {
     )
   }
 
-  return { ink, frame, note, plain, card, meter }
+  return { ink, frame, note, plain, title, heading, card, meter }
 }

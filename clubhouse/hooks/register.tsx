@@ -9,6 +9,7 @@ import { colors } from './features/colors'
 import { commands } from './features/commands'
 import { home } from './features/home'
 import { summaryRoom } from './features/summary'
+import { tools } from './features/tools'
 import { usage } from './features/usage'
 import { usageRoom } from './features/usageRoom'
 import {
@@ -18,9 +19,11 @@ import {
   HIDDEN_KEY,
   LIMITS_KEY,
   PREFS_KEY,
+  TOOL_RULES_KEY,
   asBlueprints,
   asCommandStats,
   asNames,
+  asToolRules,
   isLimitList,
   mergePrefs,
 } from './lib/defaults'
@@ -32,6 +35,7 @@ const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS
 const commandStats = atom({ plugin: 'clubhouse', key: 'commandStats' } as const, {})
 const agentBank = atom({ plugin: 'clubhouse', key: 'agentBank' } as const, [])
 const hiddenCommands = atom({ plugin: 'clubhouse', key: 'hiddenCommands' } as const, [])
+const toolRules = atom({ plugin: 'clubhouse', key: 'toolRules' } as const, {})
 
 const TICK_MS = 30_000
 
@@ -45,6 +49,9 @@ export const register: Register = on => {
 
     const savedHidden = asNames(await $.store.get(HIDDEN_KEY))
     await update($, hiddenCommands, () => savedHidden)
+
+    const savedRules = asToolRules(await $.store.get(TOOL_RULES_KEY))
+    await update($, toolRules, () => savedRules)
 
     const savedAgents: Blueprint[] = asBlueprints(await $.store.get(AGENTS_KEY))
     await update($, agentBank, () => savedAgents)
@@ -73,8 +80,8 @@ export const register: Register = on => {
 
     await $.command.register({
       name: 'clubhouse',
-      description: 'Open Claude Clubhouse. Add a room to open it: agents, summary, commands, bar, usage, colors; or on, off',
-      argumentHint: '[on|off|agents|summary|commands|bar|usage|colors]',
+      description: 'Open Claude Clubhouse. Add a room to open it: agents, summary, tools, commands, bar, usage, colors; or on, off',
+      argumentHint: '[on|off|agents|summary|tools|commands|bar|usage|colors]',
       immediate: true,
     })
 
@@ -86,6 +93,7 @@ export const register: Register = on => {
   home(on)
   bar(on)
   summaryRoom(on)
+  tools(on)
   usageRoom(on)
   commands(on)
   agents(on)

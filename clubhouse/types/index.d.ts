@@ -56,6 +56,12 @@ export type CommandStats = { [name: string]: CommandStat }
 
 export type CommandsView = { filter: string; note: string | null; open: string[] }
 
+export type ToolRule = 'ask' | 'block'
+
+export type ToolRules = { [tool: string]: ToolRule }
+
+export type ToolsView = { filter: string; note: string | null; open: string[] }
+
 export type AgentModel = 'haiku' | 'sonnet' | 'opus' | 'inherit'
 
 export type Blueprint = {
@@ -93,6 +99,8 @@ declare module 'claude-code' {
       lastAnswer: string
       summary: Summary
       barNote: string | null
+      toolRules: ToolRules
+      toolsView: ToolsView
     }
   }
 }

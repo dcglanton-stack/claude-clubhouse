@@ -14,6 +14,8 @@ import type {
   Prefs,
   Shortcut,
   Summary,
+  ToolRules,
+  ToolsView,
 } from '../../types'
 
 export const DEFAULT_PALETTE: Palette = { accent: '#d97757', clawd: '#e8743b', background: null }
@@ -76,6 +78,9 @@ export const COMMANDS_PANE = 'clubhouse-commands'
 export const BAR_PANE = 'clubhouse-bar'
 export const USAGE_PANE = 'clubhouse-usage'
 export const SUMMARY_PANE = 'clubhouse-summary'
+export const TOOLS_PANE = 'clubhouse-tools'
+export const TOOL_RULES_KEY = 'toolRules'
+export const DEFAULT_TOOLS_VIEW: ToolsView = { filter: '', note: null, open: [] }
 export const COMMANDS_KEY = 'commands'
 
 export type Room = { id: string; title: string; word: string; about: string }
@@ -92,6 +97,12 @@ export const ROOMS: readonly Room[] = [
     title: 'Summary',
     word: 'summary',
     about: 'The last reply, cut down to the points that matter.',
+  },
+  {
+    id: TOOLS_PANE,
+    title: 'Tool rules',
+    word: 'tools',
+    about: 'Make Claude ask first, or block it, before it uses a tool.',
   },
   {
     id: COMMANDS_PANE,
@@ -274,4 +285,15 @@ export function topCommands(stats: CommandStats, size: number): string[] {
 
 export function asNames(saved: unknown): string[] {
   return Array.isArray(saved) ? saved.filter(one => typeof one === 'string') : []
+}
+
+export function asToolRules(saved: unknown): ToolRules {
+  if (!isRecord(saved)) return {}
+  const rules: ToolRules = {}
+
+  for (const [tool, rule] of Object.entries(saved)) {
+    if (rule === 'ask' || rule === 'block') rules[tool] = rule
+  }
+
+  return rules
 }

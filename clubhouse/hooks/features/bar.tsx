@@ -59,10 +59,10 @@ async function addShortcut($: EngineInterface): Promise<void> {
 export function bar(on: On): void {
   on('ui.render', { component: 'Pane', requestId: 'clubhouse-bar' }, async ($, e) => {
     const elements = $.ui.resolve(e)
-    const { Box, Button, Text } = elements
+    const { Box, Button } = elements
     const chosen = await read($, prefs)
     const said = await read($, barNote)
-    const { ink, frame, note, plain, card } = makeParts(elements, chosen.palette)
+    const { card, frame, note, plain, title } = makeParts(elements, chosen.palette, e.surface)
     const hasBars = chosen.barCount > 1
 
     const moveItem = (id: BarItemId, change: (spot: BarSpot) => BarSpot) =>
@@ -95,9 +95,7 @@ export function bar(on: On): void {
 
     return (
       <Box flexDirection="column" gap={1} {...frame}>
-        <Text {...ink} bold>
-          Bar layout
-        </Text>
+        {title('Bar layout')}
         {note(
           'Choose what sits above the prompt. Each item has buttons to add or remove it, pick its bar, and place it left, center or right. /clubhouse bar opens this.',
         )}
