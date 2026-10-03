@@ -25,6 +25,7 @@ import {
 } from '../lib/guard'
 import { dueSketches, keepsSketch, sketchesIn } from '../lib/draw'
 import { contextOf } from '../lib/notes'
+import { asksToChange, changeContext, ownFolder } from '../lib/own'
 import { summaryOf, summaryRequest } from '../lib/summary'
 import { HELPER_CONFIG, HELPER_FRONT, helperConfig } from '../lib/appColor'
 
@@ -123,14 +124,19 @@ export function usage(on: On): void {
     }
 
     const waiting = await read($, pendingNotes)
+    const isOwnRequest = (e.origin?.kind ?? 'composer') === 'composer' && asksToChange(e.text)
+    const added = [
+      ...(waiting.length === 0 ? [] : [contextOf(waiting)]),
+      ...(isOwnRequest ? [changeContext(ownFolder(await $.env.get('CLAUDE_CODE_PLUGIN_DIRS')))] : []),
+    ]
 
-    if (waiting.length === 0) {
+    if (added.length === 0) {
       return next(e)
     }
 
     await update($, pendingNotes, () => [])
 
-    return next({ ...e, context: [...(e.context ?? []), contextOf(waiting)] })
+    return next({ ...e, context: [...(e.context ?? []), ...added] })
   })
 
   on('turn.complete', async ($, e, next) => {

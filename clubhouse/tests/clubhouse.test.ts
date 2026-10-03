@@ -9,6 +9,7 @@ import { nextVersion, subjectsOf } from '../hooks/lib/ship'
 import { arranged, rowLoad } from '../hooks/lib/toolbar'
 import { serifSize } from '../hooks/lib/type'
 import { pixelsFrom, pngOf, toBase64 } from '../hooks/lib/png'
+import { asksToChange, ownFolder, shortFolder } from '../hooks/lib/own'
 import { asProjectColors, projectName } from '../hooks/lib/project'
 import { LEAGUES, gamesFrom, listed, logoFor, logoSlot, withLogo } from '../hooks/lib/sports'
 import { asQuotes, isFresh, isStale } from '../hooks/lib/ticker'
@@ -63,7 +64,7 @@ type World = {
   clock: MockClock
 }
 
-type Setup = { hasHelper?: boolean; stored?: Record<string, unknown>; readsFiles?: boolean }
+type Setup = { hasHelper?: boolean; stored?: Record<string, unknown>; readsFiles?: boolean; env?: Record<string, string> }
 
 function world(on: On, fiveHourUsed: number, setup: Setup = {}): World {
   const seen: World = {
@@ -140,7 +141,7 @@ function world(on: On, fiveHourUsed: number, setup: Setup = {}): World {
       },
     }
   })
-  mock.env(on, { HOME: '/tmp/clubhouse-home' })
+  mock.env(on, { HOME: '/tmp/clubhouse-home', ...(setup.env ?? {}) })
   on('session.usage', () => ({
     value: {
       startedAt: NOW,
@@ -1208,15 +1209,15 @@ test('a project keeps its own colors apart from the shared ones and claims the w
   const seen = world(on, 50, {
     hasHelper: true,
     readsFiles: true,
-    stored: { prefs: { palette: shared }, projectColors: { '/work/dawnflight': own, bad: { accent: 'red' } } },
+    stored: { prefs: { palette: shared }, projectColors: { '/work/myapp': own, bad: { accent: 'red' } } },
   })
   const { files } = seen
   const target = () => (JSON.parse(seen.written.filter(one => one.path.endsWith('tint.json')).at(-1)?.text ?? '{}') as { target?: string }).target
   on('session.id', () => ({ value: 'session-a' }))
-  on('session.repo', () => ({ value: { root: '/work/dawnflight', remote: null, internal: false, name: null } }))
+  on('session.repo', () => ({ value: { root: '/work/myapp', remote: null, internal: false, name: null } }))
 
-  expect(asProjectColors({ '/work/dawnflight': own, bad: { accent: 'red' } })).toEqual({ '/work/dawnflight': own })
-  expect(projectName('/work/dawnflight')).toBe('dawnflight')
+  expect(asProjectColors({ '/work/myapp': own, bad: { accent: 'red' } })).toEqual({ '/work/myapp': own })
+  expect(projectName('/work/myapp')).toBe('myapp')
 
   await start($)
   expect(target()).toBe('#0b3d2c')
@@ -1229,7 +1230,7 @@ test('a project keeps its own colors apart from the shared ones and claims the w
     requestId: 'clubhouse-colors',
     props: { ...PANE, title: 'Colors' },
   })
-  expect((await ui.find({ key: 'project-colors' }))?.text).toBe('dawnflight: its own colors')
+  expect((await ui.find({ key: 'project-colors' }))?.text).toBe('myapp: its own colors')
 
   await ui.press({ key: 'look-slate' })
   expect(target()).toBe('#141413')
@@ -1242,7 +1243,7 @@ test('a project keeps its own colors apart from the shared ones and claims the w
   seen.appTheme = DARK_APP
 
   await ui.press({ key: 'project-colors' })
-  expect((await ui.find({ key: 'project-colors' }))?.text).toBe('dawnflight: shared colors')
+  expect((await ui.find({ key: 'project-colors' }))?.text).toBe('myapp: shared colors')
   expect(target()).toBe('#0a0e27')
   expect(files['/tmp/clubhouse-home/.claude/clubhouse-helper/front']).toBe('session-a')
 
@@ -1250,11 +1251,30 @@ test('a project keeps its own colors apart from the shared ones and claims the w
   expect(target()).toBe('#0a0e27')
 
   await ui.press({ key: 'project-colors' })
-  expect((await ui.find({ key: 'project-colors' }))?.text).toBe('dawnflight: its own colors')
+  expect((await ui.find({ key: 'project-colors' }))?.text).toBe('myapp: its own colors')
   await ui.press({ key: 'look-ivory' })
   await seen.clock.advance(30_000)
   expect(target()).toBe('#faf9f5')
   await ui.unmount()
+})
+
+test('"in the clubhouse" points Claude at the user\'s own copy and keeps changes local', async ($, on) => {
+  const seen = world(on, 50, { env: { CLAUDE_CODE_PLUGIN_DIRS: '/tmp/clubhouse-home/code/claude-clubhouse/clubhouse' } })
+  await start($)
+
+  expect(ownFolder('/a/b/other:/Users/me/claude-clubhouse/clubhouse/')).toBe('/Users/me/claude-clubhouse')
+  expect(ownFolder('/a/b/other')).toBeNull()
+  expect(ownFolder(undefined)).toBeNull()
+  expect(shortFolder('/Users/me/claude-clubhouse', '/Users/me')).toBe('~/claude-clubhouse')
+  expect(asksToChange('In the Clubhouse, make the meter blue')).toBe(true)
+  expect(asksToChange('what is a clubhouse sandwich')).toBe(false)
+
+  await $.prompt.submit({ text: 'fix the login bug' })
+  expect(seen.contexts.at(-1)).toEqual([])
+
+  await $.prompt.submit({ text: 'in the clubhouse, add a button' })
+  expect(seen.contexts.at(-1)?.[0]).toMatch(/Its code is in \/tmp\/clubhouse-home\/code\/claude-clubhouse;/)
+  expect(seen.contexts.at(-1)?.[0]).toMatch(/Do not push, open a pull request or publish a release unless the user asks/)
 })
 
 test('a heading is drawn wide enough for its letters', () => {
@@ -1506,7 +1526,7 @@ for (const surface of SURFACES) {
 
 test('a watch with a check command only wakes Claude when the command says something is wrong', async ($, on) => {
   const seen = world(on, 50, {
-    stored: { recipes: [{ name: 'bot_alive', about: '', command: 'pgrep -f botfort' }] },
+    stored: { recipes: [{ name: 'bot_alive', about: '', command: 'pgrep -f myserver' }] },
   })
   await start($)
   const ui = await $.ui.mount({
@@ -1520,14 +1540,14 @@ test('a watch with a check command only wakes Claude when the command says somet
   await ui.press({ key: 'watch-recipe-bot_alive' })
   await ui.press({ key: 'watch-start' })
   expect(
-    await ui.find({ type: 'Text', text: /Runs pgrep -f botfort every 30 minutes\. Wakes Claude when the command fails\./ }),
+    await ui.find({ type: 'Text', text: /Runs pgrep -f myserver every 30 minutes\. Wakes Claude when the command fails\./ }),
   ).toBeDefined()
 
   seen.output = '4242\n'
   await seen.clock.advance(HALF_HOUR)
-  expect(seen.launched.at(-1)).toBe('/bin/sh -c pgrep -f botfort')
+  expect(seen.launched.at(-1)).toBe('/bin/sh -c pgrep -f myserver')
   expect(seen.submitted).toEqual([])
-  expect(await ui.find({ type: 'Text', text: /Check 1 of 8 · pgrep -f botfort: all fine\./ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Check 1 of 8 · pgrep -f myserver: all fine\./ })).toBeDefined()
 
   seen.exitCode = 1
   seen.output = ''
@@ -1606,7 +1626,7 @@ test('a watch can be saved, started with one press in a later session, and delet
   const seen = world(on, 50, {
     stored: {
       savedWatches: [
-        { name: 'BOTfort check', task: 'Restart it', command: 'pgrep -f botfort', trigger: 'fails', isQuiet: false, everyMinutes: 15, maxChecks: 4 },
+        { name: 'Server check', task: 'Restart it', command: 'pgrep -f myserver', trigger: 'fails', isQuiet: false, everyMinutes: 15, maxChecks: 4 },
         { name: 'broken', task: 'x', command: '', everyMinutes: 7, maxChecks: 4 },
       ],
     },
@@ -1621,14 +1641,14 @@ test('a watch can be saved, started with one press in a later session, and delet
   })
 
   expect(await ui.find({ key: 'watch-saved-start-broken' })).toBeUndefined()
-  expect(await ui.find({ type: 'Text', text: /Runs pgrep -f botfort every 15 minutes\. Wakes Claude when the command fails\. 4 checks\./ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Runs pgrep -f myserver every 15 minutes\. Wakes Claude when the command fails\. 4 checks\./ })).toBeDefined()
 
-  await ui.press({ key: 'watch-saved-start-BOTfort check' })
+  await ui.press({ key: 'watch-saved-start-Server check' })
   expect(await ui.find({ key: `watch-now-${WATCH_ID}` })).toBeDefined()
   seen.exitCode = 1
   await seen.clock.advance(15 * 60_000)
   expect(seen.submitted[0]).toMatch(/Their instruction: Restart it/)
-  expect(await ui.find({ type: 'Text', text: /Check 1 of 4 · BOTfort check: the check command failed\. Woke Claude\./ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Check 1 of 4 · Server check: the check command failed\. Woke Claude\./ })).toBeDefined()
 
   await ui.input({ key: 'watch-name', text: 'Deploy watch' })
   await ui.input({ key: 'watch-task', text: 'Say whether the deploy finished' })
@@ -1638,8 +1658,8 @@ test('a watch can be saved, started with one press in a later session, and delet
   expect(await ui.find({ type: 'Text', text: /Wakes Claude every 60 minutes\. 8 checks\./ })).toBeDefined()
   expect(await ui.find({ key: 'watch-stop-watch-' + String(NOW + 15 * 60_000) })).toBeUndefined()
 
-  await ui.press({ key: 'watch-saved-delete-BOTfort check' })
-  expect(await ui.find({ key: 'watch-saved-start-BOTfort check' })).toBeUndefined()
+  await ui.press({ key: 'watch-saved-delete-Server check' })
+  expect(await ui.find({ key: 'watch-saved-start-Server check' })).toBeUndefined()
   await ui.unmount()
 })
 
