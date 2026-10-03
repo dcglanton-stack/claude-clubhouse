@@ -3,7 +3,6 @@ import type { EngineInterface, On } from 'claude-code'
 
 import type { AgentModel, Blueprint } from '../../types'
 import { agentStatus, agentSvg } from '../lib/clawd'
-import { inkOn } from '../lib/color'
 import {
   AGENTS_KEY,
   AGENT_MODELS,
@@ -13,6 +12,7 @@ import {
   MODEL_LABEL,
   agentSlug,
 } from '../lib/defaults'
+import { makeParts } from '../lib/parts'
 
 const agentBank = atom({ plugin: 'clubhouse', key: 'agentBank' } as const, [])
 const agentDesk = atom({ plugin: 'clubhouse', key: 'agentDesk' } as const, DEFAULT_AGENT_DESK)
@@ -223,6 +223,7 @@ export function agents(on: On): void {
 
   on('ui.render', { component: 'Pane', requestId: 'clubhouse-agents' }, async ($, e) => {
     const elements = $.ui.resolve(e)
+    const canDraw = e.surface !== 'terminal'
     const { Box, Button, Text } = elements
     const chosen = await read($, prefs)
     await read($, pulse)
@@ -235,24 +236,10 @@ export function agents(on: On): void {
       .filter(one => agentStatus(one.status) !== 'running')
       .slice(-PAST_SHOWN)
       .reverse()
-    const { accent, background, clawd } = chosen.palette
-    const ink = background === null ? {} : { color: inkOn(background) }
-    const frame = background === null ? {} : { backgroundColor: background, padding: 1 }
+    const { clawd } = chosen.palette
+    const { ink, frame, note, plain, title, card } = makeParts(elements, chosen.palette, e.surface)
     const target = bank.find(one => one.name === desk.target)
 
-    const note = (text: string) => (
-      <Text {...ink} dimColor wrap="wrap">
-        {text}
-      </Text>
-    )
-    const card = (title: string, body: unknown) => (
-      <Box flexDirection="column" borderStyle="round" borderColor={accent} paddingX={1}>
-        <Text bold color={accent}>
-          {title}
-        </Text>
-        {body}
-      </Box>
-    )
     const setDesk = (mode: 'idle' | 'form' | 'send', name: string | null) =>
       void update($, agentDesk, held => ({ ...held, mode, target: name, note: null }))
     const openForm = (one: Blueprint | null) => {
@@ -271,7 +258,7 @@ export function agents(on: On): void {
 
       return (
         <Box gap={1} alignItems="center">
-          {'Svg' in elements ? (
+          {canDraw && 'Svg' in elements ? (
             <elements.Svg
               source={agentSvg({ color: clawd, unit: ROW_UNIT, status })}
               alt={`Agent ${label}, ${STATUS_WORD[one.status] ?? one.status}`}
@@ -411,7 +398,7 @@ export function agents(on: On): void {
     return (
       <Box flexDirection="column" gap={1} {...frame}>
         <Box gap={1} alignItems="center">
-          {'Svg' in elements && (
+          {canDraw && 'Svg' in elements && (
             <elements.Svg
               source={agentSvg({ color: clawd, unit: HEAD_UNIT, status: 'running' })}
               alt="A Clawd agent in a suit and sunglasses"
@@ -419,9 +406,7 @@ export function agents(on: On): void {
               height={HEAD_HEIGHT}
             />
           )}
-          <Text {...ink} bold>
-            Agent HQ
-          </Text>
+          {title('Agent HQ')}
           {desk.mode === 'idle' && (
             <Button key="agent-new" label="+ New agent" variant="primary" onPress={() => openForm(null)} />
           )}
@@ -429,11 +414,7 @@ export function agents(on: On): void {
 
         {desk.mode === 'form' && form()}
         {desk.mode === 'send' && target !== undefined && send(target)}
-        {desk.note !== null && (
-          <Text {...ink} wrap="wrap">
-            {desk.note}
-          </Text>
-        )}
+        {desk.note !== null && plain(desk.note)}
 
         {card(`In the field (${working.length})`, [
           working.length === 0 && note('No agents out right now.'),

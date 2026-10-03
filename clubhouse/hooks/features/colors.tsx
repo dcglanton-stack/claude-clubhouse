@@ -4,8 +4,9 @@ import type { EngineInterface, On } from 'claude-code'
 import type { Palette, PaletteSlot, Prefs } from '../../types'
 import { COLORS_PANE, DEFAULT_COLORS_VIEW, DEFAULT_PALETTE, DEFAULT_PREFS, PREFS_KEY, isRecord } from '../lib/defaults'
 import { clawdSvg, wheelSvg } from '../lib/clawd'
-import { inkOn, isLight, mix, normalizeHex, rgbString, shift, toHsl } from '../lib/color'
+import { isLight, mix, normalizeHex, rgbString, shift, toHsl } from '../lib/color'
 import type { Hsl } from '../lib/color'
+import { makeParts } from '../lib/parts'
 
 const colorsView = atom({ plugin: 'clubhouse', key: 'colorsView' } as const, DEFAULT_COLORS_VIEW)
 const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS)
@@ -41,6 +42,26 @@ const PRESETS: readonly (readonly [string, string])[] = [
   ['Slate', '#3a4252'],
   ['Night', '#15171c'],
   ['Paper', '#f6f3ea'],
+]
+
+const ANTHROPIC: readonly (readonly [string, string])[] = [
+  ['Clay', '#d97757'],
+  ['Clay Deep', '#c6613f'],
+  ['Slate Dark', '#141413'],
+  ['Slate Medium', '#3d3d3a'],
+  ['Cloud Dark', '#87867f'],
+  ['Cloud Medium', '#b0aea5'],
+  ['Stone', '#cccbc8'],
+  ['Oat Warm', '#e3dacc'],
+  ['Manilla', '#f5e3c7'],
+  ['Ivory Medium', '#f0eee6'],
+  ['Ivory Light', '#faf9f5'],
+]
+
+const LOOKS: readonly (readonly [string, string, Palette])[] = [
+  ['look-ivory', 'Anthropic ivory', { accent: '#c6613f', clawd: '#d97757', background: '#faf9f5' }],
+  ['look-manilla', 'Anthropic manilla', { accent: '#c6613f', clawd: '#d97757', background: '#f5e3c7' }],
+  ['look-slate', 'Anthropic slate', { accent: '#d97757', clawd: '#d97757', background: '#141413' }],
 ]
 
 const NUDGES: readonly (readonly [string, string, Partial<Hsl>])[] = [
@@ -219,25 +240,13 @@ async function takeHex($: EngineInterface, slot: PaletteSlot, typed: string): Pr
 export function colors(on: On): void {
   on('ui.render', { component: 'Pane', requestId: 'clubhouse-colors' }, async ($, e) => {
     const elements = $.ui.resolve(e)
+    const canDraw = e.surface !== 'terminal'
     const { Box, Button, Text } = elements
     const chosen = await read($, prefs)
     const view = await read($, colorsView)
     const slot = view.slot
     const current = chosen.palette[slot] ?? BLANK_SLOT
-    const { accent, background } = chosen.palette
-    const ink = background === null ? {} : { color: inkOn(background) }
-    const frame = background === null ? {} : { backgroundColor: background, padding: 1 }
-
-    const heading = (title: string) => (
-      <Text bold color={accent}>
-        {title}
-      </Text>
-    )
-    const note = (text: string) => (
-      <Text {...ink} dimColor wrap="wrap">
-        {text}
-      </Text>
-    )
+    const { ink, frame, note, plain, title, heading } = makeParts(elements, chosen.palette, e.surface)
     const setSlot = (hex: string | null) =>
       void keep($, held => ({ ...held, palette: { ...held.palette, [slot]: hex } }))
     const nudge = (change: Partial<Hsl>) =>
@@ -248,6 +257,7 @@ export function colors(on: On): void {
 
     return (
       <Box flexDirection="column" gap={1} {...frame}>
+        {title('Colors')}
         {note(
           'Pick the colors of everything the Clubhouse draws. Choose what to color, then nudge it, pick a preset, type a hex code or describe a look. /clubhouse colors opens this.',
         )}
@@ -270,7 +280,7 @@ export function colors(on: On): void {
         ))}
 
         {heading(`Adjust ${slot}`)}
-        {'Svg' in elements && (
+        {canDraw && 'Svg' in elements && (
           <Box gap={2} alignItems="center">
             <elements.Svg
               source={wheelSvg({ hue: toHsl(current).hue, color: current, size: 110 })}
@@ -300,6 +310,26 @@ export function colors(on: On): void {
           {slot === 'background' && (
             <Button key="preset-none" label="None" onPress={() => setSlot(null)} />
           )}
+        </Box>
+
+        {heading('Anthropic colors')}
+        {note("The palette from Anthropic's own design: warm ivory and oat neutrals with one clay accent.")}
+        <Box gap={1} flexWrap="wrap">
+          {ANTHROPIC.map(([name, hex]) => (
+            <Button key={`anthropic-${name}`} label={name} onPress={() => setSlot(hex)} />
+          ))}
+        </Box>
+
+        {heading('Ready-made looks')}
+        {note('Sets all three colors at once.')}
+        <Box gap={1} flexWrap="wrap">
+          {LOOKS.map(([key, label, palette]) => (
+            <Button
+              key={key}
+              label={label}
+              onPress={() => void keep($, held => ({ ...held, palette }))}
+            />
+          ))}
         </Box>
 
         {'Input' in elements && (
@@ -337,11 +367,7 @@ export function colors(on: On): void {
             onPress={() => void keep($, held => ({ ...held, palette: DEFAULT_PALETTE }))}
           />
         </Box>
-        {view.note !== null && (
-          <Text {...ink} wrap="wrap">
-            {view.note}
-          </Text>
-        )}
+        {view.note !== null && plain(view.note)}
       </Box>
     )
   })

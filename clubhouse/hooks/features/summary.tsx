@@ -33,11 +33,11 @@ async function summarize($: EngineInterface): Promise<void> {
 export function summaryRoom(on: On): void {
   on('ui.render', { component: 'Pane', requestId: 'clubhouse-summary' }, async ($, e) => {
     const elements = $.ui.resolve(e)
-    const { Box, Button, Text } = elements
+    const { Box, Button } = elements
     const chosen = await read($, prefs)
     const made = await read($, summary)
     const answer = await read($, lastAnswer)
-    const { ink, frame, note, plain, card } = makeParts(elements, chosen.palette)
+    const { card, frame, note, plain, title } = makeParts(elements, chosen.palette, e.surface)
     const hasAnswer = answer.trim() !== ''
 
     const body = () => {
@@ -60,9 +60,7 @@ export function summaryRoom(on: On): void {
 
     return (
       <Box flexDirection="column" gap={1} {...frame}>
-        <Text {...ink} bold>
-          Summary
-        </Text>
+        {title('Summary')}
         <Box gap={1} flexWrap="wrap">
           <Button
             key="summary-run"

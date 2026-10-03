@@ -82,6 +82,7 @@ export function band(on: On): void {
     }
 
     const elements = $.ui.resolve(e)
+    const canDraw = e.surface !== 'terminal'
     const { Box, Button, Text } = elements
     const at = await read($, now)
     const list = await read($, limits)
@@ -104,7 +105,7 @@ export function band(on: On): void {
 
     const home = () => (
       <Box gap={1} alignItems="center" flexShrink={0}>
-        {'Svg' in elements && (
+        {canDraw && 'Svg' in elements && (
           <elements.Svg
             source={homeIconSvg({ size: BAR_HEIGHT, accent })}
             alt="Claude Clubhouse"
@@ -114,7 +115,7 @@ export function band(on: On): void {
         )}
         <Button
           key="home"
-          label={'Svg' in elements ? 'Clubhouse' : '⌂ Clubhouse'}
+          label={canDraw && 'Svg' in elements ? 'Clubhouse' : '⌂ Clubhouse'}
           onPress={openHome}
         />
       </Box>
@@ -149,7 +150,7 @@ export function band(on: On): void {
       return (
         <Box gap={1} alignItems="center" flexShrink={0}>
           {windowButton}
-          {'Svg' in elements ? (
+          {canDraw && 'Svg' in elements ? (
             <elements.Svg
               source={meterSvg({
                 left,
