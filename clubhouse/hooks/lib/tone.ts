@@ -1,4 +1,4 @@
-import { contrast, fromHsl, luminance, mix, normalizeHex, toHex, toRgb } from './color'
+import { contrast, fromHsl, luminance, mix, normalizeHex, toHex, toHsl, toRgb } from './color'
 
 export type Triple = readonly [number, number, number]
 export type Stage = readonly number[]
@@ -27,7 +27,7 @@ const DARK_APP = {
   sidebar: { surface: 17 / LEVELS, panel: 28 / LEVELS },
 } as const
 const TEXT_LIFT = { from: 62 / LEVELS, full: 110 / LEVELS } as const
-const DEEPER = { from: 0.03, step: 23 / LEVELS, shade: 0.35, gain: 9 } as const
+const PANELS = { deeperFrom: 0.03, step: 23 / LEVELS, gain: 9, deeper: 0.35, lighter: 16 } as const
 const OWN_COLOR = { from: 0.12, full: 0.25 } as const
 const CHANNEL_PAIRS: readonly Triple[] = [
   [1, -1, 0],
@@ -122,7 +122,7 @@ function ramp(from: number, full: number): readonly [Triple, number, number] {
 }
 
 function sunk(surface: number, panel: number): Stage {
-  return stageOf(channel => [own(channel), -DEEPER.step], ramp(surface, panel))
+  return stageOf(channel => [own(channel), -PANELS.step], ramp(surface, panel))
 }
 
 function lifted(from: number, full: number): Stage {
@@ -144,7 +144,7 @@ function shaded(target: Triple, toInk: Triple, shade: Triple): Stage {
 
   return stageOf(
     channel => [NO_CHANNELS, shade[channel]],
-    [each(source => (-DEEPER.gain * toInk[source]) / length), 0, (DEEPER.gain * dot(target, toInk)) / length],
+    [each(source => (-PANELS.gain * toInk[source]) / length), 0, (PANELS.gain * dot(target, toInk)) / length],
   )
 }
 
@@ -173,21 +173,29 @@ function lightAppStages(target: Triple, toInk: Triple): Stage[] {
 }
 
 export function deepens({ target, ink, isLightApp }: ToneSpec): boolean {
-  return !isLightApp && luminance(ink) > luminance(target) && luminance(target) >= DEEPER.from
+  return !isLightApp && luminance(ink) > luminance(target) && luminance(target) >= PANELS.deeperFrom
 }
 
-function darkAppStages(spec: ToneSpec, zone: Zone, isDeeper: boolean): Stage[] {
+function panelShade(spec: ToneSpec, surface: string): string | null {
+  if (luminance(spec.ink) <= luminance(spec.target)) return null
+  if (deepens(spec)) return mix(surface, '#000000', PANELS.deeper)
+  const { hue, saturation, lightness } = toHsl(surface)
+
+  return fromHsl({ hue, saturation, lightness: lightness + PANELS.lighter })
+}
+
+function darkAppStages(spec: ToneSpec, zone: Zone, shade: string | null): Stage[] {
   const target = toDisplay(spec.target)
   const shownInk = toDisplay(spec.ink)
   const toInk = each(channel => shownInk[channel] - target[channel])
   const { surface, panel } = DARK_APP[zone]
-  const step = isDeeper ? DEEPER.step : 0
+  const step = shade === null ? 0 : PANELS.step
 
   return [
-    ...(isDeeper ? [sunk(surface, panel)] : []),
+    ...(shade === null ? [] : [sunk(surface, panel)]),
     lifted(TEXT_LIFT.from - step, TEXT_LIFT.full - step),
     remapped(target, toInk, surface, 1 / (1 - surface)),
-    ...(isDeeper ? [shaded(target, toInk, toDisplay(mix(spec.target, '#000000', DEEPER.shade)))] : []),
+    ...(shade === null ? [] : [shaded(target, toInk, toDisplay(shade))]),
   ]
 }
 
@@ -206,8 +214,8 @@ export function helperStages(
   return spec.isLightApp
     ? null
     : {
-        stages: darkAppStages(spec, 'session', deepens(spec)),
-        sidebarStages: darkAppStages({ ...spec, target: sidebar }, 'sidebar', deepens(spec)),
+        stages: darkAppStages(spec, 'session', panelShade(spec, spec.target)),
+        sidebarStages: darkAppStages({ ...spec, target: sidebar }, 'sidebar', panelShade(spec, sidebar)),
         kept: keptStages(),
       }
 }
@@ -247,7 +255,9 @@ export function toneFor(spec: ToneSpec): Tone {
   const target = toDisplay(spec.target)
   const shownInk = toDisplay(spec.ink)
   const toInk = each(channel => shownInk[channel] - target[channel])
-  const stages = spec.isLightApp ? lightAppStages(target, toInk) : darkAppStages(spec, 'session', deepens(spec))
+  const stages = spec.isLightApp
+    ? lightAppStages(target, toInk)
+    : darkAppStages(spec, 'session', panelShade(spec, spec.target))
 
   return {
     target,
@@ -281,14 +291,19 @@ function levelFor(tone: Tone, amount: number): number {
   for (let level = first; level >= 0 && level <= LEVELS; level += stride) {
     const here = tone.places[level]!
 
-    if (here > amount) continue
+    if (here > amount + SHORTEST_AXIS) continue
     if (level === first) return level / LEVELS
     const before = tone.places[level - stride]!
 
-    return (level - stride * ((amount - here) / Math.max(before - here, SHORTEST_AXIS))) / LEVELS
+    return (level - stride * bound((amount - here) / Math.max(before - here, SHORTEST_AXIS))) / LEVELS
   }
 
-  return (LEVELS - first) / LEVELS
+  const nearest = tone.places.reduce(
+    (best, place, level) => (Math.abs(place - amount) < Math.abs(tone.places[best]! - amount) ? level : best),
+    0,
+  )
+
+  return nearest / LEVELS
 }
 
 export function shownFrom(tone: Tone, pixel: Triple): Triple {
