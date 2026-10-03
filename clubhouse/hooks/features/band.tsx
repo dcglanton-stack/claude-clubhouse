@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, On } from 'claude-code'
 
-import type { BarItemId, BarZone, Prefs, Shortcut } from '../../types'
+import type { BarItemId, BarZone, Prefs, Quote, Shortcut } from '../../types'
 import { meterSvg, moodFor, moodName } from '../lib/clawd'
 import { rampColor } from '../lib/color'
 import {
@@ -25,10 +25,14 @@ import {
 import { homeIconSvg } from '../lib/icon'
 import { makeParts } from '../lib/parts'
 import { summaryOf, summaryRequest } from '../lib/summary'
+import { DEFAULT_TICKER, DOWN_COLOR, UP_COLOR, changeText, priceText } from '../lib/ticker'
+import { clearOn, drawnFor } from '../lib/tone'
 import { TIDY_MIN_CHARS, tidyRequest } from '../lib/tidy'
 
 const contextPercent = atom({ plugin: 'clubhouse', key: 'contextPercent' } as const, null)
 const contextSize = atom({ plugin: 'clubhouse', key: 'contextSize' } as const, null)
+const ticker = atom({ plugin: 'clubhouse', key: 'ticker' } as const, DEFAULT_TICKER)
+const quotes = atom({ plugin: 'clubhouse', key: 'quotes' } as const, {})
 const lastReplyAt = atom({ plugin: 'clubhouse', key: 'lastReplyAt' } as const, null)
 const limits = atom({ plugin: 'clubhouse', key: 'limits' } as const, [])
 const now = atom({ plugin: 'clubhouse', key: 'now' } as const, 0)
@@ -147,6 +151,8 @@ export function band(on: On): void {
     const list = await read($, limits)
     const context = await read($, contextPercent)
     const size = await read($, contextSize)
+    const plan = await read($, ticker)
+    const prices: { [symbol: string]: Quote } = await read($, quotes)
     const made = await read($, receipt)
     const last = await read($, lastReplyAt)
     const limit = list.find(one => one.kind === chosen.window)
@@ -244,6 +250,32 @@ export function band(on: On): void {
 
       if (id === 'tidy') {
         return <Button key="tidy" label="Tidy" onPress={() => void tidy($)} />
+      }
+
+      if (id === 'ticker') {
+        const quote = plan.symbol === null ? undefined : prices[plan.symbol]
+
+        if (plan.symbol === null || quote === undefined) {
+          return (
+            <Text {...ink} dimColor wrap="truncate">
+              {plan.symbol === null ? 'ticker: pick one in the Clubhouse' : `${plan.symbol} …`}
+            </Text>
+          )
+        }
+
+        const isUp = (quote.changePercent ?? 0) >= 0
+        const wanted = isUp ? UP_COLOR : DOWN_COLOR
+        const shown = look.tone === null ? wanted : drawnFor(look.tone, clearOn(look.tone, wanted, 3))
+
+        return (
+          <Box gap={1} flexShrink={0}>
+            <Text {...ink} bold>
+              {quote.symbol}
+            </Text>
+            <Text {...ink}>{priceText(quote.price)}</Text>
+            <Text {...(plan.isColored ? { color: shown } : ink)}>{changeText(quote.changePercent)}</Text>
+          </Box>
+        )
       }
 
       if (id === 'cache') {

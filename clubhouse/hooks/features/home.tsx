@@ -31,7 +31,6 @@ const TABS: readonly (readonly [HomeTab, string])[] = [
 ]
 
 const PLANNED: readonly (readonly [string, string])[] = [
-  ['Ticker', 'A stock or coin on the toolbar: symbol, price and the day\'s change.'],
   ['Live sports', 'One game\'s score and clock on the toolbar, picked from a room of games.'],
   ['Draw it', 'A blank pad to sketch what you want instead of describing it.'],
   ['Prompt check', 'Flags a prompt that may be misread and suggests clearer wording.'],

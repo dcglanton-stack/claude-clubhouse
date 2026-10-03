@@ -12,7 +12,7 @@ export type ColorPreset = { name: string; palette: Palette }
 
 export type ContextSize = { tokens: number; window: number }
 
-export type BarItemId = 'home' | 'meter' | 'summary' | 'tidy' | 'cache' | 'context' | 'receipt'
+export type BarItemId = 'home' | 'meter' | 'summary' | 'tidy' | 'cache' | 'context' | 'receipt' | 'ticker'
 
 export type BarZone = 'left' | 'center' | 'right'
 
@@ -26,6 +26,7 @@ export type BarLayout = {
   cache: BarSpot
   context: BarSpot
   receipt: BarSpot
+  ticker: BarSpot
 }
 
 export type Shortcut = { id: string; label: string; text: string; spot: BarSpot }
@@ -99,6 +100,14 @@ export type SessionNote = { id: string; text: string; folder: string | null; kee
 
 export type NotesView = { note: string | null; where: 'folder' | 'anywhere'; keep: 'once' | 'always' }
 
+export type Quote = { symbol: string; name: string; price: number; changePercent: number | null; at: number }
+
+export type TickerHit = { symbol: string; name: string; kind: string }
+
+export type TickerPlan = { symbol: string | null; favorites: string[]; isColored: boolean }
+
+export type TickerView = { note: string | null; hits: TickerHit[] }
+
 export type WatchTrigger = 'fails' | 'stalls' | 'changes' | 'always'
 
 export type SavedWatch = {
@@ -168,6 +177,9 @@ declare module 'claude-code' {
       colorsView: ColorsView
       colorPresets: ColorPreset[]
       toolbarPresets: ToolbarPreset[]
+      ticker: TickerPlan
+      quotes: { [symbol: string]: Quote }
+      tickerView: TickerView
       commandStats: CommandStats
       commandsView: CommandsView
       hiddenCommands: string[]
