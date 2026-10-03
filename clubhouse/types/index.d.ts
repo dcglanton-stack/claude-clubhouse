@@ -93,6 +93,7 @@ export type ColorsView = {
   isAdvancedOpen: boolean
   helperNote?: string | null
   isBuilding?: boolean
+  isWhyOpen?: boolean
 }
 
 export type CommandStat = { count: number; lastAt: number }
