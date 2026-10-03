@@ -77,6 +77,10 @@ A Claude Code function-hooks plugin (a "mod"). The plugin is the `clubhouse/` fo
 - The exact repaint of the app itself is the user's own Developer Mode route under Advanced in Colors (`lib/windowTint.ts`); keep that snippet to one style rule.
 - No unnecessary comments.
 
+## Building the helper
+
+Nothing builds the helper on its own. The Colors room has a Build the helper button (`buildHelper` in `colors.tsx`, messages in `lib/build.ts`): it finds the user's copy from `CLAUDE_CODE_PLUGIN_DIRS`, checks for the compiler with `xcrun --find swiftc`, runs `helper/build.sh` (up to four minutes), stops a running helper so the new one starts, and reports the result under the button.
+
 ## Whose copy this is
 
 The repository is public and every user works in a clone. Check `git remote get-url origin` before anything that leaves the machine. If origin is not the user's own repository (they cloned someone else's), commit locally and stop there: do not push, tag, open a pull request or run a release unless they ask, and then only to their own fork. The Release section below is for the owner of origin. When the user's prompt says "in the clubhouse", the one `prompt.submit` hook adds a context line naming this folder and that rule (`lib/own.ts`).

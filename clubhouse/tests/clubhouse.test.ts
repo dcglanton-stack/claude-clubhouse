@@ -802,7 +802,8 @@ test('without the helper the background paints the rooms and every conversation 
     })
 
   expect(await shown(reply)).toBe(native)
-  expect(await ui.find({ type: 'Text', text: /is not installed on this Mac/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /is not built on this Mac yet/ })).toBeDefined()
+  expect((await ui.find({ key: 'build-helper' }))?.text).toBe('Build the helper')
 
   await ui.press({ key: 'look-slate' })
   for (const drawing of [mine, reply, toolRow]) {
@@ -1275,6 +1276,59 @@ test('"in the clubhouse" points Claude at the user\'s own copy and keeps changes
   await $.prompt.submit({ text: 'in the clubhouse, add a button' })
   expect(seen.contexts.at(-1)?.[0]).toMatch(/Its code is in \/tmp\/clubhouse-home\/code\/claude-clubhouse;/)
   expect(seen.contexts.at(-1)?.[0]).toMatch(/Do not push, open a pull request or publish a release unless the user asks/)
+})
+
+test('Build the helper builds it from the Colors room, and says what is missing when it cannot', async ($, on) => {
+  const seen = world(on, 50, { env: { CLAUDE_CODE_PLUGIN_DIRS: '/tmp/clubhouse-home/claude-clubhouse/clubhouse' } })
+  await start($)
+  const ui = await $.ui.mount({
+    plugin: 'clubhouse',
+    surface: 'desktop',
+    component: 'Pane',
+    requestId: 'clubhouse-colors',
+    props: { ...PANE, title: 'Colors' },
+  })
+  const build = '/bin/sh /tmp/clubhouse-home/claude-clubhouse/helper/build.sh'
+
+  seen.replies = { '/usr/bin/xcrun --find swiftc': { stdout: '', exitCode: 1 } }
+  await ui.press({ key: 'build-helper' })
+  expect(await ui.find({ type: 'Text', text: /xcode-select --install/ })).toBeDefined()
+  expect(seen.launched).not.toContain(build)
+
+  seen.replies = {
+    '/usr/bin/xcrun --find swiftc': { stdout: '/usr/bin/swiftc\n', exitCode: 0 },
+    [build]: { stdout: 'WindowTint.swift:12: error: something broke\n', exitCode: 1 },
+  }
+  await ui.press({ key: 'build-helper' })
+  expect(await ui.find({ type: 'Text', text: /did not build\. The build said: WindowTint\.swift:12: error: something broke/ })).toBeDefined()
+  expect((await ui.find({ key: 'build-helper' }))?.text).toBe('Build the helper')
+
+  seen.replies = {
+    '/usr/bin/xcrun --find swiftc': { stdout: '/usr/bin/swiftc\n', exitCode: 0 },
+    [build]: { stdout: 'Built window-tint\n', exitCode: 0 },
+  }
+  await ui.press({ key: 'build-helper' })
+  expect(seen.launched).toContain(build)
+  expect(seen.launched).toContain('/usr/bin/pkill -x window-tint')
+  expect(await ui.find({ type: 'Text', text: /The helper is built/ })).toBeDefined()
+  expect((await ui.find({ key: 'build-helper' }))?.text).toBe('Rebuild the helper')
+  await ui.unmount()
+})
+
+test('without a known folder the build button says how to build by hand', async ($, on) => {
+  world(on, 50)
+  await start($)
+  const ui = await $.ui.mount({
+    plugin: 'clubhouse',
+    surface: 'desktop',
+    component: 'Pane',
+    requestId: 'clubhouse-colors',
+    props: { ...PANE, title: 'Colors' },
+  })
+
+  await ui.press({ key: 'build-helper' })
+  expect(await ui.find({ type: 'Text', text: /Run helper\/build\.sh from that folder/ })).toBeDefined()
+  await ui.unmount()
 })
 
 test('a heading is drawn wide enough for its letters', () => {
