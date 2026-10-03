@@ -67,6 +67,7 @@ const TEXT_CELLS = 16
 const COLUMNS_FOR_WIDE_METER = 110
 const COLUMNS_FOR_DETAILS = 150
 const FRAME_CELLS = 4
+const AGI_QUESTION = 'Is this AGI?'
 
 async function keep($: EngineInterface, change: (held: Prefs) => Prefs): Promise<void> {
   await update($, prefs, change)
@@ -168,6 +169,10 @@ async function offer($: EngineInterface, text: string): Promise<void> {
   } catch {
     $.ui.toast('Could not reach the prompt box.')
   }
+}
+
+async function ask($: EngineInterface, text: string): Promise<void> {
+  await $.prompt.submit({ text }).catch(() => $.ui.toast('Could not send that. Type it in the prompt box instead.'))
 }
 
 export function band(on: On): void {
@@ -337,6 +342,10 @@ export function band(on: On): void {
 
       if (id === 'draw') {
         return <Button key="draw" label="Draw it" onPress={() => void drawIt($)} />
+      }
+
+      if (id === 'agi') {
+        return <Button key="agi" label={AGI_QUESTION} onPress={() => void ask($, AGI_QUESTION)} />
       }
 
       if (id === 'sports') {

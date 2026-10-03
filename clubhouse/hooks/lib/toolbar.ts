@@ -20,6 +20,7 @@ export const ITEM_SIZE: Record<BarItemId, number> = {
   sports: 5,
   draw: 2,
   weather: 3,
+  agi: 2,
 }
 
 const LETTERS_PER_UNIT = 8

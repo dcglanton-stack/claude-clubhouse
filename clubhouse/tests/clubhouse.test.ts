@@ -844,7 +844,7 @@ test('with the helper the whole app takes the color and the Clubhouse paints not
   expect(seen.launched).toEqual([])
 
   await ui.press({ key: 'look-slate' })
-  expect(config()).toEqual({ enabled: true, target: '#141413', ink: '#faf9f5', radius: 18, isLightApp: false, boost: 1.9, coverSidebar: false, sidebar: expect.any(String) })
+  expect(config()).toEqual({ enabled: true, target: '#141413', ink: '#faf9f5', radius: 18, isLightApp: false, boost: 1.9, coverSidebar: false, sidebar: expect.any(String), stages: expect.any(Array), sidebarStages: expect.any(Array), kept: expect.any(Array) })
   expect(seen.launched).toHaveLength(1)
   expect(seen.launched[0]).toMatch(/clubhouse-helper\/window-tint/)
   expect(await painted(ui)).toBe(false)
@@ -863,7 +863,7 @@ test('with the helper the whole app takes the color and the Clubhouse paints not
   expect(await ui.find({ type: 'Text', text: /swaps light and dark/ })).toBeUndefined()
 
   await ui.press({ key: 'look-ivory' })
-  expect(config()).toEqual({ enabled: true, target: '#faf9f5', ink: '#141413', radius: 18, isLightApp: false, boost: 1.9, coverSidebar: false, sidebar: expect.any(String) })
+  expect(config()).toEqual({ enabled: true, target: '#faf9f5', ink: '#141413', radius: 18, isLightApp: false, boost: 1.9, coverSidebar: false, sidebar: expect.any(String), stages: expect.any(Array), sidebarStages: expect.any(Array), kept: expect.any(Array) })
   expect(await ui.find({ type: 'Text', text: /This is a light color on a dark app/ })).toBeDefined()
   expect(await painted(ui)).toBe(false)
   await ui.press({ key: 'look-slate' })
@@ -1098,21 +1098,37 @@ test('colors the Clubhouse draws land where they are wanted under the helper', (
   const levels = (...channels: number[]) => channels.map(channel => channel / 255)
   const isNear = (one: readonly number[], other: readonly number[], slack: number) =>
     one.every((level, at) => Math.abs(level - (other[at] ?? 0)) * 255 <= slack)
-  const measured = toneFor({ target: '#faf9f5', ink: '#161616', isLightApp: false })
   const grey = (level: number) => [level / 255, level / 255, level / 255] as const
+  const navy = toneFor({ target: '#0a0e27', ink: '#faf9f5', isLightApp: false })
+  const blue = toneFor({ target: '#2563eb', ink: '#faf9f5', isLightApp: false })
+  const cream = toneFor({ target: '#f3ead8', ink: '#141413', isLightApp: false })
 
   expect(isNear(toDisplay('#151b27'), levels(22, 27, 38), 1)).toBe(true)
-  expect(isNear(shownFrom(measured, [137 / 255, 135 / 255, 130 / 255]), levels(40, 39, 34), 2)).toBe(true)
-  expect(isNear(shownFrom(measured, grey(54)), levels(195, 194, 191), 2)).toBe(true)
-  expect(isNear(shownFrom(measured, grey(33)), toDisplay('#faf9f5'), 0.5)).toBe(true)
-  expect(isNear(shownFrom(measured, grey(21)), toDisplay('#faf9f5'), 0.5)).toBe(true)
+  expect(isNear(shownFrom(navy, grey(21)), levels(11, 14, 37), 2)).toBe(true)
+  expect(isNear(shownFrom(navy, levels(26, 26, 25)), levels(16, 19, 41), 2)).toBe(true)
+  expect(isNear(shownFrom(navy, grey(33)), levels(23, 26, 48), 2)).toBe(true)
+  expect(isNear(shownFrom(navy, grey(55)), levels(46, 48, 68), 2)).toBe(true)
+  expect(isNear(shownFrom(navy, levels(195, 194, 184)), levels(250, 249, 237), 2)).toBe(true)
+  expect(isNear(shownFrom(navy, levels(249, 217, 73)), levels(249, 217, 73), 2)).toBe(true)
+  expect(isNear(shownFrom(blue, grey(21)), levels(54, 98, 227), 2)).toBe(true)
+  expect(isNear(shownFrom(blue, levels(26, 26, 25)), levels(45, 87, 208), 2)).toBe(true)
+  expect(isNear(shownFrom(blue, grey(33)), levels(40, 79, 193), 2)).toBe(true)
+  expect(isNear(shownFrom(blue, grey(55)), levels(64, 105, 228), 2)).toBe(true)
+  expect(isNear(shownFrom(blue, levels(239, 137, 51)), levels(239, 137, 51), 2)).toBe(true)
+  expect(isNear(shownFrom(cream, grey(21)), levels(241, 234, 218), 2)).toBe(true)
+  expect(isNear(shownFrom(cream, grey(33)), levels(230, 223, 208), 2)).toBe(true)
+  expect(isNear(shownFrom(cream, grey(55)), levels(209, 203, 189), 2)).toBe(true)
+  expect(isNear(shownFrom(cream, levels(195, 194, 184)), levels(21, 21, 11), 2)).toBe(true)
 
-  for (const target of ['#0d243d', '#141413', '#faf9f5', '#f5e3c7']) {
-    const tone = toneFor({ target, ink: target === '#0d243d' || target === '#141413' ? '#faf9f5' : '#141413', isLightApp: false })
+  for (const target of ['#0d243d', '#141413', '#faf9f5', '#f5e3c7', '#2563eb', '#7c3aed', '#c2185b']) {
+    const tone = toneFor({ target, ink: target === '#faf9f5' || target === '#f5e3c7' ? '#141413' : '#faf9f5', isLightApp: false })
 
     for (const wanted of ['#d97757', '#e8743b', '#1e8449', '#2f7fd1']) {
       expect(isNear(shownFrom(tone, pixelFor(tone, wanted)), toDisplay(wanted), 3)).toBe(true)
     }
+
+    expect(isNear(shownFrom(tone, pixelFor(tone, tone.inkHex)), toDisplay(tone.inkHex), 3)).toBe(true)
+    expect(isNear(shownFrom(tone, pixelFor(tone, target)), toDisplay(target), 3)).toBe(true)
   }
 
   const lightApp = toneFor({ target: '#faf9f5', ink: '#141413', isLightApp: true })
@@ -1239,7 +1255,7 @@ test('under the helper pictures are redrawn for the screen and your own prompts 
   expect(await shown(bar)).toMatch(/display-p3/)
   expect(await shown(ui)).toMatch(/display-p3/)
   expect(await shown(mine)).toMatch(
-    /^\{"type":"Box","props":\{"flexDirection":"column","alignItems":"flex-end"\},"children":\[\{"type":"Box","props":\{"borderStyle":"round","borderColor":"#[0-9a-f]{6}","paddingX":1\}/,
+    /^\{"type":"Box","props":\{"flexDirection":"column","alignItems":"flex-end"\},"children":\[\{"type":"Box","props":\{"borderStyle":"round","borderColor":"#[0-9a-f]{6}"\}/,
   )
   expect(await shown(notice)).toBe(native)
   expect(await shown(reply)).toBe(native)
@@ -1852,6 +1868,18 @@ test('Draw it opens the sketch pad and puts the sketch into the prompt box', asy
   await bar.press({ key: 'draw' })
   expect(seen.filled.at(-1)).toBe('Make the header\nI drew what I want. Look at my sketch at /tmp/sketch-1.png and ')
   expect(seen.toasts.at(-1)).toMatch(/Your sketch is in the prompt box/)
+  await bar.unmount()
+})
+
+test('the Is this AGI? button sends that question', async ($, on) => {
+  const shown = { prefs: { bar: { agi: { isShown: true, row: 1, zone: 'left' } } } }
+  const seen = world(on, 50, { stored: shown })
+  await start($)
+  const bar = await $.ui.mount({ plugin: 'clubhouse', surface: 'desktop', component: 'AbovePrompt', props: BAND })
+
+  expect(seen.submitted).toEqual([])
+  await bar.press({ key: 'agi' })
+  expect(seen.submitted).toEqual(['Is this AGI?'])
   await bar.unmount()
 })
 
