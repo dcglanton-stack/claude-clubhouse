@@ -497,7 +497,7 @@ export function colors(on: On): void {
           )}
         {note(
           !chosen.isHelperReady
-            ? 'The helper that colors the whole window is not built on this Mac yet, so the Background only colors the Clubhouse and the conversation rows. Press Build the helper: it takes about a minute and you only do it once.'
+            ? 'The helper that colors the whole window is not built on this Mac yet, so the Background only colors the Clubhouse and the conversation rows. Press Build the helper: it takes under a minute and you only do it once.'
             : 'Your Background is the color of the whole session: the conversation, the toolbar, the text box and the Clubhouse rooms. These colors are the same in every session, unless a project keeps its own.',
         )}
         <Box gap={1} flexWrap="wrap">
@@ -507,9 +507,14 @@ export function colors(on: On): void {
             variant={chosen.isHelperReady ? 'secondary' : 'primary'}
             onPress={() => void buildHelper($)}
           />
+          <Button
+            key="build-why"
+            label={view.isWhyOpen === true ? '▾ Why is this needed?' : '▸ Why is this needed?'}
+            onPress={() => void update($, colorsView, held => ({ ...held, isWhyOpen: held.isWhyOpen !== true }))}
+          />
         </Box>
         {(view.helperNote ?? null) !== null && plain(view.helperNote ?? '')}
-        {note(BUILD_WHY)}
+        {view.isWhyOpen === true && note(BUILD_WHY)}
         {chosen.isHelperReady && note(BUILD_AGAIN)}
         {swapsLightAndDark(chosen) &&
           note(

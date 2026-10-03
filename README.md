@@ -28,7 +28,7 @@ git clone https://github.com/dcglanton-stack/claude-clubhouse.git ~/claude-clubh
 
 3. Start a new session. The toolbar is there above the prompt; click the house or type `/clubhouse` for the home screen. Sessions that were already open pick it up after you quit and reopen the app.
 
-4. For the whole-window color and the sketch pad (macOS only), open Colors and press **Build the helper**. It builds two small programs in about a minute and you only do it once (again after an update, with **Rebuild the helper**). It needs Apple's command line tools; if they are missing the button says so, and `xcode-select --install` in Terminal gets them. You can also build by hand:
+4. For the whole-window color and the sketch pad (macOS only), open Colors and press **Build the helper**. It builds two small programs in under a minute and you only do it once (again after an update, with **Rebuild the helper**). It needs Apple's command line tools; if they are missing the button says so, and `xcode-select --install` in Terminal gets them. You can also build by hand:
 
 ```bash
 ~/claude-clubhouse/helper/build.sh
