@@ -139,7 +139,7 @@ This is the full list of what the mod runs, fetches, writes, reads and sends. Th
 | `~/.claude/clubhouse-helper/draw-pad` | The sketch pad, when you press Draw it. |
 | `/bin/sh helper/build.sh` | When you press Build the helper or type `/clubhouse build`. Compiles the two programs above with `swiftc`. |
 | `plutil` and `defaults`, through `/bin/sh -c` | Read whether the Claude app and macOS are in light or dark mode. |
-| `curl`, through `/bin/sh -c` | Downloads a team's logo picture from `a.espncdn.com`, because a mod's own fetch returns text only. |
+| `curl` | Saves a team's logo picture from `a.espncdn.com` into the logos folder, because a mod's own fetch returns text only. The picture is only drawn, never run. |
 | `pbcopy` | When you press a Copy button. |
 | `/bin/rm -f` | Deletes a sketch file after the prompt that used it has been answered. |
 | `git`, `gh release create` | Only when you type `/ship`, and only after you confirm. |
