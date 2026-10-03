@@ -8,11 +8,14 @@ export type OpinionReply =
   | null
 
 export const DEFAULT_QUESTION = 'Is this session on the right track, and what would you do differently?'
-export const OPINION_MODELS: readonly OpinionModel[] = ['haiku', 'sonnet', 'opus']
+export const OPINION_MODELS: readonly OpinionModel[] = ['haiku', 'sonnet', 'opus', 'fable']
+export const FALLBACK_MODEL: OpinionModel = 'opus'
+export const FALLBACK_NOTE = 'Fable was not available, so Opus answered.'
 export const OPINION_MODEL_LABEL: Record<OpinionModel, string> = {
   haiku: 'Haiku',
   sonnet: 'Sonnet',
   opus: 'Opus',
+  fable: 'Fable',
 }
 export const IDLE_OPINION: Opinion = { status: 'idle', text: '', source: null }
 

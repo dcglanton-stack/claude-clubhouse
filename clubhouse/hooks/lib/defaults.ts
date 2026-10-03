@@ -77,11 +77,12 @@ export const AGENTS_KEY = 'agents'
 export const AGENT_PREFIX = 'clubhouse:'
 export const DEFAULT_AGENT_DESK: AgentDesk = { mode: 'idle', target: null, note: null, dismissed: [] }
 
-export const AGENT_MODELS: readonly AgentModel[] = ['haiku', 'sonnet', 'opus', 'inherit']
+export const AGENT_MODELS: readonly AgentModel[] = ['haiku', 'sonnet', 'opus', 'fable', 'inherit']
 export const MODEL_LABEL: Record<AgentModel, string> = {
   haiku: 'Haiku (fast, cheapest)',
   sonnet: 'Sonnet (balanced)',
-  opus: 'Opus (strongest)',
+  opus: 'Opus (strong)',
+  fable: 'Fable (most capable; Opus steps in if you cannot use it)',
   inherit: 'Same as this session',
 }
 
@@ -255,7 +256,10 @@ export function mergePrefs(saved: unknown): Prefs {
     appMode: saved.appMode === 'light' ? 'light' : 'dark',
     reach: 'app',
     isHelperReady: saved.isHelperReady === true,
-    opinionModel: saved.opinionModel === 'haiku' || saved.opinionModel === 'opus' ? saved.opinionModel : 'sonnet',
+    opinionModel:
+      saved.opinionModel === 'haiku' || saved.opinionModel === 'opus' || saved.opinionModel === 'fable'
+        ? saved.opinionModel
+        : 'sonnet',
     palette: { ...DEFAULT_PALETTE, ...palette, text: null } as Palette,
     previousTheme: typeof saved.previousTheme === 'string' ? saved.previousTheme : null,
   }

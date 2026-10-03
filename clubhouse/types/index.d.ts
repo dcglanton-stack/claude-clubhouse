@@ -36,7 +36,7 @@ export type Summary = {
   sourceChars: number
 }
 
-export type OpinionModel = 'haiku' | 'sonnet' | 'opus'
+export type OpinionModel = 'haiku' | 'sonnet' | 'opus' | 'fable'
 
 export type Opinion = {
   status: 'idle' | 'working' | 'ready' | 'failed'
@@ -135,7 +135,7 @@ export type WatchView = {
   isQuiet: boolean
 }
 
-export type AgentModel = 'haiku' | 'sonnet' | 'opus' | 'inherit'
+export type AgentModel = 'haiku' | 'sonnet' | 'opus' | 'fable' | 'inherit'
 
 export type Blueprint = {
   name: string

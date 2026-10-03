@@ -155,11 +155,26 @@ async function dispatch($: EngineInterface, name: string): Promise<void> {
 
   try {
     ownDispatches += 1
-    const started = await $.agent
-      .spawn({
+    const send = () =>
+      $.agent.spawn({
         subagentType: `${AGENT_PREFIX}${name}`,
         prompt: orders,
         description: `${name}: ${orders.slice(0, 48)}`,
+      })
+    const started = await send()
+      .then(
+        first => (held.model === 'fable' && first.deny !== undefined ? null : first),
+        error => {
+          if (held.model === 'fable') return null
+          throw error
+        },
+      )
+      .then(async first => {
+        if (first !== null) return first
+        await $.agent.register(spec({ ...held, model: 'opus' }))
+        await tell($, `Fable was not available, so ${name} runs on Opus this time.`)
+
+        return send()
       })
       .finally(() => {
         ownDispatches -= 1
