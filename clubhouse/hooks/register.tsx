@@ -46,7 +46,17 @@ import {
 } from './lib/defaults'
 import { percentLeft } from './lib/format'
 import { RECIPES_KEY, asRecipes, toolSpecOf } from './lib/recipes'
-import { WATCH_COMMAND_MS, WATCH_POLL_MS, claimed, dueWatches, settled, stepOf, withEntry } from './lib/watch'
+import {
+  SAVED_WATCHES_KEY,
+  WATCH_COMMAND_MS,
+  WATCH_POLL_MS,
+  asSavedWatches,
+  claimed,
+  dueWatches,
+  settled,
+  stepOf,
+  withEntry,
+} from './lib/watch'
 
 const contextPercent = atom({ plugin: 'clubhouse', key: 'contextPercent' } as const, null)
 const limits = atom({ plugin: 'clubhouse', key: 'limits' } as const, [])
@@ -63,6 +73,7 @@ const recipes = atom({ plugin: 'clubhouse', key: 'recipes' } as const, [])
 const lastReplyAt = atom({ plugin: 'clubhouse', key: 'lastReplyAt' } as const, null)
 const watches = atom({ plugin: 'clubhouse', key: 'watches' } as const, [])
 const watchLog = atom({ plugin: 'clubhouse', key: 'watchLog' } as const, [])
+const savedWatches = atom({ plugin: 'clubhouse', key: 'savedWatches' } as const, [])
 
 const TICK_MS = 30_000
 
@@ -151,6 +162,9 @@ export const register: Register = on => {
     for (const one of savedRecipes) {
       await $.tool.register(toolSpecOf(one)).catch(() => undefined)
     }
+
+    const keptWatches = asSavedWatches(await $.store.get(SAVED_WATCHES_KEY))
+    await update($, savedWatches, () => keptWatches)
 
     const savedAgents: Blueprint[] = asBlueprints(await $.store.get(AGENTS_KEY))
     await update($, agentBank, () => savedAgents)

@@ -1,4 +1,4 @@
-import type { Watch, WatchEntry, WatchTrigger, WatchView } from '../../types'
+import type { SavedWatch, Watch, WatchEntry, WatchTrigger, WatchView } from '../../types'
 import { formatSpan } from './format'
 
 export type WatchRun = { exitCode: number; stdout: string; stderr: string }
@@ -17,7 +17,12 @@ export type WatchStep = {
   toast: string | null
 }
 
-export type WatchDraft = { task: string; command: string }
+export type WatchDraft = { name: string; task: string; command: string }
+
+export type WatchOptions = Pick<WatchView, 'everyMinutes' | 'maxChecks' | 'trigger' | 'isQuiet'>
+
+export const SAVED_WATCHES_KEY = 'savedWatches'
+export const MAX_SAVED_WATCHES = 8
 
 export const WATCH_POLL_MS = 10_000
 export const WATCH_COMMAND_MS = 60_000
@@ -60,8 +65,8 @@ export function nextOf<T>(options: readonly T[], current: T): T {
   return options[(options.indexOf(current) + 1) % options.length] ?? current
 }
 
-export function titleOf(watch: Pick<Watch, 'task' | 'command'>): string {
-  const text = watch.task === '' ? watch.command : watch.task
+export function titleOf(watch: WatchDraft): string {
+  const text = [watch.name, watch.task, watch.command].map(one => one.trim()).find(one => one !== '') ?? ''
 
   return text.length > TITLE_CHARS ? `${text.slice(0, TITLE_CHARS - 1)}…` : text
 }
@@ -74,15 +79,68 @@ export function watchProblem(draft: WatchDraft, held: readonly Watch[]): string 
   return held.length >= MAX_WATCHES ? `You have ${MAX_WATCHES} watches running, the most at once. Stop one first.` : null
 }
 
-export function watchFrom(draft: WatchDraft, view: WatchView, at: number): Watch {
+export function savedFrom(draft: WatchDraft, view: WatchOptions): SavedWatch {
   const command = draft.command.trim().slice(0, COMMAND_CHARS)
 
   return {
-    id: `watch-${at}`,
+    name: titleOf(draft),
     task: draft.task.trim().slice(0, TASK_CHARS),
     command,
     trigger: command === '' ? 'always' : view.trigger,
     isQuiet: command !== '' && view.isQuiet,
+    everyMinutes: view.everyMinutes,
+    maxChecks: view.maxChecks,
+  }
+}
+
+export function withSaved(held: readonly SavedWatch[], saved: SavedWatch): SavedWatch[] {
+  return [saved, ...held.filter(one => one.name !== saved.name)].slice(0, MAX_SAVED_WATCHES)
+}
+
+export function asSavedWatches(stored: unknown): SavedWatch[] {
+  if (!Array.isArray(stored)) return []
+
+  return stored
+    .flatMap(one => {
+      const record = one as Partial<Record<keyof SavedWatch, unknown>> | null
+
+      if (record === null || typeof record !== 'object') return []
+      const { name, task, command, trigger, everyMinutes, maxChecks } = record
+
+      return typeof name === 'string' &&
+        typeof task === 'string' &&
+        typeof command === 'string' &&
+        typeof everyMinutes === 'number' &&
+        typeof maxChecks === 'number' &&
+        INTERVALS.includes(everyMinutes) &&
+        CHECK_COUNTS.includes(maxChecks)
+        ? [
+            savedFrom(
+              { name, task, command },
+              {
+                everyMinutes,
+                maxChecks,
+                trigger: TRIGGERS.find(known => known === trigger) ?? 'fails',
+                isQuiet: record.isQuiet === true,
+              },
+            ),
+          ]
+        : []
+    })
+    .filter(one => one.name !== '')
+    .slice(0, MAX_SAVED_WATCHES)
+}
+
+export function watchFrom(draft: WatchDraft, view: WatchOptions, at: number): Watch {
+  const saved = savedFrom(draft, view)
+
+  return {
+    id: `watch-${at}`,
+    name: draft.name.trim().slice(0, TITLE_CHARS),
+    task: saved.task,
+    command: saved.command,
+    trigger: saved.trigger,
+    isQuiet: saved.isQuiet,
     everyMinutes: view.everyMinutes,
     maxChecks: view.maxChecks,
     checksDone: 0,
@@ -103,7 +161,7 @@ export function claimed(watches: readonly Watch[], due: readonly Watch[], at: nu
   )
 }
 
-export function aboutOf(watch: Watch): string {
+export function aboutOf(watch: SavedWatch): string {
   if (watch.command === '') return `Wakes Claude every ${watch.everyMinutes} minutes.`
   const then = watch.isQuiet ? 'Notes it here' : 'Wakes Claude'
   const when = watch.trigger === 'always' ? 'at every check' : `when ${TRIGGER_LABEL[watch.trigger]}`

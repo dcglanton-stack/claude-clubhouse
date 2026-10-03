@@ -1337,9 +1337,10 @@ for (const surface of SURFACES) {
     expect(seen.submitted).toHaveLength(1)
     expect(await ui.find({ type: 'Text', text: /still busy with the last wake-up\. Skipped\./ })).toBeDefined()
 
+    expect((await ui.find({ key: `watch-stop-${WATCH_ID}` }))?.text).toBe('End watch')
     await ui.press({ key: `watch-stop-${WATCH_ID}` })
     expect(await ui.find({ key: `watch-stop-${WATCH_ID}` })).toBeUndefined()
-    expect(await ui.find({ type: 'Text', text: /Stopped · Check the build is still going/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /Ended · Check the build is still going/ })).toBeDefined()
     await seen.clock.advance(HALF_HOUR)
     expect(seen.submitted).toHaveLength(1)
     await ui.unmount()
@@ -1415,7 +1416,7 @@ test('a quiet watch only notes trouble, and no watch wakes Claude when the limit
 test('a watch step tells stalled from changed output, gives up after three wake-ups and ends on its last check', () => {
   const ran = (stdout: string, exitCode = 0) => ({ exitCode, stdout, stderr: '' })
   const facts = { at: 2000, percentLeft: 50, lastReplyAt: 9000 }
-  const stalls = watchFrom({ task: '', command: 'tail -1 log' }, { ...DEFAULT_WATCH_VIEW, trigger: 'stalls' }, 1000)
+  const stalls = watchFrom({ name: '', task: '', command: 'tail -1 log' }, { ...DEFAULT_WATCH_VIEW, trigger: 'stalls' }, 1000)
   const first = stepOf(stalls, { ...facts, ran: ran('a') })
   expect(first.prompt).toBeNull()
   expect(stepOf(first.watch ?? stalls, { ...facts, ran: ran('b') }).prompt).toBeNull()
@@ -1442,4 +1443,45 @@ test('a watch step tells stalled from changed output, gives up after three wake-
   expect(last.watch).toBeNull()
   expect(last.entry).toMatch(/all fine\. That was the last check\./)
   expect(last.toast).toMatch(/Night watch finished/)
+})
+
+test('a watch can be saved, started with one press in a later session, and deleted', async ($, on) => {
+  const seen = world(on, 50, {
+    stored: {
+      savedWatches: [
+        { name: 'BOTfort check', task: 'Restart it', command: 'pgrep -f botfort', trigger: 'fails', isQuiet: false, everyMinutes: 15, maxChecks: 4 },
+        { name: 'broken', task: 'x', command: '', everyMinutes: 7, maxChecks: 4 },
+      ],
+    },
+  })
+  await start($)
+  const ui = await $.ui.mount({
+    plugin: 'clubhouse',
+    surface: 'desktop',
+    component: 'Pane',
+    requestId: 'clubhouse-watch',
+    props: { ...PANE, title: 'Night watch' },
+  })
+
+  expect(await ui.find({ key: 'watch-saved-start-broken' })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /Runs pgrep -f botfort every 15 minutes\. Wakes Claude when the command fails\. 4 checks\./ })).toBeDefined()
+
+  await ui.press({ key: 'watch-saved-start-BOTfort check' })
+  expect(await ui.find({ key: `watch-now-${WATCH_ID}` })).toBeDefined()
+  seen.exitCode = 1
+  await seen.clock.advance(15 * 60_000)
+  expect(seen.submitted[0]).toMatch(/Their instruction: Restart it/)
+  expect(await ui.find({ type: 'Text', text: /Check 1 of 4 · BOTfort check: the check command failed\. Woke Claude\./ })).toBeDefined()
+
+  await ui.input({ key: 'watch-name', text: 'Deploy watch' })
+  await ui.input({ key: 'watch-task', text: 'Say whether the deploy finished' })
+  await ui.press({ key: 'watch-every' })
+  await ui.press({ key: 'watch-save' })
+  expect(await ui.find({ key: 'watch-saved-start-Deploy watch' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Wakes Claude every 60 minutes\. 8 checks\./ })).toBeDefined()
+  expect(await ui.find({ key: 'watch-stop-watch-' + String(NOW + 15 * 60_000) })).toBeUndefined()
+
+  await ui.press({ key: 'watch-saved-delete-BOTfort check' })
+  expect(await ui.find({ key: 'watch-saved-start-BOTfort check' })).toBeUndefined()
+  await ui.unmount()
 })

@@ -89,8 +89,19 @@ export type RecipesView = { note: string | null; editing: string | null; trial: 
 
 export type WatchTrigger = 'fails' | 'stalls' | 'changes' | 'always'
 
+export type SavedWatch = {
+  name: string
+  task: string
+  command: string
+  trigger: WatchTrigger
+  isQuiet: boolean
+  everyMinutes: number
+  maxChecks: number
+}
+
 export type Watch = {
   id: string
+  name: string
   task: string
   command: string
   trigger: WatchTrigger
@@ -160,6 +171,7 @@ declare module 'claude-code' {
       watches: Watch[]
       watchLog: WatchEntry[]
       watchView: WatchView
+      savedWatches: SavedWatch[]
     }
   }
 }

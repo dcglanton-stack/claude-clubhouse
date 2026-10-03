@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, On } from 'claude-code'
 
-import type { Watch, WatchView } from '../../types'
+import type { SavedWatch, Watch, WatchView } from '../../types'
 import { DEFAULT_PREFS, PREFS_SHAPE } from '../lib/defaults'
 import { formatSpan } from '../lib/format'
 import { makeParts } from '../lib/parts'
@@ -11,16 +11,19 @@ import {
   DEFAULT_WATCH_VIEW,
   INTERVALS,
   LOW_USAGE_PERCENT,
+  SAVED_WATCHES_KEY,
   TRIGGERS,
   TRIGGER_LABEL,
   WAKES_BEFORE_STOPPING,
   aboutOf,
   nextOf,
+  savedFrom,
   statusOf,
   titleOf,
   watchFrom,
   watchProblem,
   withEntry,
+  withSaved,
 } from '../lib/watch'
 import type { WatchDraft } from '../lib/watch'
 
@@ -32,8 +35,9 @@ const recipes = atom({ plugin: 'clubhouse', key: 'recipes' } as const, [])
 const watches = atom({ plugin: 'clubhouse', key: 'watches' } as const, [])
 const watchLog = atom({ plugin: 'clubhouse', key: 'watchLog' } as const, [])
 const watchView = atom({ plugin: 'clubhouse', key: 'watchView' } as const, DEFAULT_WATCH_VIEW)
+const savedWatches = atom({ plugin: 'clubhouse', key: 'savedWatches' } as const, [])
 
-const BLANK_DRAFT: WatchDraft = { task: '', command: '' }
+const BLANK_DRAFT: WatchDraft = { name: '', task: '', command: '' }
 const MINUTE_MS = 60_000
 
 let draft: WatchDraft = BLANK_DRAFT
@@ -42,8 +46,37 @@ async function say($: EngineInterface, note: string): Promise<void> {
   await update($, watchView, view => ({ ...view, note }))
 }
 
+async function begin($: EngineInterface, from: SavedWatch): Promise<boolean> {
+  const problem = watchProblem(from, await read($, watches))
+
+  if (problem !== null) {
+    await say($, problem)
+
+    return false
+  }
+
+  const at = await $.clock.now()
+  const made = watchFrom(from, from, at)
+  await update($, watches, held => [...held, made])
+  await update($, watchLog, held => withEntry(held, { at, text: `Started · ${titleOf(made)}` }))
+  await say(
+    $,
+    `Watching. The first check is in ${made.everyMinutes} minutes. On the watch below, Check now tests it straight away and End watch cancels it.`,
+  )
+
+  return true
+}
+
 async function start($: EngineInterface): Promise<void> {
-  const problem = watchProblem(draft, await read($, watches))
+  const typed = draft
+
+  if (await begin($, { ...savedFrom(typed, await read($, watchView)), name: typed.name })) {
+    draft = BLANK_DRAFT
+  }
+}
+
+async function save($: EngineInterface): Promise<void> {
+  const problem = watchProblem(draft, [])
 
   if (problem !== null) {
     await say($, problem)
@@ -51,18 +84,23 @@ async function start($: EngineInterface): Promise<void> {
     return
   }
 
-  const at = await $.clock.now()
-  const made = watchFrom(draft, await read($, watchView), at)
-  draft = BLANK_DRAFT
-  await update($, watches, held => [...held, made])
-  await update($, watchLog, held => withEntry(held, { at, text: `Started · ${titleOf(made)}` }))
-  await say($, `Watching. The first check is in ${made.everyMinutes} minutes.`)
+  const kept = savedFrom(draft, await read($, watchView))
+  await update($, savedWatches, held => withSaved(held, kept))
+  await $.store.set(SAVED_WATCHES_KEY, await read($, savedWatches))
+  await say($, `Saved "${kept.name}". Start it from Saved watches whenever you want, in any session.`)
+}
+
+async function forget($: EngineInterface, name: string): Promise<void> {
+  await update($, savedWatches, held => held.filter(one => one.name !== name))
+  await $.store.set(SAVED_WATCHES_KEY, await read($, savedWatches))
+  await say($, `Deleted the saved watch "${name}".`)
 }
 
 async function stop($: EngineInterface, watch: Watch): Promise<void> {
   const at = await $.clock.now()
   await update($, watches, held => held.filter(one => one.id !== watch.id))
-  await update($, watchLog, held => withEntry(held, { at, text: `Stopped · ${titleOf(watch)}` }))
+  await update($, watchLog, held => withEntry(held, { at, text: `Ended · ${titleOf(watch)}` }))
+  await say($, `Ended the watch "${titleOf(watch)}".`)
 }
 
 async function checkNow($: EngineInterface, id: string): Promise<void> {
@@ -78,6 +116,7 @@ export function nightWatch(on: On): void {
     const view = await read($, watchView)
     const held = await read($, watches)
     const log = await read($, watchLog)
+    const kept = await read($, savedWatches)
     const at = await read($, now)
     const ready = (await read($, recipes)).filter(one => blanksOf(one.command).length === 0)
     const { frame, note, plain, title, card, Button, Input } = makeParts(elements, chosen, e.surface)
@@ -91,6 +130,18 @@ export function nightWatch(on: On): void {
           ])
         : card('New watch', [
             note('Press Enter in each box to set it, then Start.'),
+            <Input
+              key="watch-name"
+              label="Name (optional)"
+              placeholder="BOTfort check"
+              value={draft.name}
+              onInput={typed => {
+                draft = { ...draft, name: typed }
+              }}
+              onSubmit={typed => {
+                draft = { ...draft, name: typed }
+              }}
+            />,
             <Input
               key="watch-task"
               label="Tell Claude"
@@ -158,19 +209,43 @@ export function nightWatch(on: On): void {
               />
             </Box>,
             note('These two only matter with a check command: what counts as something wrong, and what happens then.'),
-            <Box>
+            <Box gap={1} flexWrap="wrap">
               <Button key="watch-start" label="Start watch" variant="primary" onPress={() => void start($)} />
+              <Button key="watch-save" label="Save for later" onPress={() => void save($)} />
             </Box>,
+            note('Save for later keeps this watch, with these settings, to start with one press in any session.'),
           ])
 
+    const savedList =
+      kept.length === 0
+        ? null
+        : card(
+            'Saved watches',
+            kept.map(one => (
+              <Box flexDirection="column">
+                <Box gap={1} flexWrap="wrap">
+                  <Button
+                    key={`watch-saved-start-${one.name}`}
+                    label={`Start ${one.name}`}
+                    variant="primary"
+                    onPress={() => void begin($, one)}
+                  />
+                  <Button key={`watch-saved-delete-${one.name}`} label="Delete" onPress={() => void forget($, one.name)} />
+                </Box>
+                {one.task === '' ? null : note(one.task)}
+                {note(`${aboutOf(one)} ${one.maxChecks} checks.`)}
+              </Box>
+            )),
+          )
+
     const running = (one: Watch) =>
-      card(titleOf(one), [
+      card(`Running: ${titleOf(one)}`, [
         one.task === '' ? null : plain(one.task),
         note(aboutOf(one)),
         plain(statusOf(one, at)),
         <Box gap={1} flexWrap="wrap">
           <Button key={`watch-now-${one.id}`} label="Check now" onPress={() => void checkNow($, one.id)} />
-          <Button key={`watch-stop-${one.id}`} label="Stop" onPress={() => void stop($, one)} />
+          <Button key={`watch-stop-${one.id}`} label="End watch" onPress={() => void stop($, one)} />
         </Box>,
       ])
 
@@ -180,9 +255,10 @@ export function nightWatch(on: On): void {
         {note(
           'Checks on things while you are away. Every so often it wakes Claude with your instruction, or runs a command first and only wakes Claude when something is wrong. /clubhouse watch opens this.',
         )}
-        {form}
         {view.note !== null && plain(view.note)}
         {held.map(running)}
+        {savedList}
+        {form}
         {log.length > 0 &&
           card(
             'What happened',
