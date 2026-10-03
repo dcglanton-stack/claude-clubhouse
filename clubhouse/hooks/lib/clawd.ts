@@ -196,3 +196,94 @@ export function wheelSvg({ hue, color, size }: WheelSpec): string {
     '</svg>'
   )
 }
+
+export type AgentStatus = 'running' | 'completed' | 'failed'
+
+export type AgentSpec = { color: string; unit: number; status: AgentStatus }
+
+const SUIT = '#1c1e24'
+const SHIRT = '#f7f7f5'
+const LENS = '#0c0d10'
+const PAD = 1.2
+
+export function agentStatus(status: string): AgentStatus {
+  if (status === 'running' || status === 'pending') return 'running'
+
+  return status === 'completed' ? 'completed' : 'failed'
+}
+
+export function agentSvg({ color, unit, status }: AgentSpec): string {
+  const width = Math.ceil((CLAWD_COLUMNS + PAD * 2) * unit)
+  const height = Math.ceil((CLAWD_ROWS + PAD * 2) * unit)
+  const at = (cells: number) => round(cells * unit)
+  const rect = (left: number, top: number, wide: number, tall: number, corner: number, fill: string) =>
+    `<rect x="${at(left)}" y="${at(top)}" width="${at(wide)}" height="${at(tall)}" rx="${at(corner)}" fill="${fill}"/>`
+  const shape = (points: readonly (readonly [number, number])[], fill: string) =>
+    `<polygon points="${points.map(([left, top]) => `${at(left)},${at(top)}`).join(' ')}" fill="${fill}"/>`
+  const outline = `stroke="${OUTLINE}" stroke-opacity="0.38" stroke-width="${round(Math.max(1, unit * 0.4))}"`
+  const silhouette: readonly (readonly [number, number, number, number, number])[] = [
+    [0, 3.2, CLAWD_COLUMNS, 2.3, 0.75],
+    [2, 0, 11, 8.2, 1],
+    ...[2, 4.9, 7.8, 10.7].map(left => [left, 7, 2.3, 2.6, 0.6] as const),
+  ]
+  const body =
+    silhouette
+      .map(
+        ([left, top, wide, tall, corner]) =>
+          `<rect x="${at(left)}" y="${at(top)}" width="${at(wide)}" height="${at(tall)}" rx="${at(corner)}" fill="${color}" ${outline}/>`,
+      )
+      .join('') + silhouette.map(([left, top, wide, tall, corner]) => rect(left, top, wide, tall, corner, color)).join('')
+  const suit =
+    rect(1.1, 3.2, 1.6, 2.3, 0.4, SUIT) +
+    rect(12.3, 3.2, 1.6, 2.3, 0.4, SUIT) +
+    rect(2, 4.9, 11, 3.3, 0.9, SUIT) +
+    rect(2, 4.9, 11, 1.4, 0, SUIT) +
+    [2, 4.9, 7.8, 10.7].map(left => rect(left, 7, 2.3, 2.6, 0.6, SUIT)).join('') +
+    shape(
+      [
+        [5.9, 4.9],
+        [9.1, 4.9],
+        [7.5, 7.5],
+      ],
+      SHIRT,
+    ) +
+    shape(
+      [
+        [7.1, 4.9],
+        [7.9, 4.9],
+        [8.05, 6.5],
+        [7.5, 7.3],
+        [6.95, 6.5],
+      ],
+      LENS,
+    )
+  const glint = (left: number) =>
+    `<path d="M ${at(left + 0.5)} ${at(3.7)} L ${at(left + 1.3)} ${at(2.6)}" stroke="#ffffff" stroke-opacity="0.55" stroke-width="${at(0.28)}" stroke-linecap="round"/>`
+  const shades =
+    rect(2, 2.55, 11, 0.5, 0.2, LENS) +
+    rect(3.2, 2.2, 3.4, 2.1, 0.6, LENS) +
+    rect(8.4, 2.2, 3.4, 2.1, 0.6, LENS) +
+    glint(3.5) +
+    glint(8.7)
+  const badgeColor = status === 'completed' ? '#2e9e5b' : '#d63031'
+  const badgeMark =
+    status === 'completed'
+      ? `<path d="M ${at(12.6)} ${at(0.9)} l ${at(0.6)} ${at(0.6)} l ${at(1.1)} ${at(-1.2)}" fill="none" stroke="#ffffff" stroke-width="${at(0.36)}" stroke-linecap="round" stroke-linejoin="round"/>`
+      : `<path d="M ${at(12.8)} ${at(0.2)} l ${at(1.2)} ${at(1.2)} M ${at(14)} ${at(0.2)} l ${at(-1.2)} ${at(1.2)}" fill="none" stroke="#ffffff" stroke-width="${at(0.36)}" stroke-linecap="round"/>`
+  const badge =
+    status === 'running'
+      ? ''
+      : `<circle cx="${at(13.4)}" cy="${at(0.8)}" r="${at(1.5)}" fill="${badgeColor}" stroke="#ffffff" stroke-opacity="0.85" stroke-width="${at(0.2)}"/>` +
+        badgeMark
+
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">` +
+    `<g transform="translate(${at(PAD)} ${at(PAD)})"${status === 'running' ? '' : ' opacity="0.78"'}>` +
+    body +
+    suit +
+    shades +
+    '</g>' +
+    `<g transform="translate(${at(PAD)} ${at(PAD)})">${badge}</g>` +
+    '</svg>'
+  )
+}

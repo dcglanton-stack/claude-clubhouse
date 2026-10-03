@@ -7,10 +7,10 @@ import { clawdSvg, wheelSvg } from '../lib/clawd'
 import { inkOn, isLight, mix, normalizeHex, rgbString, shift, toHsl } from '../lib/color'
 import type { Hsl } from '../lib/color'
 
-const colorsView = atom({ plugin: 'hub', key: 'colorsView' } as const, DEFAULT_COLORS_VIEW)
-const prefs = atom({ plugin: 'hub', key: 'prefs' } as const, DEFAULT_PREFS)
+const colorsView = atom({ plugin: 'clubhouse', key: 'colorsView' } as const, DEFAULT_COLORS_VIEW)
+const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS)
 
-const THEME_SLUG = 'hub'
+const THEME_SLUG = 'clubhouse'
 const THEME_REF = `custom:${THEME_SLUG}`
 const BLANK_SLOT = '#2b2b2b'
 const LOOK_MODEL = 'haiku'
@@ -21,12 +21,12 @@ const LOOK_SYSTEM =
   'background is a panel background. Keep accent and clawd clearly visible on background.'
 
 const SLOTS: readonly (readonly [PaletteSlot, string, string])[] = [
-  ['accent', 'Accent', 'Headings and highlights in the Hub.'],
+  ['accent', 'Accent', 'Headings and highlights in the clubhouse.'],
   ['clawd', 'Clawd', 'The mascot in the usage meter.'],
   [
     'background',
     'Background',
-    'Behind the Hub panes and the band. Text flips dark or light to stay readable.',
+    'Behind the Clubhouse panes and the band. Text flips dark or light to stay readable.',
   ],
 ]
 
@@ -112,7 +112,7 @@ async function applyToApp($: EngineInterface): Promise<void> {
       `${home}/.claude/themes/${THEME_SLUG}.json`,
       `${JSON.stringify(
         {
-          name: 'Hub',
+          name: 'Claude Clubhouse',
           base: isLightBase ? 'light' : 'dark',
           overrides: themeOverrides(chosen.palette, isLightBase),
         },
@@ -143,7 +143,7 @@ async function undoApp($: EngineInterface): Promise<void> {
     const { previousTheme } = await read($, prefs)
 
     if (previousTheme === null) {
-      await say($, 'Nothing to undo: the Hub has not changed your theme.')
+      await say($, 'Nothing to undo: the Clubhouse has not changed your theme.')
 
       return
     }
@@ -217,7 +217,7 @@ async function takeHex($: EngineInterface, slot: PaletteSlot, typed: string): Pr
 }
 
 export function colors(on: On): void {
-  on('ui.render', { component: 'Pane', requestId: 'hub-colors' }, async ($, e) => {
+  on('ui.render', { component: 'Pane', requestId: 'clubhouse-colors' }, async ($, e) => {
     const elements = $.ui.resolve(e)
     const { Box, Button, Text } = elements
     const chosen = await read($, prefs)
@@ -249,7 +249,7 @@ export function colors(on: On): void {
     return (
       <Box flexDirection="column" gap={1} {...frame}>
         {note(
-          'Pick the colors of everything the Hub draws. Choose what to color, then nudge it, pick a preset, type a hex code or describe a look. /hub colors opens this.',
+          'Pick the colors of everything the Clubhouse draws. Choose what to color, then nudge it, pick a preset, type a hex code or describe a look. /clubhouse colors opens this.',
         )}
 
         {heading('What to color')}
@@ -333,7 +333,7 @@ export function colors(on: On): void {
           <Button key="undo-app" label="Undo" onPress={() => void undoApp($)} />
           <Button
             key="reset-colors"
-            label="Reset Hub colors"
+            label="Reset Clubhouse colors"
             onPress={() => void keep($, held => ({ ...held, palette: DEFAULT_PALETTE }))}
           />
         </Box>

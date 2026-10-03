@@ -5,12 +5,13 @@ import type { Limit, Receipt, WindowKind } from '../../types'
 import { DEFAULT_PREFS, LIMITS_KEY } from '../lib/defaults'
 import { LOW_PERCENT, WINDOW_LABEL, formatSpan, percentLeft, resetIn, usedOf } from '../lib/format'
 
-const contextPercent = atom({ plugin: 'hub', key: 'contextPercent' } as const, null)
-const lastReplyAt = atom({ plugin: 'hub', key: 'lastReplyAt' } as const, null)
-const limits = atom({ plugin: 'hub', key: 'limits' } as const, [])
-const now = atom({ plugin: 'hub', key: 'now' } as const, 0)
-const prefs = atom({ plugin: 'hub', key: 'prefs' } as const, DEFAULT_PREFS)
-const receipt = atom({ plugin: 'hub', key: 'receipt' } as const, null)
+const contextPercent = atom({ plugin: 'clubhouse', key: 'contextPercent' } as const, null)
+const lastReplyAt = atom({ plugin: 'clubhouse', key: 'lastReplyAt' } as const, null)
+const limits = atom({ plugin: 'clubhouse', key: 'limits' } as const, [])
+const now = atom({ plugin: 'clubhouse', key: 'now' } as const, 0)
+const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS)
+const receipt = atom({ plugin: 'clubhouse', key: 'receipt' } as const, null)
+const pulse = atom({ plugin: 'clubhouse', key: 'pulse' } as const, 0)
 
 const warned = new Set<string>()
 
@@ -60,6 +61,8 @@ export function usage(on: On): void {
       }
       await update($, lastReplyAt, () => at)
       await update($, receipt, () => made)
+    } else {
+      await update($, pulse, beat => beat + 1)
     }
 
     return next(e)

@@ -2,16 +2,27 @@ import { atom, update } from 'claude-code'
 import type { Register } from 'claude-code'
 
 import type { Limit } from '../types'
+import { agents } from './features/agents'
 import { band } from './features/band'
 import { colors } from './features/colors'
+import { commands } from './features/commands'
 import { home } from './features/home'
 import { usage } from './features/usage'
-import { DEFAULT_PREFS, LIMITS_KEY, PREFS_KEY, isLimitList, mergePrefs } from './lib/defaults'
+import {
+  COMMANDS_KEY,
+  DEFAULT_PREFS,
+  LIMITS_KEY,
+  PREFS_KEY,
+  asCommandStats,
+  isLimitList,
+  mergePrefs,
+} from './lib/defaults'
 
-const contextPercent = atom({ plugin: 'hub', key: 'contextPercent' } as const, null)
-const limits = atom({ plugin: 'hub', key: 'limits' } as const, [])
-const now = atom({ plugin: 'hub', key: 'now' } as const, 0)
-const prefs = atom({ plugin: 'hub', key: 'prefs' } as const, DEFAULT_PREFS)
+const contextPercent = atom({ plugin: 'clubhouse', key: 'contextPercent' } as const, null)
+const limits = atom({ plugin: 'clubhouse', key: 'limits' } as const, [])
+const now = atom({ plugin: 'clubhouse', key: 'now' } as const, 0)
+const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS)
+const commandStats = atom({ plugin: 'clubhouse', key: 'commandStats' } as const, {})
 
 const TICK_MS = 30_000
 
@@ -19,6 +30,9 @@ export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const saved = mergePrefs(await $.store.get(PREFS_KEY))
     await update($, prefs, () => saved)
+
+    const savedCommands = asCommandStats(await $.store.get(COMMANDS_KEY))
+    await update($, commandStats, () => savedCommands)
 
     const measured = await $.session.usage()
     const savedLimits = await $.store.get(LIMITS_KEY)
@@ -36,9 +50,9 @@ export const register: Register = on => {
     $.clock.every(TICK_MS, () => void $.clock.now().then(at => update($, now, () => at)))
 
     await $.command.register({
-      name: 'hub',
-      description: 'Open the Hub. /hub off hides everything it adds, /hub on brings it back',
-      argumentHint: '[on|off|colors]',
+      name: 'clubhouse',
+      description: 'Open Claude Clubhouse. Also: /clubhouse off, on, agents, commands, colors',
+      argumentHint: '[on|off|agents|commands|colors]',
       immediate: true,
     })
 
@@ -48,5 +62,7 @@ export const register: Register = on => {
   usage(on)
   band(on)
   home(on)
+  commands(on)
+  agents(on)
   colors(on)
 }
