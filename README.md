@@ -9,8 +9,11 @@ A Claude Code mod: one plugin that adds a home button and a Clawd usage meter ab
 | Click the house on the bar, or type `/clubhouse` | Opens the home screen: rooms, your top commands, what is on the bar, usage |
 | `/clubhouse off` | Hides everything the Clubhouse adds |
 | `/clubhouse on` | Brings it back |
-| `/clubhouse agents` | Agent HQ: every agent working in the session, with a stop button |
+| `/clubhouse agents` | Agent HQ: agents at work, plus your own saved agents |
+| `/clubhouse summary` | The last reply cut down to a few bullet points |
 | `/clubhouse commands` | Every slash command, led by your most used and most recent |
+| `/clubhouse bar` | Bar layout: add, remove and move bar items, add bars, make your own buttons |
+| `/clubhouse usage` | Both limits, context and the cache timer, full size |
 | `/clubhouse colors` | The color picker |
 
 The Clubhouse loads in every session through `CLAUDE_CODE_PLUGIN_DIRS` in `~/.claude/settings.json`, which points at the `clubhouse/` folder here. To unload it completely, remove that entry.
@@ -18,7 +21,8 @@ The Clubhouse loads in every session through `CLAUDE_CODE_PLUGIN_DIRS` in `~/.cl
 ## What is in it
 
 - **Home button**: a house with a C behind it, in the middle of the bar.
-- **Bar layout**: show or hide each bar item, move it left, center or right, and stack items on a second bar.
+- **Bar layout**: add or remove each bar item, move it left, center or right, and use up to three bars. Make your own buttons that type a prompt or command into the prompt box.
+- **Summary**: a Summarize button on the bar shortens the last reply with a small model; Auto does it for every long reply.
 - **Usage meter**: Clawd rides a bar that drains as the 5-hour or weekly limit is used. Green and happy when full, red and wiped out near empty. Shows time to reset and a one-hour cache countdown from the last reply.
 - **Agent HQ**: each subagent drawn as Clawd in a suit and sunglasses, with Stand down and Dismiss. Create your own agents from a form, save them, pick their model (or let Auto pick the cheapest that fits), and send one out with a task; Claude is told what was dispatched.
 - **Commands**: the full slash-command list with a filter; clicking one puts it in the prompt box.

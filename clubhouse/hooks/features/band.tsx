@@ -1,10 +1,16 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, On } from 'claude-code'
 
-import type { BarItemId, BarZone, Prefs } from '../../types'
+import type { BarItemId, BarZone, Prefs, Shortcut } from '../../types'
 import { meterSvg, moodFor, moodName } from '../lib/clawd'
 import { inkOn, rampColor } from '../lib/color'
-import { BAR_ITEMS, BAR_ROWS, DEFAULT_PREFS, PREFS_KEY } from '../lib/defaults'
+import {
+  BAR_ITEMS,
+  DEFAULT_PREFS,
+  IDLE_SUMMARY,
+  PREFS_KEY,
+  WORKING_SUMMARY,
+} from '../lib/defaults'
 import {
   WINDOW_LABEL,
   cacheNote,
@@ -15,6 +21,7 @@ import {
   textBar,
 } from '../lib/format'
 import { homeIconSvg } from '../lib/icon'
+import { summaryOf, summaryRequest } from '../lib/summary'
 
 const contextPercent = atom({ plugin: 'clubhouse', key: 'contextPercent' } as const, null)
 const lastReplyAt = atom({ plugin: 'clubhouse', key: 'lastReplyAt' } as const, null)
@@ -22,6 +29,8 @@ const limits = atom({ plugin: 'clubhouse', key: 'limits' } as const, [])
 const now = atom({ plugin: 'clubhouse', key: 'now' } as const, 0)
 const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS)
 const receipt = atom({ plugin: 'clubhouse', key: 'receipt' } as const, null)
+const lastAnswer = atom({ plugin: 'clubhouse', key: 'lastAnswer' } as const, '')
+const summary = atom({ plugin: 'clubhouse', key: 'summary' } as const, IDLE_SUMMARY)
 
 const BAR_HEIGHT = 32
 const WIDE_METER = 210
@@ -35,11 +44,37 @@ async function keep($: EngineInterface, change: (held: Prefs) => Prefs): Promise
   await $.store.set(PREFS_KEY, await read($, prefs))
 }
 
+async function summarize($: EngineInterface): Promise<void> {
+  const answer = await read($, lastAnswer)
+  await $.ui.open({ id: 'clubhouse-summary', title: 'Summary', focus: true, closeOnEscape: true })
+
+  if (answer.trim() === '') return
+  await update($, summary, () => WORKING_SUMMARY)
+  const reply = await $.model.complete(summaryRequest(answer)).catch(() => null)
+  await update($, summary, () => summaryOf(reply, answer))
+}
+
+async function offer($: EngineInterface, text: string): Promise<void> {
+  try {
+    const { isFilled } = await $.prompt.fill({ text })
+
+    if (!isFilled) {
+      $.ui.toast('The prompt box is busy. Clear it and press the button again.')
+    }
+  } catch {
+    $.ui.toast('Could not reach the prompt box.')
+  }
+}
+
 export function band(on: On): void {
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const chosen = await read($, prefs)
-    const rows = Array.from({ length: BAR_ROWS }, (_, index) => index + 1).filter(row =>
-      BAR_ITEMS.some(([id]) => chosen.bar[id].isShown && chosen.bar[id].row === row),
+    const spots = [
+      ...BAR_ITEMS.map(([id]) => chosen.bar[id]),
+      ...chosen.shortcuts.map(one => one.spot),
+    ]
+    const rows = Array.from({ length: chosen.barCount }, (_, index) => index + 1).filter(row =>
+      spots.some(spot => spot.isShown && spot.row === row),
     )
 
     if (e.props.hasSurvey || !chosen.isEnabled || rows.length === 0) {
@@ -149,6 +184,10 @@ export function band(on: On): void {
       if (id === 'home') return home()
       if (id === 'meter') return meter()
 
+      if (id === 'summary') {
+        return <Button key="summarize" label="Summarize" onPress={() => void summarize($)} />
+      }
+
       if (id === 'context') {
         return (
           <Text {...ink} dimColor wrap="truncate">
@@ -164,11 +203,19 @@ export function band(on: On): void {
       )
     }
 
-    const zone = (row: number, where: BarZone) =>
-      BAR_ITEMS.filter(
+    const shortcut = (one: Shortcut) => (
+      <Button key={`shortcut-${one.id}`} label={one.label} onPress={() => void offer($, one.text)} />
+    )
+
+    const zone = (row: number, where: BarZone) => [
+      ...BAR_ITEMS.filter(
         ([id]) =>
           chosen.bar[id].isShown && chosen.bar[id].row === row && chosen.bar[id].zone === where,
-      ).map(([id]) => piece(id))
+      ).map(([id]) => piece(id)),
+      ...chosen.shortcuts
+        .filter(one => one.spot.isShown && one.spot.row === row && one.spot.zone === where)
+        .map(shortcut),
+    ]
 
     return (
       <Box flexDirection="column" width={columns} {...frame}>

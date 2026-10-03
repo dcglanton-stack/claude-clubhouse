@@ -4,10 +4,13 @@ import type { Register } from 'claude-code'
 import type { Blueprint, Limit } from '../types'
 import { agents } from './features/agents'
 import { band } from './features/band'
+import { bar } from './features/bar'
 import { colors } from './features/colors'
 import { commands } from './features/commands'
 import { home } from './features/home'
+import { summaryRoom } from './features/summary'
 import { usage } from './features/usage'
+import { usageRoom } from './features/usageRoom'
 import {
   AGENTS_KEY,
   COMMANDS_KEY,
@@ -64,8 +67,8 @@ export const register: Register = on => {
 
     await $.command.register({
       name: 'clubhouse',
-      description: 'Open Claude Clubhouse. Also: /clubhouse off, on, agents, commands, colors',
-      argumentHint: '[on|off|agents|commands|colors]',
+      description: 'Open Claude Clubhouse. Add a room to open it: agents, summary, commands, bar, usage, colors; or on, off',
+      argumentHint: '[on|off|agents|summary|commands|bar|usage|colors]',
       immediate: true,
     })
 
@@ -75,6 +78,9 @@ export const register: Register = on => {
   usage(on)
   band(on)
   home(on)
+  bar(on)
+  summaryRoom(on)
+  usageRoom(on)
   commands(on)
   agents(on)
   colors(on)

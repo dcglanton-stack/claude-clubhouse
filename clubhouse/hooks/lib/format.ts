@@ -21,6 +21,8 @@ export function formatSpan(ms: number): string {
 }
 
 export function formatTokens(count: number): string {
+  if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(1)}M`
+
   return count >= 1000 ? `${(count / 1000).toFixed(1)}k` : `${count}`
 }
 

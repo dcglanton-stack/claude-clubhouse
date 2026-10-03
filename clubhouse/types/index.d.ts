@@ -6,20 +6,37 @@ export type PaletteSlot = 'accent' | 'clawd' | 'background'
 
 export type Palette = { accent: string; clawd: string; background: string | null }
 
-export type HomeTab = 'home' | 'bar' | 'more'
+export type HomeTab = 'home' | 'more'
 
-export type BarItemId = 'home' | 'meter' | 'context' | 'receipt'
+export type BarItemId = 'home' | 'meter' | 'summary' | 'context' | 'receipt'
 
 export type BarZone = 'left' | 'center' | 'right'
 
 export type BarSpot = { isShown: boolean; row: number; zone: BarZone }
 
-export type BarLayout = { home: BarSpot; meter: BarSpot; context: BarSpot; receipt: BarSpot }
+export type BarLayout = {
+  home: BarSpot
+  meter: BarSpot
+  summary: BarSpot
+  context: BarSpot
+  receipt: BarSpot
+}
+
+export type Shortcut = { id: string; label: string; text: string; spot: BarSpot }
+
+export type Summary = {
+  status: 'idle' | 'working' | 'ready' | 'failed'
+  text: string
+  sourceChars: number
+}
 
 export type Prefs = {
   isEnabled: boolean
   window: WindowKind
   bar: BarLayout
+  barCount: number
+  shortcuts: Shortcut[]
+  autoSummary: boolean
   palette: Palette
   previousTheme: string | null
 }
@@ -72,6 +89,9 @@ declare module 'claude-code' {
       pulse: number
       agentBank: Blueprint[]
       agentDesk: AgentDesk
+      lastAnswer: string
+      summary: Summary
+      barNote: string | null
     }
   }
 }
