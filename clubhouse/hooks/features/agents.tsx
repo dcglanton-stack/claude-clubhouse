@@ -152,22 +152,32 @@ async function dispatch($: EngineInterface, name: string): Promise<void> {
 
     task = ''
     await update($, agentDesk, desk => ({ ...desk, mode: 'idle', target: null }))
-    await tell($, `${name} is on assignment.`)
-    await $.session.append({
-      message: {
-        type: 'user',
-        content: [
-          {
-            type: 'text',
-            text:
-              `Claude Clubhouse notice: the user dispatched the agent "${AGENT_PREFIX}${name}" from Agent HQ. ` +
-              `It runs in the background on ${MODEL_LABEL[held.model]}. Purpose: ${held.purpose} ` +
-              `Its instructions: ${held.prompt} Its task: ${orders} ` +
-              'Do not start a duplicate of this work; its result arrives when it finishes.',
-          },
-        ],
-      },
-    })
+    const isTold = await $.session
+      .append({
+        message: {
+          type: 'user',
+          content: [
+            {
+              type: 'text',
+              text:
+                `Claude Clubhouse notice: the user dispatched the agent "${AGENT_PREFIX}${name}" from Agent HQ. ` +
+                `It runs in the background on ${MODEL_LABEL[held.model]}. Purpose: ${held.purpose} ` +
+                `Its instructions: ${held.prompt} Its task: ${orders} ` +
+                'Do not start a duplicate of this work; its result arrives when it finishes.',
+            },
+          ],
+        },
+      })
+      .then(
+        () => true,
+        () => false,
+      )
+    await tell(
+      $,
+      isTold
+        ? `${name} is on assignment, and Claude has been told.`
+        : `${name} is on assignment. Claude could not be told automatically, so mention it yourself.`,
+    )
   } catch (error) {
     await tell($, `Something went wrong sending ${name}: ${reason(error)}`)
   }

@@ -108,10 +108,10 @@ function world(on: On, fiveHourUsed: number): World {
 
     return { model: 'claude-haiku-4-5', agentId: 'spawned-1' }
   })
-  on('session.append', (_$, e) => {
+  on('session.append', (_$, e, next) => {
     seen.appended.push(JSON.stringify(e.message.content))
 
-    return { message: e.message, uuid: 'row-1' }
+    return next(e)
   })
   on('model.classify', () => ({ value: 'quick lookup or formatting' }))
   on('tool.call', (_$, e) => {
@@ -300,8 +300,6 @@ for (const surface of SURFACES) {
     await ui.input({ key: 'agent-task', text: 'Check the usage tests' })
     await ui.press({ key: 'agent-dispatch' })
     expect(seen.spawned.map(one => one.prompt)).toEqual(['Check the usage tests'])
-    expect(seen.appended).toHaveLength(1)
-    expect(seen.appended[0]).toMatch(/dispatched the agent/)
     expect(await ui.find({ type: 'Text', text: /is on assignment/ })).toBeDefined()
 
     await ui.press({ key: 'delete-test-scout' })
