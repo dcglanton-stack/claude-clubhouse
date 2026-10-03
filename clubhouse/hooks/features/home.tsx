@@ -29,7 +29,6 @@ const TABS: readonly (readonly [HomeTab, string])[] = [
 
 const PLANNED: readonly (readonly [string, string])[] = [
   ['Workshop: recipes', 'Turn a shell command into a tool without writing code.'],
-  ['Prompt tidy', 'Spell-fix or shorten the draft in the prompt box before you send it.'],
   ['Second opinion', 'Ask an outside model about the session without touching it.'],
   ['Night watch', 'Timers that check on work while you are away and report back.'],
   ['Zen mode', 'Hide tool rows while work runs; show progress and the answer only.'],
@@ -69,12 +68,12 @@ export function home(on: On): void {
   on('ui.render', { component: 'Pane', requestId: 'clubhouse' }, async ($, e) => {
     const elements = $.ui.resolve(e)
     const canDraw = e.surface !== 'terminal'
-    const { Box, Button, Text } = elements
+    const { Box, Text } = elements
     const chosen = await read($, prefs)
     const shown = await read($, tab)
     const at = await read($, now)
     await read($, pulse)
-    const { ink, frame, note, title, card, meter } = makeParts(elements, chosen.palette, e.surface)
+    const { ink, frame, note, title, card, meter, Button } = makeParts(elements, chosen, e.surface)
 
     const header = (
       <Box flexDirection="column" gap={1}>

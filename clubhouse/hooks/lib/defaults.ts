@@ -28,6 +28,7 @@ export const DEFAULT_BAR: BarLayout = {
   home: { isShown: true, row: 1, zone: 'center' },
   meter: { isShown: true, row: 1, zone: 'right' },
   summary: { isShown: true, row: 1, zone: 'left' },
+  tidy: { isShown: true, row: 1, zone: 'left' },
   context: { isShown: false, row: 1, zone: 'left' },
   receipt: { isShown: false, row: 1, zone: 'left' },
 }
@@ -36,6 +37,7 @@ export const BAR_ITEMS: readonly (readonly [BarItemId, string, string])[] = [
   ['home', 'Home button', 'The house that opens the Clubhouse.'],
   ['meter', 'Usage meter', 'Clawd on a bar that drains as you use your limit.'],
   ['summary', 'Summarize button', 'Shortens the last reply into a few bullet points.'],
+  ['tidy', 'Tidy button', 'Fixes spelling and trims the draft in the prompt box before you send it.'],
   ['context', 'Context gauge', 'How full this conversation is.'],
   ['receipt', 'Turn receipt', 'Time, tokens and usage of the last turn.'],
 ]
@@ -47,6 +49,8 @@ export const DEFAULT_PREFS: Prefs = {
   barCount: 1,
   shortcuts: [],
   autoSummary: false,
+  appMode: 'dark',
+  tintChat: false,
   palette: DEFAULT_PALETTE,
   previousTheme: null,
 }
@@ -198,12 +202,15 @@ export function mergePrefs(saved: unknown): Prefs {
       home: asSpot(bar.home, DEFAULT_BAR.home, barCount),
       meter: asSpot(bar.meter, DEFAULT_BAR.meter, barCount),
       summary: asSpot(bar.summary, DEFAULT_BAR.summary, barCount),
+      tidy: asSpot(bar.tidy, DEFAULT_BAR.tidy, barCount),
       context: asSpot(bar.context, DEFAULT_BAR.context, barCount),
       receipt: asSpot(bar.receipt, DEFAULT_BAR.receipt, barCount),
     },
     barCount,
     shortcuts: asShortcuts(saved.shortcuts, barCount),
     autoSummary: saved.autoSummary === true,
+    appMode: saved.appMode === 'light' ? 'light' : 'dark',
+    tintChat: saved.tintChat === true,
     palette: { ...DEFAULT_PALETTE, ...palette } as Palette,
     previousTheme: typeof saved.previousTheme === 'string' ? saved.previousTheme : null,
   }
@@ -219,6 +226,7 @@ export function withBarCount(held: Prefs, barCount: number): Prefs {
       home: fit(held.bar.home),
       meter: fit(held.bar.meter),
       summary: fit(held.bar.summary),
+      tidy: fit(held.bar.tidy),
       context: fit(held.bar.context),
       receipt: fit(held.bar.receipt),
     },

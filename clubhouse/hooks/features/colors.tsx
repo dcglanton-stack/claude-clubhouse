@@ -4,7 +4,7 @@ import type { EngineInterface, On } from 'claude-code'
 import type { Palette, PaletteSlot, Prefs } from '../../types'
 import { COLORS_PANE, DEFAULT_COLORS_VIEW, DEFAULT_PALETTE, DEFAULT_PREFS, PREFS_KEY, isRecord } from '../lib/defaults'
 import { clawdSvg, wheelSvg } from '../lib/clawd'
-import { isLight, mix, normalizeHex, rgbString, shift, toHsl } from '../lib/color'
+import { inkOn, isLight, mix, normalizeHex, rgbString, shift, toHsl } from '../lib/color'
 import type { Hsl } from '../lib/color'
 import { makeParts } from '../lib/parts'
 
@@ -14,6 +14,7 @@ const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS
 const THEME_SLUG = 'clubhouse'
 const THEME_REF = `custom:${THEME_SLUG}`
 const BLANK_SLOT = '#2b2b2b'
+const MARKDOWN_LIMIT = 9500
 const LOOK_MODEL = 'haiku'
 const LOOK_SYSTEM =
   'You design three-color palettes. Reply with one JSON object and nothing else: ' +
@@ -238,15 +239,60 @@ async function takeHex($: EngineInterface, slot: PaletteSlot, typed: string): Pr
 }
 
 export function colors(on: On): void {
+  on('ui.render', { component: 'UserMessage' }, async ($, e, next) => {
+    const chosen = await read($, prefs)
+    const { background } = chosen.palette
+    const isPlain = e.props.origin.kind === 'composer' && !e.props.isExpanded
+
+    if (!chosen.isEnabled || !chosen.tintChat || background === null || e.surface === 'terminal' || !isPlain) {
+      return next(e)
+    }
+
+    const { Box, Text } = $.ui.resolve(e)
+
+    return (
+      <Box backgroundColor={mix(background, inkOn(background), 0.08)} paddingX={1}>
+        <Text color={inkOn(background)} wrap="wrap">
+          {e.props.text}
+        </Text>
+      </Box>
+    )
+  })
+
+  on('ui.render', { component: 'AssistantMessage' }, async ($, e, next) => {
+    const chosen = await read($, prefs)
+    const { background } = chosen.palette
+    const elements = $.ui.resolve(e)
+    const fitsApp = background !== null && isLight(background) === (chosen.appMode === 'light')
+    const canTint =
+      chosen.isEnabled &&
+      chosen.tintChat &&
+      fitsApp &&
+      e.surface !== 'terminal' &&
+      'Markdown' in elements &&
+      e.props.text.trim() !== '' &&
+      e.props.text.length <= MARKDOWN_LIMIT
+
+    if (!canTint || background === null || !('Markdown' in elements)) {
+      return next(e)
+    }
+
+    return (
+      <elements.Box backgroundColor={background} paddingX={1}>
+        <elements.Markdown text={e.props.text} />
+      </elements.Box>
+    )
+  })
+
   on('ui.render', { component: 'Pane', requestId: 'clubhouse-colors' }, async ($, e) => {
     const elements = $.ui.resolve(e)
     const canDraw = e.surface !== 'terminal'
-    const { Box, Button, Text } = elements
+    const { Box, Text } = elements
     const chosen = await read($, prefs)
     const view = await read($, colorsView)
     const slot = view.slot
     const current = chosen.palette[slot] ?? BLANK_SLOT
-    const { ink, frame, note, plain, title, heading } = makeParts(elements, chosen.palette, e.surface)
+    const { ink, frame, note, plain, title, heading, Button, Input } = makeParts(elements, chosen, e.surface)
     const setSlot = (hex: string | null) =>
       void keep($, held => ({ ...held, palette: { ...held.palette, [slot]: hex } }))
     const nudge = (change: Partial<Hsl>) =>
@@ -332,10 +378,10 @@ export function colors(on: On): void {
           ))}
         </Box>
 
-        {'Input' in elements && (
+        {Input !== null && (
           <Box flexDirection="column" gap={1}>
             {heading('Exact color')}
-            <elements.Input
+            <Input
               key="hex"
               label="Hex code"
               placeholder="#d97757"
@@ -344,7 +390,7 @@ export function colors(on: On): void {
             />
             {heading('Describe a look')}
             {note('A small model picks all three colors from your words. Costs a few tokens.')}
-            <elements.Input
+            <Input
               key="look"
               label="Look"
               placeholder="cozy autumn cabin"
@@ -354,12 +400,34 @@ export function colors(on: On): void {
           </Box>
         )}
 
-        {heading('Whole of Claude Code')}
-        {note(
-          'Writes these colors into a Claude Code theme and switches to it. That recolors the terminal version of Claude Code. This desktop app draws its own window, so it may pick up only part of it, or none.',
-        )}
+        {heading('Buttons and text boxes')}
+        {note('The app draws buttons and text boxes in its own light or dark style. Tell the Clubhouse which one your app is in, and it puts a matching backing behind them whenever your background would hide them.')}
+        <Box>
+          <Button
+            key="app-mode"
+            label={chosen.appMode === 'dark' ? 'My app is in dark mode' : 'My app is in light mode'}
+            onPress={() =>
+              void keep($, held => ({ ...held, appMode: held.appMode === 'dark' ? 'light' : 'dark' }))
+            }
+          />
+        </Box>
+
+        {heading('The conversation')}
+        {note('Experimental. Paints your background color behind your messages and Claude\'s replies. Replies are only tinted when the color is in the same family as your app (a dark color in dark mode), because the app sets the color of reply text. Tool rows keep the app\'s look.')}
+        <Box>
+          <Button
+            key="tint-chat"
+            label={chosen.tintChat ? 'Conversation tint: on' : 'Conversation tint: off'}
+            variant={chosen.tintChat ? 'primary' : 'secondary'}
+            onPress={() => void keep($, held => ({ ...held, tintChat: !held.tintChat }))}
+          />
+        </Box>
+
+        {heading('The rest of the app')}
+        {note('The window itself (sidebar, title bar, the space around the conversation) is drawn by the Claude app from two built-in color sets, light and dark. It has no setting for other colors, and it refuses to start with the debugging switch that outside tools use to restyle apps. Changing it would mean altering the signed app, which every update would undo. Switch light or dark in the app\'s own Settings.')}
+        {note('Claude Code in a terminal is different: there the theme below recolors its accents, borders and panels.')}
         <Box gap={1} flexWrap="wrap">
-          <Button key="apply-app" label="Apply to Claude Code" onPress={() => void applyToApp($)} />
+          <Button key="apply-app" label="Apply to Claude Code theme" onPress={() => void applyToApp($)} />
           <Button key="undo-app" label="Undo" onPress={() => void undoApp($)} />
           <Button
             key="reset-colors"

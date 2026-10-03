@@ -65,7 +65,7 @@ export function tools(on: On): void {
 
   on('ui.render', { component: 'Pane', requestId: 'clubhouse-tools' }, async ($, e) => {
     const elements = $.ui.resolve(e)
-    const { Box, Button } = elements
+    const { Box } = elements
     const chosen = await read($, prefs)
     const rules = await read($, toolRules)
     const view = await read($, toolsView)
@@ -78,7 +78,7 @@ export function tools(on: On): void {
     const matching = all.filter(
       one => one.name.toLowerCase().includes(wanted) || one.description.toLowerCase().includes(wanted),
     )
-    const { frame, note, plain, title, card } = makeParts(elements, chosen.palette, e.surface)
+    const { frame, note, plain, title, card, Button, Input } = makeParts(elements, chosen, e.surface)
 
     const setFilter = (typed: string) =>
       void update($, toolsView, held => ({ ...held, filter: typed }))
@@ -142,8 +142,8 @@ export function tools(on: On): void {
             </Box>,
           ])}
 
-        {'Input' in elements && (
-          <elements.Input
+        {Input !== null && (
+          <Input
             key="tools-filter"
             label="Find"
             placeholder="part of a tool name or what it does"

@@ -224,7 +224,7 @@ export function agents(on: On): void {
   on('ui.render', { component: 'Pane', requestId: 'clubhouse-agents' }, async ($, e) => {
     const elements = $.ui.resolve(e)
     const canDraw = e.surface !== 'terminal'
-    const { Box, Button, Text } = elements
+    const { Box, Text } = elements
     const chosen = await read($, prefs)
     await read($, pulse)
     await read($, now)
@@ -237,7 +237,7 @@ export function agents(on: On): void {
       .slice(-PAST_SHOWN)
       .reverse()
     const { clawd } = chosen.palette
-    const { ink, frame, note, plain, title, card } = makeParts(elements, chosen.palette, e.surface)
+    const { ink, frame, note, plain, title, card, Button, Input, Select } = makeParts(elements, chosen, e.surface)
     const target = bank.find(one => one.name === desk.target)
 
     const setDesk = (mode: 'idle' | 'form' | 'send', name: string | null) =>
@@ -315,10 +315,10 @@ export function agents(on: On): void {
     )
 
     const form = () =>
-      'Input' in elements && 'Select' in elements
+      Input !== null && Select !== null
         ? card(target === undefined ? 'New agent' : `Edit ${target.name}`, [
             note('Press Enter in each box to set it, then Save.'),
-            <elements.Input
+            <Input
               key="agent-name"
               label="Name"
               placeholder="test-scout"
@@ -330,7 +330,7 @@ export function agents(on: On): void {
                 draft = { ...draft, name: typed }
               }}
             />,
-            <elements.Input
+            <Input
               key="agent-purpose"
               label="When to use it"
               placeholder="Finds which tests cover a change"
@@ -342,7 +342,7 @@ export function agents(on: On): void {
                 draft = { ...draft, purpose: typed }
               }}
             />,
-            <elements.Input
+            <Input
               key="agent-prompt"
               label="Instructions"
               placeholder="You read code and report file paths. Never edit files."
@@ -354,7 +354,7 @@ export function agents(on: On): void {
                 draft = { ...draft, prompt: typed }
               }}
             />,
-            <elements.Select
+            <Select
               key="agent-model"
               label="Model"
               value={draft.model}
@@ -374,10 +374,10 @@ export function agents(on: On): void {
         : card('New agent', [note('Adding agents needs a text box, which this screen does not have. Use the desktop app or terminal.')])
 
     const send = (one: Blueprint) =>
-      'Input' in elements
+      Input !== null
         ? card(`Send ${one.name}`, [
             note(`Runs on ${MODEL_LABEL[one.model]}. Claude is told what it was sent to do.`),
-            <elements.Input
+            <Input
               key="agent-task"
               label="Task"
               placeholder="What should it do right now?"

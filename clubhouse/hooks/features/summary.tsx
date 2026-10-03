@@ -33,11 +33,11 @@ async function summarize($: EngineInterface): Promise<void> {
 export function summaryRoom(on: On): void {
   on('ui.render', { component: 'Pane', requestId: 'clubhouse-summary' }, async ($, e) => {
     const elements = $.ui.resolve(e)
-    const { Box, Button } = elements
+    const { Box } = elements
     const chosen = await read($, prefs)
     const made = await read($, summary)
     const answer = await read($, lastAnswer)
-    const { card, frame, note, plain, title } = makeParts(elements, chosen.palette, e.surface)
+    const { card, frame, note, plain, title, Button, Markdown } = makeParts(elements, chosen, e.surface)
     const hasAnswer = answer.trim() !== ''
 
     const body = () => {
@@ -46,7 +46,7 @@ export function summaryRoom(on: On): void {
 
       if (made.status === 'ready') {
         return [
-          'Markdown' in elements ? <elements.Markdown text={made.text.slice(0, 9000)} /> : plain(made.text),
+          Markdown !== null ? <Markdown text={made.text.slice(0, 9000)} /> : plain(made.text),
           note(`Cut from ${made.sourceChars.toLocaleString('en-US')} characters to ${made.text.length.toLocaleString('en-US')}.`),
         ]
       }

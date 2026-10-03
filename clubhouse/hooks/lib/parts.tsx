@@ -1,8 +1,8 @@
-import type { Elements } from 'claude-code'
+import type { ElementConstructor, Elements } from 'claude-code'
 
-import type { Limit, Palette, WindowKind } from '../../types'
+import type { Limit, Prefs, WindowKind } from '../../types'
 import { meterSvg, moodFor, moodName } from './clawd'
-import { inkOn, rampColor } from './color'
+import { inkOn, isLight, rampColor } from './color'
 import { WINDOW_NAME, formatSpan, percentLeft, resetIn, textBar } from './format'
 import { serifSize, serifSvg } from './type'
 
@@ -20,10 +20,28 @@ const TEXT_CELLS = 28
 const TITLE_SIZE = 24
 const HEADING_SIZE = 17
 const HAIRLINE = '#87867f'
+const DARK_CHIP = '#30302e'
+const LIGHT_CHIP = '#faf9f5'
 
-export function makeParts(kit: Kit, palette: Palette, surface: string) {
+export function makeParts(kit: Kit, { palette, appMode }: Prefs, surface: string) {
   const { Box, Text } = kit
   const { accent, background, clawd } = palette
+  const needsChip = background !== null && isLight(background) !== (appMode === 'light')
+  const chipColor = appMode === 'light' ? LIGHT_CHIP : DARK_CHIP
+  const chipped =
+    <P extends object>(Native: ElementConstructor<P>) =>
+    (props: P) =>
+      needsChip ? (
+        <Box backgroundColor={chipColor} flexShrink={0}>
+          <Native {...props} />
+        </Box>
+      ) : (
+        <Native {...props} />
+      )
+  const Button = chipped(kit.Button)
+  const Input = 'Input' in kit ? chipped(kit.Input) : null
+  const Select = 'Select' in kit ? chipped(kit.Select) : null
+  const Markdown = 'Markdown' in kit ? chipped(kit.Markdown) : null
   const canDraw = surface !== 'terminal'
   const ink = background === null ? {} : { color: inkOn(background) }
   const frame = background === null ? {} : { backgroundColor: background, padding: 1 }
@@ -94,5 +112,5 @@ export function makeParts(kit: Kit, palette: Palette, surface: string) {
     )
   }
 
-  return { ink, frame, note, plain, title, heading, card, meter }
+  return { ink, frame, note, plain, title, heading, card, meter, Button, Input, Select, Markdown }
 }
