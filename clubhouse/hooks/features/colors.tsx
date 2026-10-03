@@ -43,7 +43,7 @@ import {
   STOP_HELPER,
   buildFailed,
 } from '../lib/build'
-import { ownFolder } from '../lib/own'
+import { MARKETPLACE_LIST, installedFolder, ownFolder } from '../lib/own'
 import { PROJECT_COLORS_KEY, asProjectColors, forStore, projectName, withoutProject } from '../lib/project'
 
 const colorPresets = atom({ plugin: 'clubhouse', key: 'colorPresets' } as const, [])
@@ -209,9 +209,18 @@ async function keepForProject($: EngineInterface, isOwn: boolean): Promise<void>
   await say($, `${projectName(folder)} is back on the shared colors.`)
 }
 
+async function copyFolder($: EngineInterface): Promise<string | null> {
+  const own = ownFolder(await $.env.get('CLAUDE_CODE_PLUGIN_DIRS'))
+
+  if (own !== null) return own
+  const settings = (await $.env.get('CLAUDE_CONFIG_DIR')) ?? `${(await $.env.get('HOME')) ?? ''}/.claude`
+
+  return installedFolder(await $.fs.read(`${settings}/${MARKETPLACE_LIST}`).catch(() => ''))
+}
+
 async function buildHelper($: EngineInterface): Promise<void> {
   const tell = (helperNote: string, isBuilding: boolean) => update($, colorsView, view => ({ ...view, helperNote, isBuilding }))
-  const folder = ownFolder(await $.env.get('CLAUDE_CODE_PLUGIN_DIRS'))
+  const folder = await copyFolder($)
 
   if ((await read($, colorsView)).isBuilding === true) return
 

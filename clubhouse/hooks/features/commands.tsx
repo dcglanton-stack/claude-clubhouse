@@ -41,7 +41,7 @@ import {
   STOP_HELPER,
   buildFailed,
 } from '../lib/build'
-import { ownFolder } from '../lib/own'
+import { MARKETPLACE_LIST, installedFolder, ownFolder } from '../lib/own'
 
 const commandStats = atom({ plugin: 'clubhouse', key: 'commandStats' } as const, {})
 const commandsView = atom({ plugin: 'clubhouse', key: 'commandsView' } as const, DEFAULT_COMMANDS_VIEW)
@@ -204,8 +204,17 @@ async function ship($: EngineInterface, wish: string): Promise<string> {
     : `${version} is tagged and pushed, but the GitHub release could not be created. Run: gh release create ${version}`
 }
 
+async function copyFolder($: EngineInterface): Promise<string | null> {
+  const own = ownFolder(await $.env.get('CLAUDE_CODE_PLUGIN_DIRS'))
+
+  if (own !== null) return own
+  const settings = (await $.env.get('CLAUDE_CONFIG_DIR')) ?? `${(await $.env.get('HOME')) ?? ''}/.claude`
+
+  return installedFolder(await $.fs.read(`${settings}/${MARKETPLACE_LIST}`).catch(() => ''))
+}
+
 async function build($: EngineInterface): Promise<string> {
-  const folder = ownFolder(await $.env.get('CLAUDE_CODE_PLUGIN_DIRS'))
+  const folder = await copyFolder($)
 
   if (folder === null) return BUILD_NO_FOLDER
   const compiler = await $.process.run(FIND_COMPILER).catch(() => null)

@@ -1,6 +1,6 @@
 {
   "name": "clubhouse",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Claude Clubhouse: a home button and Clawd usage meter above the prompt, Agent HQ, a command list, a color picker, and a /clubhouse pane that reaches all of it",
   "author": { "name": "Davis Glanton" },
   "types": "./types/index.d.ts"

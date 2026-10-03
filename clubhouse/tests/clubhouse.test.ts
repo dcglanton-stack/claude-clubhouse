@@ -9,7 +9,7 @@ import { nextVersion, subjectsOf } from '../hooks/lib/ship'
 import { arranged, rowLoad } from '../hooks/lib/toolbar'
 import { serifSize } from '../hooks/lib/type'
 import { pixelsFrom, pngOf, toBase64 } from '../hooks/lib/png'
-import { asksToChange, ownFolder, shortFolder } from '../hooks/lib/own'
+import { asksToChange, installedFolder, ownFolder, shortFolder } from '../hooks/lib/own'
 import { asProjectColors, projectName } from '../hooks/lib/project'
 import { LEAGUES, gamesFrom, listed, logoFor, logoSlot, withLogo } from '../hooks/lib/sports'
 import { asQuotes, isFresh, isStale } from '../hooks/lib/ticker'
@@ -1271,6 +1271,8 @@ test('"in the clubhouse" points Claude at the user\'s own copy and keeps changes
   expect(ownFolder('/a/b/other:/Users/me/claude-clubhouse/clubhouse/')).toBe('/Users/me/claude-clubhouse')
   expect(ownFolder('/a/b/other')).toBeNull()
   expect(ownFolder(undefined)).toBeNull()
+  expect(installedFolder('{"claude-clubhouse":{"installLocation":"/Users/me/.claude/plugins/marketplaces/claude-clubhouse"}}')).toBe('/Users/me/.claude/plugins/marketplaces/claude-clubhouse')
+  expect(installedFolder('not json')).toBeNull()
   expect(shortFolder('/Users/me/claude-clubhouse', '/Users/me')).toBe('~/claude-clubhouse')
   expect(asksToChange('In the Clubhouse, make the meter blue')).toBe(true)
   expect(asksToChange('what is a clubhouse sandwich')).toBe(false)
