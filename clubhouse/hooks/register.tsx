@@ -414,9 +414,14 @@ export const register: Register = on => {
     await update($, agentBank, () => savedAgents)
 
     for (const one of savedAgents) {
-      const base = { name: one.name, description: one.purpose, prompt: one.prompt }
       await $.agent
-        .register(one.model === 'inherit' ? base : { ...base, model: one.model })
+        .register({
+          name: one.name,
+          description: one.purpose,
+          prompt: one.prompt,
+          model: one.model,
+          permissionMode: 'default',
+        })
         .catch(() => undefined)
     }
 

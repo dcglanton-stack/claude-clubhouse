@@ -77,12 +77,6 @@ function reason(error: unknown): string {
 
 const AFTER_SPAWN_MS = 1500
 
-function spec(one: Blueprint) {
-  const base = { name: one.name, description: one.purpose, prompt: one.prompt }
-
-  return one.model === 'inherit' ? base : { ...base, model: one.model }
-}
-
 async function tell($: EngineInterface, note: string): Promise<void> {
   await update($, agentDesk, desk => ({ ...desk, note }))
   await update($, pulse, beat => beat + 1)
@@ -111,7 +105,13 @@ async function saveDraft($: EngineInterface): Promise<void> {
       : AGENT_MODELS.find(model => model === draft.model)
     const made: Blueprint = { name, purpose, prompt, model: picked ?? 'sonnet', isAuto }
 
-    await $.agent.register({ ...spec(made), permissionMode: 'default' })
+    await $.agent.register({
+      name: made.name,
+      description: made.purpose,
+      prompt: made.prompt,
+      model: made.model,
+      permissionMode: 'default',
+    })
     await saveBank($, bank => [...bank.filter(one => one.name !== name), made])
     draft = BLANK_DRAFT
     await update($, agentDesk, desk => ({ ...desk, mode: 'idle', target: null }))
@@ -132,7 +132,13 @@ async function nextModel($: EngineInterface, name: string): Promise<void> {
     const model = AGENT_MODELS[(AGENT_MODELS.indexOf(held.model) + 1) % AGENT_MODELS.length] ?? 'sonnet'
     const made: Blueprint = { ...held, model, isAuto: false }
 
-    await $.agent.register({ ...spec(made), permissionMode: 'default' })
+    await $.agent.register({
+      name: made.name,
+      description: made.purpose,
+      prompt: made.prompt,
+      model: made.model,
+      permissionMode: 'default',
+    })
     await saveBank($, bank => bank.map(one => (one.name === name ? made : one)))
     await tell($, `${name} now runs on ${MODEL_LABEL[model]}.`)
   } catch (error) {
@@ -173,7 +179,13 @@ async function dispatch($: EngineInterface, name: string): Promise<void> {
       )
       .then(async first => {
         if (first !== null) return first
-        await $.agent.register({ ...spec({ ...held, model: 'opus' }), permissionMode: 'default' })
+        await $.agent.register({
+          name: held.name,
+          description: held.purpose,
+          prompt: held.prompt,
+          model: 'opus',
+          permissionMode: 'default',
+        })
         await tell($, `Fable was not available, so ${name} runs on Opus this time.`)
 
         return send()
