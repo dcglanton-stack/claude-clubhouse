@@ -11,5 +11,16 @@
   "supportUrl": "https://github.com/dcglanton-stack/claude-clubhouse/issues",
   "privacyPolicyUrl": "https://github.com/dcglanton-stack/claude-clubhouse/blob/main/PRIVACY.md",
   "license": "MIT",
+  "keywords": [
+    "mod",
+    "toolbar",
+    "theme",
+    "colors",
+    "usage",
+    "agents",
+    "tool-rules",
+    "productivity",
+    "macos"
+  ],
   "types": "./types/index.d.ts"
 }
