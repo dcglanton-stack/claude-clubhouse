@@ -6,7 +6,7 @@ import { appModeFrom } from '../hooks/lib/appColor'
 import { mergePrefs, sameSettings } from '../hooks/lib/defaults'
 import { pixelFor, redrawn, shownFrom, toDisplay, toneFor } from '../hooks/lib/tone'
 import { nextVersion, subjectsOf } from '../hooks/lib/ship'
-import { arranged, rowLoad } from '../hooks/lib/toolbar'
+import { MAX_ROWS, READY_LAYOUTS, ROW_CAPACITY, arranged, rowLoad, withReadyLayout } from '../hooks/lib/toolbar'
 import { serifSize } from '../hooks/lib/type'
 import { taskWish } from '../hooks/lib/todo'
 import { pixelsFrom, pngOf, toBase64 } from '../hooks/lib/png'
@@ -2402,3 +2402,66 @@ for (const surface of SURFACES) {
     await ui.unmount()
   })
 }
+
+test('a ready-made layout sets the whole toolbar in one press, fits its rows and keeps your own buttons', async ($, on) => {
+  world(on, 50, {
+    stored: {
+      prefs: {
+        shortcuts: [{ id: 's1', label: 'Run tests', text: 'run the tests', spot: { isShown: true, row: 1, zone: 'left' } }],
+      },
+    },
+  })
+  await start($)
+
+  expect(new Set(READY_LAYOUTS.map(one => one.name)).size).toBe(READY_LAYOUTS.length)
+
+  for (const layout of READY_LAYOUTS) {
+    const set = withReadyLayout(mergePrefs({}), layout)
+
+    expect(layout.rows).toBeLessThanOrEqual(MAX_ROWS)
+    expect(layout.items.every(([, row]) => row >= 1 && row <= layout.rows)).toBe(true)
+
+    for (let row = 1; row <= layout.rows; row += 1) {
+      expect(rowLoad(set, row)).toBeGreaterThan(0)
+      expect(rowLoad(set, row)).toBeLessThanOrEqual(ROW_CAPACITY)
+    }
+  }
+
+  const ui = await $.ui.mount({
+    plugin: 'clubhouse',
+    surface: 'desktop',
+    component: 'Pane',
+    requestId: 'clubhouse-bar',
+    props: { ...PANE, title: 'Toolbar' },
+  })
+  const bar = await $.ui.mount({ plugin: 'clubhouse', surface: 'desktop', component: 'AbovePrompt', props: BAND })
+  const rowCount = async () => ((await bar.drawn()) as { children: unknown[] }).children.length
+
+  expect(await bar.find({ key: 'shortcut-s1' })).toBeDefined()
+  await ui.press({ key: 'ready-Focus' })
+  expect(await ui.find({ type: 'Text', text: /^Row 1: 11 of 14 used$/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /The toolbar is now "Focus"\. Your own buttons are off the toolbar, not deleted/ })).toBeDefined()
+  expect(await bar.find({ key: 'home' })).toBeUndefined()
+  expect(await bar.find({ key: 'summary' })).toBeUndefined()
+  expect(await bar.find({ key: 'shortcut-s1' })).toBeUndefined()
+  expect(await bar.find({ key: 'window' })).toBeDefined()
+  expect(await bar.find({ type: 'Text', text: /cache/ })).toBeDefined()
+  expect((await ui.find({ key: 'sc-s1-show' }))?.text).toBe('Add to toolbar')
+  expect((await ui.find({ key: 'bar-meter-zone' }))?.text).toBe('Left')
+  expect((await ui.find({ key: 'bar-context-zone' }))?.text).toBe('Right')
+  expect((await ui.find({ key: 'bar-cache-zone' }))?.text).toBe('Right')
+  expect(await rowCount()).toBe(1)
+
+  await ui.press({ key: 'ready-Game day' })
+  expect(await ui.find({ type: 'Text', text: /^Row 1: 11 of 14 used · Row 2: 12 of 14 used$/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /^The toolbar is now "Game day"\.$/ })).toBeDefined()
+  expect(await bar.find({ key: 'home' })).toBeDefined()
+  expect(await rowCount()).toBe(2)
+
+  await ui.press({ key: 'ready-Quiet' })
+  expect(await ui.find({ type: 'Text', text: /^Row 1: 2 of 14 used$/ })).toBeDefined()
+  expect(await bar.find({ key: 'home' })).toBeDefined()
+  expect(await bar.find({ key: 'window' })).toBeUndefined()
+  await ui.unmount()
+  await bar.unmount()
+})
