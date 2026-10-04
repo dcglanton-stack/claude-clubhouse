@@ -120,6 +120,8 @@ export type RecipesView = { note: string | null; editing: string | null; trial: 
 
 export type SessionNote = { id: string; text: string; folder: string | null; keep: 'once' | 'always'; at: number }
 
+export type Task = { id: number; text: string; isDone: boolean }
+
 export type NotesView = { note: string | null; where: 'folder' | 'anywhere'; keep: 'once' | 'always' }
 
 export type Quote = { symbol: string; name: string; price: number; changePercent: number | null; at: number }
@@ -267,6 +269,8 @@ declare module 'claude-code' {
       receivedNotes: SessionNote[]
       pendingNotes: SessionNote[]
       notesView: NotesView
+      todos: Task[]
+      todoNote: string | null
       sessionFolder: string
       hasBooted: boolean
       sharedPalette: Palette | null

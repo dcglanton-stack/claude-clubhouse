@@ -6,8 +6,9 @@ import { appModeFrom } from '../hooks/lib/appColor'
 import { mergePrefs, sameSettings } from '../hooks/lib/defaults'
 import { pixelFor, redrawn, shownFrom, toDisplay, toneFor } from '../hooks/lib/tone'
 import { nextVersion, subjectsOf } from '../hooks/lib/ship'
-import { arranged, rowLoad } from '../hooks/lib/toolbar'
+import { MAX_ROWS, READY_LAYOUTS, ROW_CAPACITY, arranged, rowLoad, withReadyLayout } from '../hooks/lib/toolbar'
 import { serifSize } from '../hooks/lib/type'
+import { taskWish } from '../hooks/lib/todo'
 import { pixelsFrom, pngOf, toBase64 } from '../hooks/lib/png'
 import { asksToChange, installedFolder, ownFolder, shortFolder } from '../hooks/lib/own'
 import { asProjectColors, projectName } from '../hooks/lib/project'
@@ -2338,6 +2339,129 @@ test('Weather finds your place, shows the sky on the toolbar and lists the next 
   await ui.press({ key: 'weather-place-Waco, Texas' })
   expect(await ui.find({ type: 'Text', text: /^Waco, Texas$/ })).toBeDefined()
   expect(seen.fetched.at(-1)).toMatch(/latitude=31\.5/)
+  await ui.unmount()
+  await bar.unmount()
+})
+
+for (const surface of SURFACES) {
+  test(`the to-do room adds tasks, crosses them off and clears them on ${surface}`, async ($, on) => {
+    const seen = world(on, 50)
+    await start($)
+
+    expect(taskWish('todos')).toBe('')
+    expect(taskWish('To-Do  Call the Bank ')).toBe('Call the Bank')
+    expect(taskWish('today')).toBeNull()
+    expect(taskWish('toolbar')).toBeNull()
+
+    expect((await run($, 'clubhouse', 'to-do')).text).toBe('To-do opened.')
+    expect((await run($, 'clubhouse', 'todo')).text).toBe('To-do opened.')
+    expect(seen.open).toContain('clubhouse-todo')
+    expect((await run($, 'clubhouse', 'todo Call the Bank')).text).toBe('Added to your to-do list: Call the Bank')
+
+    const ui = await $.ui.mount({
+      plugin: 'clubhouse',
+      surface,
+      component: 'Pane',
+      requestId: 'clubhouse-todo',
+      props: { ...PANE, title: 'To-do' },
+    })
+
+    expect(await ui.find({ type: 'Text', text: /^Call the Bank$/ })).toBeDefined()
+    await ui.press({ key: 'todo-add' })
+    expect(await ui.find({ type: 'Text', text: /Type a task in the box/ })).toBeDefined()
+
+    await ui.input({ key: 'todo-text', text: 'Buy milk' })
+    expect(await ui.find({ type: 'Text', text: /Type a task in the box/ })).toBeUndefined()
+    expect((await ui.find({ key: 'todo-text' }))?.props.value).toBe('')
+    expect(await says(ui, /^0 of 2 done$/)).toBe(true)
+
+    await ui.press({ key: 'todo-check-2' })
+    expect((await ui.find({ key: 'todo-check-2' }))?.text).toBe('✓')
+    expect((await ui.find({ type: 'Text', text: /^Buy milk$/ }))?.props.strikethrough).toBe(true)
+    expect((await ui.find({ type: 'Text', text: /^Call the Bank$/ }))?.props.strikethrough).toBe(false)
+    expect(await says(ui, /^1 of 2 done$/)).toBe(true)
+
+    await ui.press({ key: 'todo-check-2' })
+    expect((await ui.find({ key: 'todo-check-2' }))?.text).toBe('○')
+    expect(await ui.find({ key: 'todo-clear-done' })).toBeUndefined()
+
+    await ui.press({ key: 'todo-check-1' })
+    await ui.press({ key: 'todo-clear-done' })
+    expect(await ui.find({ key: 'todo-check-1' })).toBeUndefined()
+    expect(await ui.find({ type: 'Text', text: /^Buy milk$/ })).toBeDefined()
+
+    await ui.input({ key: 'todo-text', text: 'Renew the domain', kind: 'change' })
+    expect(await ui.find({ key: 'todo-check-3' })).toBeUndefined()
+    await ui.press({ key: 'todo-add' })
+    expect(await ui.find({ type: 'Text', text: /^Renew the domain$/ })).toBeDefined()
+    expect(await ui.find({ key: 'todo-check-3' })).toBeDefined()
+
+    await ui.press({ key: 'todo-clear-all' })
+    expect(await ui.find({ key: 'todo-check-2' })).toBeUndefined()
+    expect(await ui.find({ key: 'todo-clear-all' })).toBeUndefined()
+    await ui.unmount()
+  })
+}
+
+test('a ready-made layout sets the whole toolbar in one press, fits its rows and keeps your own buttons', async ($, on) => {
+  world(on, 50, {
+    stored: {
+      prefs: {
+        shortcuts: [{ id: 's1', label: 'Run tests', text: 'run the tests', spot: { isShown: true, row: 1, zone: 'left' } }],
+      },
+    },
+  })
+  await start($)
+
+  expect(new Set(READY_LAYOUTS.map(one => one.name)).size).toBe(READY_LAYOUTS.length)
+
+  for (const layout of READY_LAYOUTS) {
+    const set = withReadyLayout(mergePrefs({}), layout)
+
+    expect(layout.rows).toBeLessThanOrEqual(MAX_ROWS)
+    expect(layout.items.every(([, row]) => row >= 1 && row <= layout.rows)).toBe(true)
+
+    for (let row = 1; row <= layout.rows; row += 1) {
+      expect(rowLoad(set, row)).toBeGreaterThan(0)
+      expect(rowLoad(set, row)).toBeLessThanOrEqual(ROW_CAPACITY)
+    }
+  }
+
+  const ui = await $.ui.mount({
+    plugin: 'clubhouse',
+    surface: 'desktop',
+    component: 'Pane',
+    requestId: 'clubhouse-bar',
+    props: { ...PANE, title: 'Toolbar' },
+  })
+  const bar = await $.ui.mount({ plugin: 'clubhouse', surface: 'desktop', component: 'AbovePrompt', props: BAND })
+  const rowCount = async () => ((await bar.drawn()) as { children: unknown[] }).children.length
+
+  expect(await bar.find({ key: 'shortcut-s1' })).toBeDefined()
+  await ui.press({ key: 'ready-Focus' })
+  expect(await ui.find({ type: 'Text', text: /^Row 1: 11 of 14 used$/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /The toolbar is now "Focus"\. Your own buttons are off the toolbar, not deleted/ })).toBeDefined()
+  expect(await bar.find({ key: 'home' })).toBeUndefined()
+  expect(await bar.find({ key: 'summary' })).toBeUndefined()
+  expect(await bar.find({ key: 'shortcut-s1' })).toBeUndefined()
+  expect(await bar.find({ key: 'window' })).toBeDefined()
+  expect(await bar.find({ type: 'Text', text: /cache/ })).toBeDefined()
+  expect((await ui.find({ key: 'sc-s1-show' }))?.text).toBe('Add to toolbar')
+  expect((await ui.find({ key: 'bar-meter-zone' }))?.text).toBe('Left')
+  expect((await ui.find({ key: 'bar-context-zone' }))?.text).toBe('Right')
+  expect((await ui.find({ key: 'bar-cache-zone' }))?.text).toBe('Right')
+  expect(await rowCount()).toBe(1)
+
+  await ui.press({ key: 'ready-Game day' })
+  expect(await ui.find({ type: 'Text', text: /^Row 1: 11 of 14 used · Row 2: 12 of 14 used$/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /^The toolbar is now "Game day"\.$/ })).toBeDefined()
+  expect(await bar.find({ key: 'home' })).toBeDefined()
+  expect(await rowCount()).toBe(2)
+
+  await ui.press({ key: 'ready-Quiet' })
+  expect(await ui.find({ type: 'Text', text: /^Row 1: 2 of 14 used$/ })).toBeDefined()
+  expect(await bar.find({ key: 'home' })).toBeDefined()
+  expect(await bar.find({ key: 'window' })).toBeUndefined()
   await ui.unmount()
   await bar.unmount()
 })

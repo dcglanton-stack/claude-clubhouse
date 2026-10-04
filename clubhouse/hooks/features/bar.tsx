@@ -18,6 +18,7 @@ import {
 import { makeParts } from '../lib/parts'
 import {
   ITEM_SIZE,
+  READY_LAYOUTS,
   ROW_CAPACITY,
   TOOLBAR_PRESETS_KEY,
   arranged,
@@ -25,10 +26,11 @@ import {
   presetFrom,
   rowLoad,
   shortcutSize,
+  withReadyLayout,
   withSpot,
   withToolbarPreset,
 } from '../lib/toolbar'
-import type { ItemKey } from '../lib/toolbar'
+import type { ItemKey, ReadyLayout } from '../lib/toolbar'
 import { forStore } from '../lib/project'
 
 const barNote = atom({ plugin: 'clubhouse', key: 'barNote' } as const, null)
@@ -53,6 +55,16 @@ async function arrange($: EngineInterface, key: ItemKey, wish: 'toggle' | 'row')
   const outcome = arranged(await read($, prefs), key, wish)
   await keep($, () => outcome.prefs)
   await update($, barNote, () => outcome.note)
+}
+
+async function useReady($: EngineInterface, layout: ReadyLayout): Promise<void> {
+  const hadOwn = (await read($, prefs)).shortcuts.some(one => one.spot.isShown)
+  await keep($, held => withReadyLayout(held, layout))
+  await update(
+    $,
+    barNote,
+    () => `The toolbar is now "${layout.name}".${hadOwn ? ' Your own buttons are off the toolbar, not deleted: add them back below.' : ''}`,
+  )
 }
 
 async function saveLayout($: EngineInterface, typed: string): Promise<void> {
@@ -159,6 +171,22 @@ export function bar(on: On): void {
             )}
           </Box>,
           note('A row only shows once something is placed on it.'),
+        ])}
+
+        {card('Ready-made layouts', [
+          note(
+            'One press sets the whole toolbar. It replaces what is on the toolbar now, so save your own layout first (Saved layouts, at the bottom) if you want it back.',
+          ),
+          <Box flexDirection="column" gap={1}>
+            {READY_LAYOUTS.map(one => (
+              <Box flexDirection="column">
+                <Box>
+                  <Button key={`ready-${one.name}`} label={one.name} onPress={() => void useReady($, one)} />
+                </Box>
+                {note(one.about)}
+              </Box>
+            ))}
+          </Box>,
         ])}
 
         {BAR_ITEMS.map(([id, title, about]) =>

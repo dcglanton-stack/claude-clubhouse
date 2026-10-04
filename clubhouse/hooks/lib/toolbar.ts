@@ -1,4 +1,4 @@
-import type { BarItemId, BarLayout, BarSpot, Prefs, Shortcut, ToolbarPreset } from '../../types'
+import type { BarItemId, BarLayout, BarSpot, BarZone, Prefs, Shortcut, ToolbarPreset } from '../../types'
 
 export type ItemKey = { kind: 'item'; id: BarItemId } | { kind: 'shortcut'; id: string }
 
@@ -24,6 +24,83 @@ export const ITEM_SIZE: Record<BarItemId, number> = {
   gaslight: 2,
   prune: 1,
 }
+
+export type ReadyLayout = {
+  name: string
+  about: string
+  rows: number
+  items: readonly (readonly [BarItemId, number, BarZone])[]
+}
+
+export const READY_LAYOUTS: readonly ReadyLayout[] = [
+  {
+    name: 'Focus',
+    about: 'Only the numbers, on one row: the usage meter on the left, the cache timer and context gauge on the right.',
+    rows: 1,
+    items: [
+      ['meter', 1, 'left'],
+      ['cache', 1, 'right'],
+      ['context', 1, 'right'],
+    ],
+  },
+  {
+    name: 'Quiet',
+    about: 'Just the Clubhouse button in the middle. Everything else is one press away in the rooms.',
+    rows: 1,
+    items: [['home', 1, 'center']],
+  },
+  {
+    name: 'Drafting',
+    about: 'For writing prompts: Tidy, Draw it and Summarize on the left, the Clubhouse button in the middle, the usage meter on the right.',
+    rows: 1,
+    items: [
+      ['summary', 1, 'left'],
+      ['tidy', 1, 'left'],
+      ['draw', 1, 'left'],
+      ['home', 1, 'center'],
+      ['meter', 1, 'right'],
+    ],
+  },
+  {
+    name: 'Cost watch',
+    about: 'What a long session is costing you. Row 1: Summarize, the Clubhouse button and the usage meter. Row 2: the turn receipt on the left, the cache timer and context gauge on the right.',
+    rows: 2,
+    items: [
+      ['summary', 1, 'left'],
+      ['home', 1, 'center'],
+      ['meter', 1, 'right'],
+      ['receipt', 2, 'left'],
+      ['cache', 2, 'right'],
+      ['context', 2, 'right'],
+    ],
+  },
+  {
+    name: 'Shipping',
+    about: 'For finishing work in a repository: Summarize and Prune on the left, the Clubhouse button in the middle, the context gauge and usage meter on the right.',
+    rows: 1,
+    items: [
+      ['summary', 1, 'left'],
+      ['prune', 1, 'left'],
+      ['home', 1, 'center'],
+      ['context', 1, 'right'],
+      ['meter', 1, 'right'],
+    ],
+  },
+  {
+    name: 'Game day',
+    about: 'The usual toolbar with a second row under it: the live score on the left, the weather in the middle, a price on the right. Pick the game, place and symbol in their rooms.',
+    rows: 2,
+    items: [
+      ['summary', 1, 'left'],
+      ['tidy', 1, 'left'],
+      ['home', 1, 'center'],
+      ['meter', 1, 'right'],
+      ['sports', 2, 'left'],
+      ['weather', 2, 'center'],
+      ['ticker', 2, 'right'],
+    ],
+  },
+]
 
 const LETTERS_PER_UNIT = 8
 const LARGEST_SHORTCUT = 3
@@ -124,4 +201,26 @@ export function withToolbarPreset(held: readonly ToolbarPreset[], preset: Toolba
 
 export function layoutOf(preset: ToolbarPreset): { bar: BarLayout; barCount: number; shortcuts: Shortcut[] } {
   return { bar: preset.bar, barCount: preset.barCount, shortcuts: preset.shortcuts }
+}
+
+export function withReadyLayout(prefs: Prefs, layout: ReadyLayout): Prefs {
+  const bar = Object.fromEntries(
+    (Object.keys(ITEM_SIZE) as BarItemId[]).map(id => {
+      const placed = layout.items.find(([item]) => item === id)
+
+      return [
+        id,
+        placed === undefined
+          ? { isShown: false, row: 1, zone: prefs.bar[id]?.zone ?? 'left' }
+          : { isShown: true, row: placed[1], zone: placed[2] },
+      ]
+    }),
+  ) as BarLayout
+
+  return {
+    ...prefs,
+    bar,
+    barCount: layout.rows,
+    shortcuts: prefs.shortcuts.map(one => ({ ...one, spot: { ...one.spot, isShown: false, row: 1 } })),
+  }
 }

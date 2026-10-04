@@ -22,7 +22,7 @@ Source and updates: https://github.com/dcglanton-stack/claude-clubhouse
 
 - **A toolbar above the prompt** that you lay out yourself: a usage meter where Clawd rides a bar that drains as you use your limit, the context gauge and cache timer, Summarize and Tidy buttons, a stock or coin price, a live score with team logos, the weather, a sketch pad, and buttons you make yourself.
 - **Your colors, for real.** Pick a Background and the whole window becomes that color: the conversation, text box, toolbar and sidebar take shades of it, and things with their own color (window buttons, icons, logos) keep it. It works with the app in dark or light mode, and each project can have its own colors. This part needs macOS.
-- **Rooms**, one screen each: your subagents and saved agents, every slash command, rules for what Claude may do with each tool, terminal commands saved as tools Claude can call, a timer that checks on things while you are away, notes left for a later session, usage, fonts and more.
+- **Rooms**, one screen each: your subagents and saved agents, every slash command, rules for what Claude may do with each tool, terminal commands saved as tools Claude can call, a timer that checks on things while you are away, notes left for a later session, a to-do list for the session you are in, usage, fonts and more.
 - **It is yours to change.** Say "in the clubhouse, add a button that..." in any session and Claude edits your copy. Nothing you change leaves your computer.
 
 ## Where it works
@@ -103,6 +103,7 @@ claude plugin install clubhouse@claude-clubhouse --scope project
 | `/clubhouse recipes` | Recipes: turn a terminal command into a tool Claude can call |
 | `/clubhouse watch` | Night watch: check on things on a timer while you are away |
 | `/clubhouse notes` | Session notes: leave a note for a later session |
+| `/clubhouse to-do` | To-do: a scratchpad list for this session; `/clubhouse to-do call the bank` adds a task |
 | `/clubhouse ticker` | Ticker: a stock or coin price on the toolbar, search and favorites |
 | `/clubhouse sports` | Live sports: games on now and this week; one score on the toolbar |
 | `/clubhouse weather` | Weather: the next 7 days where you are, and the weather on the toolbar |
@@ -226,7 +227,7 @@ Privacy policy: [PRIVACY.md](https://github.com/dcglanton-stack/claude-clubhouse
 ## Every feature
 
 - **Home button**: a house with a C behind it, in the middle of the bar.
-- **Toolbar**: the strip above the prompt. Add or remove each item, move it left, center or right, and use up to three rows. Items include the Clubhouse button, usage meter, Summarize, Tidy, cache timer, context gauge and turn receipt. Make your own buttons that type a prompt or command into the prompt box. Every item has a size and a row has a capacity, so items never overlap: a full row sends the next item to another row (up to four). Layouts can be saved and switched.
+- **Toolbar**: the strip above the prompt. Add or remove each item, move it left, center or right, and use up to three rows. Items include the Clubhouse button, usage meter, Summarize, Tidy, cache timer, context gauge and turn receipt. Make your own buttons that type a prompt or command into the prompt box. Every item has a size and a row has a capacity, so items never overlap: a full row sends the next item to another row (up to four). Ready-made layouts set the whole toolbar in one press: Focus (the usage meter on the left, the cache timer and context gauge on the right, nothing else), Quiet, Drafting, Cost watch, Shipping and Game day. Your own layouts can be saved and switched.
 - **Summary**: a Summarize button on the bar shortens the last reply with a small model; Auto does it for every long reply.
 - **Usage meter**: Clawd rides a bar that drains as the 5-hour or weekly limit is used. Green and happy when full, red and wiped out near empty. Shows time to reset and a one-hour cache countdown from the last reply.
 - **Agent HQ**: each subagent drawn as Clawd in a suit and sunglasses, with Stand down and Dismiss. Create your own agents from a form, save them, pick their model (or let Auto pick the cheapest that fits), and send one out with a task; Claude is told what was dispatched.
@@ -245,6 +246,7 @@ Privacy policy: [PRIVACY.md](https://github.com/dcglanton-stack/claude-clubhouse
 - **Handoff prompt**: when the conversation is 85% full, the toolbar offers to have Claude write `HANDOFF.md` once your next prompt is finished, so a fresh session can pick up.
 - **Weather**: a toolbar item with the temperature, a drawn sky (sun, partly cloudy, cloud, rain, thunderstorm, snow) and, when it is not raining, the chance of rain. The room finds your place from your connection or a typed town and lists the next 7 days. Forecasts come from Open-Meteo.
 - **Session notes**: a note for a later session to read. Choose who gets it (the next session in this folder, or in any folder) and how often (once, or every new session until deleted). Sessions already running never pick a note up, so two open sessions cannot both take it; "Give to this session" hands one over by hand. Claude reads a note with the session's first message.
+- **To-do**: a scratchpad list for the session you are in. Add a task in the room or with `/clubhouse to-do` and the task; press the circle beside a task to cross it off, and again to bring it back. Claude does not read the list, and it is gone when the session ends.
 - **Release helper**: `/ship` (or `/ship minor`, `/ship major`, `/ship v1.2.0`) only runs from a clean `main`: it reads the last tag, drafts notes from the commits since, shows them, and after you confirm it tags, pushes and publishes the GitHub release.
 - **Design**: follows `DESIGN.md` (Anthropic's style): serif headings, hairline borders, warm neutrals and one clay accent. The Anthropic palette and three ready-made looks are in Colors.
 - **Tidy**: a bar button that fixes spelling and trims the draft in the prompt box with a small model; press it again to get your original back.

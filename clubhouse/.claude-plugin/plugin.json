@@ -1,6 +1,6 @@
 {
   "name": "clubhouse",
-  "version": "1.2.1",
+  "version": "1.3.0",
   "description": "Claude Clubhouse: a toolbar above the prompt, rooms for usage, agents, commands, tool rules and colors, and whole-window themes on macOS",
   "author": {
     "name": "Davis Glanton"

@@ -25,6 +25,7 @@ import { weatherRoom } from './features/weather'
 import { sportsRoom } from './features/sports'
 import { tickerRoom } from './features/ticker'
 import { notesRoom } from './features/notes'
+import { todoRoom } from './features/todo'
 import { opinionRoom } from './features/opinion'
 import { recipesRoom } from './features/recipes'
 import { summaryRoom } from './features/summary'
@@ -451,8 +452,8 @@ export const register: Register = on => {
 
     await $.command.register({
       name: 'clubhouse',
-      description: 'Open Claude Clubhouse. Add a room to open it: agents, summary, opinion, tools, recipes, watch, notes, ticker, sports, weather, commands, toolbar, usage, colors, fonts; or on, off, color reset',
-      argumentHint: '[on|off|agents|summary|opinion|tools|recipes|watch|notes|ticker|sports|weather|commands|toolbar|usage|colors|fonts|color reset]',
+      description: 'Open Claude Clubhouse. Add a room to open it: agents, summary, opinion, tools, recipes, watch, notes, to-do, ticker, sports, weather, commands, toolbar, usage, colors, fonts; or on, off, color reset',
+      argumentHint: '[on|off|agents|summary|opinion|tools|recipes|watch|notes|to-do|ticker|sports|weather|commands|toolbar|usage|colors|fonts|color reset]',
       immediate: true,
     })
     await $.command
@@ -477,6 +478,7 @@ export const register: Register = on => {
   recipesRoom(on)
   nightWatch(on)
   notesRoom(on)
+  todoRoom(on)
   tickerRoom(on)
   sportsRoom(on)
   fontsRoom(on)
