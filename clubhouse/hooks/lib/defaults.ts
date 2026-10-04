@@ -117,6 +117,7 @@ export const TOOLS_PANE = 'clubhouse-tools'
 export const RECIPES_PANE = 'clubhouse-recipes'
 export const WATCH_PANE = 'clubhouse-watch'
 export const NOTES_PANE = 'clubhouse-notes'
+export const TODO_PANE = 'clubhouse-todo'
 export const TICKER_PANE = 'clubhouse-ticker'
 export const SPORTS_PANE = 'clubhouse-sports'
 export const FONTS_PANE = 'clubhouse-fonts'
@@ -171,6 +172,12 @@ export const ROOMS: readonly Room[] = [
     title: 'Session notes',
     word: 'notes',
     about: 'Leave a note for a later session to read.',
+  },
+  {
+    id: TODO_PANE,
+    title: 'To-do',
+    word: 'to-do',
+    about: 'A scratchpad list for this session: add tasks and cross them off.',
   },
   {
     id: TICKER_PANE,

@@ -16,6 +16,7 @@ import {
   PREFS_KEY,
   PREFS_SHAPE,
   ROOMS,
+  TODO_PANE,
   resetLook,
   topCommands,
 } from '../lib/defaults'
@@ -42,6 +43,7 @@ import {
   buildFailed,
 } from '../lib/build'
 import { MARKETPLACE_LIST, installedFolder, ownFolder } from '../lib/own'
+import { taskProblem, taskWish, withTask } from '../lib/todo'
 
 const commandStats = atom({ plugin: 'clubhouse', key: 'commandStats' } as const, {})
 const commandsView = atom({ plugin: 'clubhouse', key: 'commandsView' } as const, DEFAULT_COMMANDS_VIEW)
@@ -52,6 +54,7 @@ const prefs = atom({ plugin: 'clubhouse', key: 'prefs' } as const, DEFAULT_PREFS
 })
 const sharedPalette = atom({ plugin: 'clubhouse', key: 'sharedPalette' } as const, null)
 const pulse = atom({ plugin: 'clubhouse', key: 'pulse' } as const, 0)
+const todos = atom({ plugin: 'clubhouse', key: 'todos' } as const, [])
 
 const TOP_SIZE = 5
 const MATCH_SIZE = 40
@@ -108,6 +111,15 @@ async function offer($: EngineInterface, name: string): Promise<void> {
 async function visit($: EngineInterface, id: string, title: string): Promise<void> {
   await $.ui.open({ id, title, focus: true, closeOnEscape: true })
   await update($, pulse, beat => beat + 1)
+}
+
+async function jot($: EngineInterface, task: string): Promise<string> {
+  const problem = taskProblem(task, await read($, todos))
+
+  if (problem !== null) return problem
+  await update($, todos, held => withTask(held, task))
+
+  return `Added to your to-do list: ${task}`
 }
 
 async function setHidden(
@@ -271,7 +283,16 @@ export function commands(on: On): void {
       return { text: 'Clubhouse colors are back to their defaults.' }
     }
 
-    const alias = wish === 'hq' ? 'agents' : wish === 'bar' ? 'toolbar' : wish
+    const task = taskWish(e.args)
+
+    if (task !== null && task !== '') {
+      const said = await jot($, task)
+      await visit($, TODO_PANE, 'To-do')
+
+      return { text: said }
+    }
+
+    const alias = wish === 'hq' ? 'agents' : wish === 'bar' ? 'toolbar' : task === '' ? 'to-do' : wish
     const room = ROOMS.find(one => one.word === alias)
 
     if (room !== undefined) {

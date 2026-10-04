@@ -8,6 +8,7 @@ import { pixelFor, redrawn, shownFrom, toDisplay, toneFor } from '../hooks/lib/t
 import { nextVersion, subjectsOf } from '../hooks/lib/ship'
 import { arranged, rowLoad } from '../hooks/lib/toolbar'
 import { serifSize } from '../hooks/lib/type'
+import { taskWish } from '../hooks/lib/todo'
 import { pixelsFrom, pngOf, toBase64 } from '../hooks/lib/png'
 import { asksToChange, installedFolder, ownFolder, shortFolder } from '../hooks/lib/own'
 import { asProjectColors, projectName } from '../hooks/lib/project'
@@ -2341,3 +2342,63 @@ test('Weather finds your place, shows the sky on the toolbar and lists the next 
   await ui.unmount()
   await bar.unmount()
 })
+
+for (const surface of SURFACES) {
+  test(`the to-do room adds tasks, crosses them off and clears them on ${surface}`, async ($, on) => {
+    const seen = world(on, 50)
+    await start($)
+
+    expect(taskWish('todos')).toBe('')
+    expect(taskWish('To-Do  Call the Bank ')).toBe('Call the Bank')
+    expect(taskWish('today')).toBeNull()
+    expect(taskWish('toolbar')).toBeNull()
+
+    expect((await run($, 'clubhouse', 'to-do')).text).toBe('To-do opened.')
+    expect((await run($, 'clubhouse', 'todo')).text).toBe('To-do opened.')
+    expect(seen.open).toContain('clubhouse-todo')
+    expect((await run($, 'clubhouse', 'todo Call the Bank')).text).toBe('Added to your to-do list: Call the Bank')
+
+    const ui = await $.ui.mount({
+      plugin: 'clubhouse',
+      surface,
+      component: 'Pane',
+      requestId: 'clubhouse-todo',
+      props: { ...PANE, title: 'To-do' },
+    })
+
+    expect(await ui.find({ type: 'Text', text: /^Call the Bank$/ })).toBeDefined()
+    await ui.press({ key: 'todo-add' })
+    expect(await ui.find({ type: 'Text', text: /Type a task in the box/ })).toBeDefined()
+
+    await ui.input({ key: 'todo-text', text: 'Buy milk' })
+    expect(await ui.find({ type: 'Text', text: /Type a task in the box/ })).toBeUndefined()
+    expect((await ui.find({ key: 'todo-text' }))?.props.value).toBe('')
+    expect(await says(ui, /^0 of 2 done$/)).toBe(true)
+
+    await ui.press({ key: 'todo-check-2' })
+    expect((await ui.find({ key: 'todo-check-2' }))?.text).toBe('✓')
+    expect((await ui.find({ type: 'Text', text: /^Buy milk$/ }))?.props.strikethrough).toBe(true)
+    expect((await ui.find({ type: 'Text', text: /^Call the Bank$/ }))?.props.strikethrough).toBe(false)
+    expect(await says(ui, /^1 of 2 done$/)).toBe(true)
+
+    await ui.press({ key: 'todo-check-2' })
+    expect((await ui.find({ key: 'todo-check-2' }))?.text).toBe('○')
+    expect(await ui.find({ key: 'todo-clear-done' })).toBeUndefined()
+
+    await ui.press({ key: 'todo-check-1' })
+    await ui.press({ key: 'todo-clear-done' })
+    expect(await ui.find({ key: 'todo-check-1' })).toBeUndefined()
+    expect(await ui.find({ type: 'Text', text: /^Buy milk$/ })).toBeDefined()
+
+    await ui.input({ key: 'todo-text', text: 'Renew the domain', kind: 'change' })
+    expect(await ui.find({ key: 'todo-check-3' })).toBeUndefined()
+    await ui.press({ key: 'todo-add' })
+    expect(await ui.find({ type: 'Text', text: /^Renew the domain$/ })).toBeDefined()
+    expect(await ui.find({ key: 'todo-check-3' })).toBeDefined()
+
+    await ui.press({ key: 'todo-clear-all' })
+    expect(await ui.find({ key: 'todo-check-2' })).toBeUndefined()
+    expect(await ui.find({ key: 'todo-clear-all' })).toBeUndefined()
+    await ui.unmount()
+  })
+}
